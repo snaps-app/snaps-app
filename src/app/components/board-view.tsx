@@ -225,6 +225,7 @@ function Column({ title, status, tasks, onMove, onCardClick, color }: ColumnProp
 export function BoardView({ projectId, onBack }: BoardViewProps) {
   const [tasks, setTasks] = useState<Card[]>([]);
   const [boardId, setBoardId] = useState<string | null>(null);
+  const [project, setProject] = useState<any>(null);
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerInput, setPlannerInput] = useState('');
 
@@ -247,6 +248,9 @@ export function BoardView({ projectId, onBack }: BoardViewProps) {
 
   useEffect(() => {
     fetchBoard();
+    if (projectId) {
+      api.getProject(projectId).then(setProject);
+    }
   }, [projectId]);
 
   const handleMove = async (taskId: string, newStatus: 'todo' | 'inprogress' | 'done') => {
@@ -351,7 +355,7 @@ export function BoardView({ projectId, onBack }: BoardViewProps) {
                     Project Board
                   </h1>
                   <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                    Second Brain Framework
+                    {project?.name || 'Second Brain Framework'}
                   </p>
                 </div>
               </div>

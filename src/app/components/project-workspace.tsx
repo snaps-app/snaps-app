@@ -7,7 +7,8 @@ import { Tag } from './tag';
 import { NeuralBackground } from './neural-background';
 import { SnapModal } from './snap-modal';
 import { SnapDetailModal } from './snap-detail-modal';
-import api, { Snap } from '@/services/api';
+import api, { Snap, Project } from '@/services/api';
+import { SnapCard } from './snap-card';
 
 // ... interface Conversation ... (keep or import if shared)
 interface Conversation {
@@ -21,7 +22,7 @@ interface Conversation {
 interface ProjectWorkspaceProps {
   projectId: string | null;
   onBack?: () => void;
-  onChatOpen?: (sessionId: string) => void;
+  onChatOpen?: (sessionId: string | null) => void;
   onBoardOpen?: (projectId: string) => void;
   onEdit?: () => void;
   onGenerateDocument?: () => void;
@@ -41,6 +42,18 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<any | null>(null); // Snap from API but adapted for UI modal
   const [snaps, setSnaps] = useState<Snap[]>([]);
+  const [project, setProject] = useState<Project | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  const fetchProject = async () => {
+    if (!projectId) return;
+    try {
+      const data = await api.getProject(projectId);
+      setProject(data);
+    } catch (error) {
+      console.error('Failed to fetch project:', error);
+    }
+  };
 
   const fetchSnaps = async () => {
     if (!projectId) return;
@@ -54,6 +67,7 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
 
   useEffect(() => {
     fetchSnaps();
+    fetchProject();
   }, [projectId]);
 
   const handleCreateSnap = async (snapData: { title: string; content: string; tags: string[] }) => {
@@ -73,11 +87,6 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
     } catch (error) {
       console.error('Failed to create snap:', error);
     }
-  };
-
-  // Helper to adapt Snap to UI (tags structure)
-  const getSnapTags = (snap: Snap) => {
-    return (snap.snadds?.labels || []).map((label: string) => ({ label, variant: 'blue' as const }));
   };
 
   // ... render ...
@@ -109,7 +118,7 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
                   backgroundClip: 'text'
                 }}
               >
-                Second Brain Framework
+                {project?.name || 'Second Brain Framework'}
               </h2>
 
               {/* Dashboard Button */}
@@ -243,6 +252,7 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
+              onClick={() => onChatOpen?.(null)}
               className="w-full py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
               style={{
                 background: 'linear-gradient(135deg, #00D4FF 0%, #0099CC 100%)',
@@ -292,9 +302,32 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
                 </motion.button>
 
                 {/* Import Document Button */}
+                <input
+                  type="file"
+                  id="doc-import-input"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !projectId) return;
+
+                    try {
+                      const content = await file.text();
+                      // Call importDocument with a callback for events
+                      await api.importDocument(projectId, file.name, content, (event: any) => {
+                        console.log('Import Event:', event);
+                        if (event.type === 'done') {
+                          fetchSnaps(); // Refresh snaps once done
+                        }
+                      });
+                    } catch (error) {
+                      console.error('Import failed:', error);
+                    }
+                  }}
+                />
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
+                  onClick={() => document.getElementById('doc-import-input')?.click()}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all"
                   style={{
                     background: 'transparent',
@@ -367,57 +400,15 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
           <div className="flex-1 overflow-y-auto p-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               <AnimatePresence>
-                {snaps.map((snap, index) => (
-                  <motion.div
+                {snaps.map((snap) => (
+                  <SnapCard
                     key={snap.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
-                    whileHover={{ scale: 1.02, y: -4 }}
-                  >
-                    <Card
-                      size="compact"
-                      className="cursor-pointer h-full"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        backdropFilter: 'blur(20px)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)'
-                      }}
-                      onClick={() => {
-                        setSelectedSnap(snap);
-                        setIsSnapDetailModalOpen(true);
-                      }}
-                    >
-                      <div className="flex flex-col h-full">
-                        <p
-                          className="text-sm mb-3 flex-1"
-                          style={{ color: 'var(--snaps-text-primary)', lineHeight: '1.6' }}
-                        >
-                          {snap.content}
-                        </p>
-
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {getSnapTags(snap).map((tag, i) => (
-                            <Tag key={i} variant={tag.variant}>
-                              <Hash className="w-3 h-3" />
-                              {tag.label}
-                            </Tag>
-                          ))}
-                        </div>
-
-                        <div className="pt-2 border-t border-white/5">
-                          <span
-                            className="text-xs flex items-center gap-1"
-                            style={{ color: 'var(--snaps-text-secondary)' }}
-                          >
-                            <Clock className="w-3 h-3" />
-                            {new Date(snap.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </Card>
-                  </motion.div>
+                    snap={snap}
+                    onClick={(snap) => {
+                      setSelectedSnap(snap);
+                      setIsSnapDetailModalOpen(true);
+                    }}
+                  />
                 ))}
               </AnimatePresence>
             </div>
@@ -482,6 +473,7 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
+            onClick={() => document.getElementById('doc-import-input')?.click()}
             className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
             style={{
               background: 'rgba(34, 197, 94, 0.1)',

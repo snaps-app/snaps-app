@@ -102,12 +102,12 @@ export default function App() {
             {/* Content */}
             {currentView === 'home' && <Home projects={projects} onProjectClick={handleProjectClick} onNewProject={handleNewProject} onProfileClick={() => setCurrentView('profile')} onMemoryClick={() => setCurrentView('memory')} />}
             {currentView === 'project' && <ProjectWorkspace projectId={selectedProjectId} onBack={handleBackToHome} onChatOpen={handleChatOpen} onBoardOpen={handleBoardOpen} onEdit={handleEditProject} onGenerateDocument={handleGenerateDocument} onDocumentsView={handleDocumentsView} />}
-            {currentView === 'chat' && <ActiveChat sessionId={selectedSessionId} onBack={handleBackToProject} />}
+            {currentView === 'chat' && <ActiveChat sessionId={selectedSessionId} projectId={selectedProjectId} onBack={handleBackToProject} />}
             {currentView === 'board' && <BoardView projectId={selectedProjectId} onBack={handleBackToProject} />}
             {currentView === 'new-project' && <NewProject onBack={handleBackToHome} onCreate={handleCreateProject} />}
             {currentView === 'edit-project' && <EditProject onBack={handleBackToProject} onUpdate={handleUpdateProject} />}
             {currentView === 'generate-document' && <GenerateDocument onBack={handleBackToProject} onGenerate={handleGenerateDoc} />}
-            {currentView === 'documents' && <DocumentsView onBack={handleBackToProject} />}
+            {currentView === 'documents' && <DocumentsView projectId={selectedProjectId} onBack={handleBackToProject} />}
             {currentView === 'profile' && <Profile onBack={handleBackToHome} />}
             {currentView === 'memory' && <MemoryView onBack={handleBackToHome} />}
         </div>

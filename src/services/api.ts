@@ -180,6 +180,8 @@ export interface Chat {
     created_at: string;
 }
 
+const AGENT_URL = 'http://localhost:8001';
+
 // --- Chat Functions ---
 export const createChat = async (projectId: string, title: string): Promise<Chat> => {
     const response = await api.post(`/projects/${projectId}/chats/`, { project_id: projectId, title });
@@ -201,6 +203,37 @@ export const createMessage = async (chatId: string, content: string, role: 'user
     return response.data;
 };
 
+export const streamChat = async (projectId: string, message: string, onEvent: (event: any) => void) => {
+    const response = await fetch(`${AGENT_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, message })
+    });
+
+    if (!response.body) return;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(line.slice(6));
+                    onEvent(data);
+                } catch (e) {
+                    console.error("Error parsing SSE chunk:", e);
+                }
+            }
+        }
+    }
+};
+
 const apiService = {
     getProjects,
     getProject,
@@ -219,7 +252,12 @@ const apiService = {
     createChat,
     listChats,
     getChatHistory,
-    createMessage
+    createMessage,
+    streamChat,
+    importDocument: async (projectId: string, fileName: string, fileContent: string, onEvent: (event: any) => void) => {
+        const message = `IMPORT_FILE: ${fileName}\nContent:\n${fileContent}`;
+        return apiService.streamChat(projectId, message, onEvent);
+    }
 };
 
 export default apiService;

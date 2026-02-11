@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
 
 interface DocumentsViewProps {
+  projectId: string | null;
   onBack?: () => void;
 }
 
@@ -88,8 +89,15 @@ const formatColors = {
   jpg: { bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.3)', color: '#A855F7' }
 };
 
-export function DocumentsView({ onBack }: DocumentsViewProps) {
+export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
   const [activeTab, setActiveTab] = useState<'generated' | 'imported'>('generated');
+  const [project, setProject] = useState<any>(null);
+
+  useState(() => {
+    if (projectId) {
+      import('@/services/api').then(m => m.default.getProject(projectId)).then(setProject);
+    }
+  });
 
   const filteredDocuments = mockDocuments.filter(doc => doc.type === activeTab);
 
@@ -149,7 +157,7 @@ export function DocumentsView({ onBack }: DocumentsViewProps) {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              Browse and manage your project documents
+              Browse and manage documents for {project?.name || 'your project'}
             </motion.p>
           </div>
 

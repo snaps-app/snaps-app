@@ -6,6 +6,7 @@ import { Tag } from './tag';
 import { NeuralBackground } from './neural-background';
 import { SnapDetailModal } from './snap-detail-modal';
 import api, { Snap, Project } from '@/services/api';
+import { SnapCard } from './snap-card';
 
 interface MemoryViewProps {
   onBack?: () => void;
@@ -19,14 +20,8 @@ interface FolderNode {
   count?: number;
 }
 
-interface MemoryCard {
-  id: string;
-  title: string;
-  content: string;
-  type: 'note' | 'file' | 'code';
-  tags: Array<{ label: string; variant: 'blue' | 'orange' | 'purple' | 'green' | 'pink' }>;
-  timestamp: string;
-  project: string;
+interface MemoryCard extends Snap {
+  project_name?: string;
 }
 
 function FolderTree({ nodes, level = 0 }: { nodes: FolderNode[]; level?: number }) {
@@ -113,118 +108,7 @@ function FolderTree({ nodes, level = 0 }: { nodes: FolderNode[]; level?: number 
   );
 }
 
-function MemoryCardComponent({ card, onClick }: { card: MemoryCard; onClick: (card: MemoryCard) => void }) {
-  const typeConfig = {
-    note: {
-      color: '#00D4FF',
-      icon: FileText,
-      label: 'Note',
-      bgColor: 'rgba(0, 212, 255, 0.1)',
-      borderColor: 'rgba(0, 212, 255, 0.3)'
-    },
-    file: {
-      color: '#A855F7',
-      icon: ImageIcon,
-      label: 'File',
-      bgColor: 'rgba(168, 85, 247, 0.1)',
-      borderColor: 'rgba(168, 85, 247, 0.3)'
-    },
-    code: {
-      color: '#FF6B35',
-      icon: Code,
-      label: 'Code',
-      bgColor: 'rgba(255, 107, 53, 0.1)',
-      borderColor: 'rgba(255, 107, 53, 0.3)'
-    }
-  };
-
-  const config = typeConfig[card.type];
-  const Icon = config.icon;
-
-  return (
-    <motion.div
-      whileHover={{ scale: 1.02, y: -4 }}
-      className="h-full"
-    >
-      <Card
-        size="compact"
-        className="cursor-pointer h-full relative overflow-hidden"
-        style={{
-          background: 'rgba(255, 255, 255, 0.03)',
-          backdropFilter: 'blur(20px)',
-          border: `1px solid ${config.borderColor}`
-        }}
-        onClick={() => onClick(card)}
-      >
-        {/* Type Badge */}
-        <div
-          className="absolute top-3 right-3 px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium"
-          style={{
-            background: config.bgColor,
-            border: `1px solid ${config.borderColor}`,
-            color: config.color
-          }}
-        >
-          <Icon className="w-3 h-3" />
-          {config.label}
-        </div>
-
-        <div className="flex flex-col h-full pt-2">
-          <h3
-            className="font-semibold mb-2 pr-16"
-            style={{ color: 'var(--snaps-text-primary)' }}
-          >
-            {card.title}
-          </h3>
-
-          <p
-            className={`text-sm mb-3 flex-1 line-clamp-3 ${card.type === 'code' ? 'font-mono' : ''}`}
-            style={{
-              color: 'var(--snaps-text-secondary)',
-              lineHeight: '1.6',
-              whiteSpace: card.type === 'code' ? 'pre-wrap' : 'normal'
-            }}
-          >
-            {card.content}
-          </p>
-
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {card.tags.map((tag, i) => (
-              <span
-                key={i}
-                className="text-xs px-2 py-1 rounded flex items-center gap-1"
-                style={{
-                  background: 'rgba(0, 212, 255, 0.1)',
-                  border: '1px solid rgba(0, 212, 255, 0.2)',
-                  color: 'var(--snaps-accent-blue)'
-                }}
-              >
-                <Hash className="w-2.5 h-2.5" />
-                {tag.label}
-              </span>
-            ))}
-          </div>
-
-          <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-            <span
-              className="text-xs flex items-center gap-1"
-              style={{ color: 'var(--snaps-text-secondary)' }}
-            >
-              <Clock className="w-3 h-3" />
-              {card.timestamp}
-            </span>
-            <span
-              className="text-xs"
-              style={{ color: 'var(--snaps-text-secondary)' }}
-            >
-              {card.project}
-            </span>
-          </div>
-        </div>
-      </Card>
-    </motion.div>
-  );
-}
+// MemoryCardComponent removed. Using SnapCard instead.
 
 export function MemoryView({ onBack }: MemoryViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -239,16 +123,7 @@ export function MemoryView({ onBack }: MemoryViewProps) {
         const { snaps, projects } = await api.getAllSnaps();
 
         // Transform Snaps to MemoryCards
-        const cards: MemoryCard[] = snaps.map(snap => ({
-          id: snap.id,
-          title: snap.name,
-          content: snap.content || '',
-          type: 'note', // Defaulting to note for now | could analyze content or add type to backend
-          tags: (snap.snadds?.labels || []).map(label => ({ label, variant: 'blue' })),
-          timestamp: new Date(snap.created_at).toLocaleDateString(),
-          project: (snap as any).project_name || 'Unknown Project'
-        }));
-        setMemoryCards(cards);
+        setMemoryCards(snaps as MemoryCard[]);
 
         // Generate Folder Structure from Projects
         const folders: FolderNode[] = projects.map(p => ({
@@ -489,18 +364,15 @@ export function MemoryView({ onBack }: MemoryViewProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence>
                   {memoryCards.filter(card =>
-                    card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     card.content.toLowerCase().includes(searchQuery.toLowerCase())
-                  ).map((card, index) => (
-                    <motion.div
+                  ).map((card) => (
+                    <SnapCard
                       key={card.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                    >
-                      <MemoryCardComponent card={card} onClick={handleCardClick} />
-                    </motion.div>
+                      snap={card}
+                      projectName={card.project_name}
+                      onClick={handleCardClick}
+                    />
                   ))}
                 </AnimatePresence>
               </div>

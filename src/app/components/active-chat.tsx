@@ -34,6 +34,7 @@ interface SuggestedSnap {
 
 interface ActiveChatProps {
   sessionId: string | null;
+  projectId: string | null;
   onBack?: () => void;
 }
 
@@ -125,9 +126,17 @@ const mockSuggestedSnaps: SuggestedSnap[] = [
   }
 ];
 
-export function ActiveChat({ sessionId, onBack }: ActiveChatProps) {
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
+  const [messages, setMessages] = useState<Message[]>(sessionId ? mockMessages : []);
   const [inputValue, setInputValue] = useState('');
+  const [project, setProject] = useState<any>(null);
+
+  useEffect(() => {
+    if (projectId) {
+      import('@/services/api').then(m => m.default.getProject(projectId)).then(setProject);
+    }
+  }, [projectId]);
+
   const [isThinking, setIsThinking] = useState(false);
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<ReferencedSnap | null>(null);
@@ -248,10 +257,10 @@ export function ActiveChat({ sessionId, onBack }: ActiveChatProps) {
                     backgroundClip: 'text'
                   }}
                 >
-                  Active Session
+                  {sessionId ? 'Active Session' : 'New Chat'}
                 </h2>
                 <p className="text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
-                  Second Brain Framework
+                  {project?.name || 'Second Brain Framework'}
                 </p>
               </div>
             </div>
