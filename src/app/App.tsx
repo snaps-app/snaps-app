@@ -48,7 +48,7 @@ export default function App() {
         setSelectedSessionId(null);
     };
 
-    const handleChatOpen = (sessionId: string) => {
+    const handleChatOpen = (sessionId: string | null) => {
         setSelectedSessionId(sessionId);
         setCurrentView('chat');
     };
@@ -105,7 +105,10 @@ export default function App() {
             {currentView === 'chat' && <ActiveChat sessionId={selectedSessionId} projectId={selectedProjectId} onBack={handleBackToProject} />}
             {currentView === 'board' && <BoardView projectId={selectedProjectId} onBack={handleBackToProject} />}
             {currentView === 'new-project' && <NewProject onBack={handleBackToHome} onCreate={handleCreateProject} />}
-            {currentView === 'edit-project' && <EditProject onBack={handleBackToProject} onUpdate={handleUpdateProject} />}
+            {currentView === 'new-project' && <NewProject onBack={handleBackToHome} onCreate={handleCreateProject} />}
+            {currentView === 'edit-project' && <EditProject projectId={selectedProjectId} onBack={handleBackToProject} onUpdate={handleUpdateProject} />}
+            {currentView === 'generate-document' && <GenerateDocument onBack={handleBackToProject} onGenerate={handleGenerateDoc} />}
+
             {currentView === 'generate-document' && <GenerateDocument onBack={handleBackToProject} onGenerate={handleGenerateDoc} />}
             {currentView === 'documents' && <DocumentsView projectId={selectedProjectId} onBack={handleBackToProject} />}
             {currentView === 'profile' && <Profile onBack={handleBackToHome} />}

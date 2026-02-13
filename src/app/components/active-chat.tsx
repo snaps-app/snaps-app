@@ -5,14 +5,7 @@ import { NeuralBackground } from './neural-background';
 import { Tag } from './tag';
 import { Card } from './card';
 import { SnapDetailModal } from './snap-detail-modal';
-
-interface Message {
-  id: string;
-  role: 'user' | 'agent';
-  content: string;
-  timestamp: string;
-  isThinking?: boolean;
-}
+import api, { Project, Message, Chat } from '@/services/api';
 
 interface ReferencedSnap {
   id: string;
@@ -37,33 +30,6 @@ interface ActiveChatProps {
   projectId: string | null;
   onBack?: () => void;
 }
-
-const mockMessages: Message[] = [
-  {
-    id: '1',
-    role: 'agent',
-    content: 'Hello! I\'m your Second Brain assistant. I can help you organize your thoughts using the Zettelkasten method. What would you like to explore today?',
-    timestamp: '10:23 AM'
-  },
-  {
-    id: '2',
-    role: 'user',
-    content: 'Can you explain the core principles of atomic note-taking?',
-    timestamp: '10:24 AM'
-  },
-  {
-    id: '3',
-    role: 'agent',
-    content: 'Absolutely! Atomic note-taking follows the principle that each note should contain one idea. This enables better connections and more flexible thinking. Let me break this down:\n\n1. **One Idea Per Note**: Each note is self-contained and focuses on a single concept\n2. **Clear Titles**: Descriptive titles help you find and link notes\n3. **Your Own Words**: Rewriting in your own language improves understanding\n4. **Link Everything**: Connections emerge when you link related concepts',
-    timestamp: '10:24 AM'
-  },
-  {
-    id: '4',
-    role: 'user',
-    content: 'How does this relate to the PARA method?',
-    timestamp: '10:25 AM'
-  }
-];
 
 const mockReferencedSnaps: ReferencedSnap[] = [
   {
@@ -127,16 +93,11 @@ const mockSuggestedSnaps: SuggestedSnap[] = [
 ];
 
 export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
-  const [messages, setMessages] = useState<Message[]>(sessionId ? mockMessages : []);
+  // State
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [project, setProject] = useState<any>(null);
-
-  useEffect(() => {
-    if (projectId) {
-      import('@/services/api').then(m => m.default.getProject(projectId)).then(setProject);
-    }
-  }, [projectId]);
-
+  const [project, setProject] = useState<Project | null>(null);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(sessionId);
   const [isThinking, setIsThinking] = useState(false);
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<ReferencedSnap | null>(null);
@@ -144,40 +105,143 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
   const [suggestedSnaps, setSuggestedSnaps] = useState<SuggestedSnap[]>(mockSuggestedSnaps);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Validation: If no projectId, cannot chat.
+  if (!projectId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white" style={{ backgroundColor: 'var(--snaps-bg)' }}>
+        <div className="text-center">
+          <h2 className="text-xl font-bold mb-4">No Project Selected</h2>
+          <p className="text-gray-400 mb-6">Please go back and select a project to start chatting.</p>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors"
+            >
+              Back to Dashboard
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Load Project
+  useEffect(() => {
+    if (projectId) {
+      api.getProject(projectId).then(setProject).catch(console.error);
+    }
+  }, [projectId]);
+
+  // Load Chat History
+  useEffect(() => {
+    if (sessionId) {
+      setCurrentChatId(sessionId);
+      api.getChatHistory(sessionId).then((history: Message[]) => {
+        setMessages(history);
+      }).catch(console.error);
+    } else {
+      setCurrentChatId(null);
+      // Optional: Add welcome message locally
+      setMessages([{
+        id: 'welcome',
+        chat_id: 'temp',
+        role: 'assistant', // Use 'assistant' to match API type
+        content: 'Hello! I\'m your Second Brain assistant. What would you like to explore today?',
+        created_at: new Date().toISOString()
+      }]);
+    }
+  }, [sessionId]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isThinking]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  const handleSend = async () => {
+    if (!inputValue.trim() || !projectId) {
+      console.error("Cannot send message: Missing input or projectId", { inputValue, projectId });
+      return;
+    }
 
-    // Add user message
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: inputValue,
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setMessages([...messages, newMessage]);
+    const userContent = inputValue;
     setInputValue('');
+
+    // Optimistic User Message
+    const tempUserMsg: Message = {
+      id: Date.now().toString(),
+      chat_id: currentChatId || 'temp',
+      role: 'user',
+      content: userContent,
+      created_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempUserMsg]);
     setIsThinking(true);
 
-    // Simulate agent thinking
-    setTimeout(() => {
+    try {
+      let activeChatId = currentChatId;
+
+      // 1. Create Chat if needed
+      if (!activeChatId) {
+        const newChat = await api.createChat(projectId, userContent.slice(0, 30) || 'New Chat');
+        activeChatId = newChat.id;
+        setCurrentChatId(activeChatId);
+        // Update URL without navigation if possible, or just rely on internal state
+        // If we want to update the URL, we might need a callback to parent to change route, 
+        // but for now internal state is fine.
+      }
+
+      // 2. Persist User Message
+      await api.createMessage(activeChatId!, userContent, 'user');
+
+      // 3. Stream Response
+      let accumulatedResponse = '';
+      await api.streamChat(projectId, userContent, (event: any) => {
+        setIsThinking(false);
+        if (event.type === 'token') {
+          accumulatedResponse += event.content;
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last.role === 'assistant' && last.id === 'streaming') {
+              return [...prev.slice(0, -1), { ...last, content: accumulatedResponse }];
+            } else {
+              return [...prev, {
+                id: 'streaming',
+                chat_id: activeChatId!,
+                role: 'assistant',
+                content: accumulatedResponse,
+                created_at: new Date().toISOString()
+              }];
+            }
+          });
+        }
+      });
+
+      // 4. Persist Assistant Message (Assumption: Agent doesn't save it)
+      if (accumulatedResponse) {
+        await api.createMessage(activeChatId!, accumulatedResponse, 'assistant');
+        // Update the 'streaming' message with real ID from response? 
+        // For now, just re-fetching history or leaving it as is is fine. 
+        // Better: Replace 'streaming' ID with a real ID if we had one, but we don't.
+        // We'll just leave it. Next reload will fix IDs.
+      }
+
+    } catch (error: any) {
+      console.error('Chat error:', error);
       setIsThinking(false);
-      const agentMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'agent',
-        content: 'This is a simulated response. In a real implementation, this would connect to your AI backend.',
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, agentMessage]);
-    }, 2000);
+
+      const errorMessage = error.message || 'Sorry, I encountered an error processing your request.';
+
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        chat_id: currentChatId || 'temp',
+        role: 'assistant',
+        content: `Error: ${errorMessage}`,
+        created_at: new Date().toISOString()
+      }]);
+    }
   };
 
   const handleSnapClick = (snap: ReferencedSnap) => {
@@ -222,7 +286,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
       {/* Main Container */}
       <div className="relative z-10 h-screen flex">
         {/* LEFT PANEL - Chat Stream (50%) */}
-        <motion.div 
+        <motion.div
           className="w-1/2 border-r border-white/10 backdrop-blur-[30px] flex flex-col"
           style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
           initial={{ x: -100, opacity: 0 }}
@@ -248,9 +312,9 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                 </motion.button>
               )}
               <div>
-                <h2 
+                <h2
                   className="text-xl font-bold"
-                  style={{ 
+                  style={{
                     background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
@@ -260,7 +324,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                   {sessionId ? 'Active Session' : 'New Chat'}
                 </h2>
                 <p className="text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
-                  {project?.name || 'Second Brain Framework'}
+                  {project?.name || 'Loading...'}
                 </p>
               </div>
             </div>
@@ -284,12 +348,12 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div 
-                    className={`max-w-[80%] ${message.role === 'agent' ? 'mr-auto' : 'ml-auto'}`}
+                  <div
+                    className={`max-w-[80%] ${message.role === 'assistant' ? 'mr-auto' : 'ml-auto'}`}
                   >
-                    {message.role === 'agent' ? (
+                    {message.role === 'assistant' ? (
                       // Agent Bubble
-                      <div 
+                      <div
                         className="p-4 rounded-2xl backdrop-blur-xl relative"
                         style={{
                           background: 'rgba(255, 255, 255, 0.05)',
@@ -301,46 +365,46 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                         }}
                       >
                         {/* Left Neon Border */}
-                        <div 
+                        <div
                           className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
                           style={{
                             background: 'linear-gradient(180deg, #00D4FF 0%, #A855F7 100%)',
                             boxShadow: '0 0 10px rgba(0, 212, 255, 0.6)'
                           }}
                         />
-                        <p 
+                        <p
                           className="text-sm leading-relaxed whitespace-pre-wrap"
                           style={{ color: 'var(--snaps-text-primary)' }}
                         >
                           {message.content}
                         </p>
-                        <span 
+                        <span
                           className="text-xs mt-2 block"
                           style={{ color: 'var(--snaps-text-secondary)' }}
                         >
-                          {message.timestamp}
+                          {message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                         </span>
                       </div>
                     ) : (
                       // User Bubble
-                      <div 
+                      <div
                         className="p-4 rounded-2xl"
                         style={{
                           background: 'rgba(255, 255, 255, 0.08)',
                           border: '1px solid rgba(255, 255, 255, 0.1)'
                         }}
                       >
-                        <p 
+                        <p
                           className="text-sm leading-relaxed"
                           style={{ color: 'var(--snaps-text-primary)' }}
                         >
                           {message.content}
                         </p>
-                        <span 
+                        <span
                           className="text-xs mt-2 block text-right"
                           style={{ color: 'var(--snaps-text-secondary)' }}
                         >
-                          {message.timestamp}
+                          {message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                         </span>
                       </div>
                     )}
@@ -357,7 +421,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="flex justify-start"
               >
-                <div 
+                <div
                   className="p-4 rounded-2xl backdrop-blur-xl"
                   style={{
                     background: 'rgba(0, 212, 255, 0.1)',
@@ -387,7 +451,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
 
           {/* Input Area - Command Palette */}
           <div className="p-6 border-t border-white/10">
-            <div 
+            <div
               className="relative rounded-2xl backdrop-blur-xl"
               style={{
                 background: 'rgba(255, 255, 255, 0.05)',
@@ -404,7 +468,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                 className="w-full px-6 py-4 pr-28 bg-transparent text-sm focus:outline-none"
                 style={{ color: 'var(--snaps-text-primary)' }}
               />
-              
+
               {/* Mic Button */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -426,13 +490,13 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                 disabled={!inputValue.trim()}
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center transition-all"
                 style={{
-                  background: inputValue.trim() 
+                  background: inputValue.trim()
                     ? 'rgba(34, 197, 94, 0.2)'
                     : 'rgba(255, 255, 255, 0.05)',
                   border: inputValue.trim()
                     ? '1px solid rgba(34, 197, 94, 0.5)'
                     : '1px solid rgba(255, 255, 255, 0.1)',
-                  boxShadow: inputValue.trim() 
+                  boxShadow: inputValue.trim()
                     ? '0 0 20px rgba(34, 197, 94, 0.6), inset 0 0 10px rgba(34, 197, 94, 0.2)'
                     : 'none',
                   opacity: inputValue.trim() ? 1 : 0.5
@@ -447,7 +511,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
         {/* RIGHT PANEL - Contextual Memory (50%) */}
         <div className="w-1/2 flex flex-col">
           {/* Panel Header with Tabs */}
-          <motion.div 
+          <motion.div
             className="backdrop-blur-[30px] border-b border-white/10"
             style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
             initial={{ y: -20, opacity: 0 }}
@@ -476,7 +540,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                   />
                 )}
               </button>
-              
+
               <button
                 onClick={() => setRightPanelTab('snapper')}
                 className="flex-1 px-6 py-4 text-sm font-medium transition-all relative"
@@ -489,7 +553,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                   <Zap className="w-4 h-4" />
                   Snap Area
                   {suggestedSnaps.length > 0 && (
-                    <motion.span 
+                    <motion.span
                       className="px-2 py-0.5 text-xs rounded-full font-medium"
                       style={{
                         background: 'rgba(168, 85, 247, 0.3)',
@@ -576,19 +640,19 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.3, delay: index * 0.1 }}
                     >
-                      <Card 
+                      <Card
                         size="compact"
                         className="cursor-pointer relative"
                         style={{
-                          background: snap.isActive 
-                            ? 'rgba(0, 212, 255, 0.08)' 
+                          background: snap.isActive
+                            ? 'rgba(0, 212, 255, 0.08)'
                             : 'rgba(255, 255, 255, 0.03)',
                           backdropFilter: 'blur(20px)',
-                          border: snap.isActive 
-                            ? '1px solid rgba(0, 212, 255, 0.3)' 
+                          border: snap.isActive
+                            ? '1px solid rgba(0, 212, 255, 0.3)'
                             : '1px solid rgba(255, 255, 255, 0.1)',
-                          boxShadow: snap.isActive 
-                            ? '0 0 30px rgba(0, 212, 255, 0.3)' 
+                          boxShadow: snap.isActive
+                            ? '0 0 30px rgba(0, 212, 255, 0.3)'
                             : 'none'
                         }}
                         onClick={() => handleSnapClick(snap)}
@@ -610,12 +674,12 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                           />
                         )}
 
-                        <p 
+                        <p
                           className="text-sm leading-relaxed"
-                          style={{ 
-                            color: snap.isActive 
-                              ? 'var(--snaps-text-primary)' 
-                              : 'var(--snaps-text-secondary)' 
+                          style={{
+                            color: snap.isActive
+                              ? 'var(--snaps-text-primary)'
+                              : 'var(--snaps-text-secondary)'
                           }}
                         >
                           {snap.content}
@@ -623,7 +687,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
 
                         {snap.isActive && (
                           <div className="mt-3 pt-3 border-t border-white/10">
-                            <span 
+                            <span
                               className="text-xs flex items-center gap-2"
                               style={{ color: 'var(--snaps-accent-blue)' }}
                             >
@@ -663,7 +727,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={{ duration: 0.3, delay: index * 0.1 }}
                       >
-                        <Card 
+                        <Card
                           size="compact"
                           className="relative cursor-pointer"
                           style={{
@@ -675,7 +739,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                           onClick={() => handleSuggestedSnapClick(snap)}
                         >
                           {/* Confidence Badge */}
-                          <div 
+                          <div
                             className="absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-medium"
                             style={{
                               background: `rgba(168, 85, 247, ${snap.confidence * 0.3})`,
@@ -694,20 +758,20 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                             </span>
                           </div>
 
-                          <h3 
+                          <h3
                             className="font-semibold mb-2 pr-20"
                             style={{ color: 'var(--snaps-text-primary)' }}
                           >
                             {snap.title}
                           </h3>
-                          
-                          <p 
+
+                          <p
                             className="text-sm mb-3 leading-relaxed"
                             style={{ color: 'var(--snaps-text-secondary)' }}
                           >
                             {snap.content}
                           </p>
-                          
+
                           {/* Tags */}
                           <div className="flex flex-wrap gap-2 mb-4">
                             {snap.tags.map((tag, i) => (
@@ -734,7 +798,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                               <Check className="w-4 h-4" />
                               Accept
                             </motion.button>
-                            
+
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
@@ -748,7 +812,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                             >
                               <Edit className="w-4 h-4" />
                             </motion.button>
-                            
+
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
@@ -780,7 +844,7 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
         </div>
 
         {/* Floating Action Buttons - Right Edge */}
-        <motion.div 
+        <motion.div
           className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20"
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}

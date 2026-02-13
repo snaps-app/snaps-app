@@ -7,7 +7,8 @@ import { Tag } from './tag';
 import { NeuralBackground } from './neural-background';
 import { SnapModal } from './snap-modal';
 import { SnapDetailModal } from './snap-detail-modal';
-import api, { Snap, Project } from '@/services/api';
+import api, { Snap, Project, Chat } from '@/services/api';
+
 import { SnapCard } from './snap-card';
 
 // ... interface Conversation ... (keep or import if shared)
@@ -29,7 +30,8 @@ interface ProjectWorkspaceProps {
   onDocumentsView?: () => void;
 }
 
-const mockConversations: Conversation[] = []; // Leaving empty or mock for now as per plan
+// Removing mockConversations as we will fetch them from the API
+
 
 const allTags = [
   { label: 'All', count: 0 }
@@ -43,7 +45,11 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
   const [selectedSnap, setSelectedSnap] = useState<any | null>(null); // Snap from API but adapted for UI modal
   const [snaps, setSnaps] = useState<Snap[]>([]);
   const [project, setProject] = useState<Project | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+
 
   const fetchProject = async () => {
     if (!projectId) return;
@@ -65,10 +71,30 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
     }
   };
 
+  const fetchConversations = async () => {
+    if (!projectId) return;
+    try {
+      const chats = await api.listChats(projectId);
+      const mappedConversations: Conversation[] = chats.map((chat: Chat) => ({
+
+        id: chat.id,
+        title: chat.title,
+        lastMessage: 'Open conversation to see messages', // Placeholder
+        timestamp: new Date(chat.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isActive: false
+      }));
+      setConversations(mappedConversations);
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+    }
+  };
+
   useEffect(() => {
     fetchSnaps();
     fetchProject();
+    fetchConversations();
   }, [projectId]);
+
 
   const handleCreateSnap = async (snapData: { title: string; content: string; tags: string[] }) => {
     if (!projectId) return;
@@ -118,7 +144,7 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
                   backgroundClip: 'text'
                 }}
               >
-                {project?.name || 'Second Brain Framework'}
+                {project?.name || 'Loading Request...'}
               </h2>
 
               {/* Dashboard Button */}
@@ -146,85 +172,92 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
               <input
                 type="text"
                 placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm text-[var(--snaps-text-primary)] placeholder:text-[var(--snaps-text-secondary)] focus:outline-none focus:border-[var(--snaps-accent-blue)] transition-all"
+
               />
             </div>
           </div>
 
           {/* Conversations List */}
           <div className="flex-1 overflow-y-auto">
-            {mockConversations.map((conversation, index) => (
-              <motion.div
-                key={conversation.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-                onClick={() => {
-                  setActiveConversation(conversation.id);
-                  if (onChatOpen) {
-                    onChatOpen(conversation.id);
-                  }
-                }}
-                className="relative cursor-pointer group"
-              >
-                {/* Active Beam */}
-                {conversation.id === activeConversation && (
-                  <motion.div
-                    className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[var(--snaps-accent-blue)] to-[var(--snaps-accent-purple)]"
-                    layoutId="activeBeam"
-                    style={{
-                      boxShadow: '0 0 20px rgba(0, 212, 255, 0.6)'
-                    }}
-                  />
-                )}
+            {conversations
+              .filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((conversation, index) => (
+                <motion.div
 
-                <div
-                  className="px-6 py-4 transition-all"
-                  style={{
-                    backgroundColor: conversation.id === activeConversation
-                      ? 'rgba(0, 212, 255, 0.1)'
-                      : 'transparent'
+                  key={conversation.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+
+                  onClick={() => {
+                    setActiveConversation(conversation.id);
+                    if (onChatOpen) {
+                      onChatOpen(conversation.id);
+                    }
                   }}
+                  className="relative cursor-pointer group"
                 >
-                  <div className="flex items-start gap-3">
-                    <MessageSquare
-                      className="w-5 h-5 mt-0.5 flex-shrink-0"
+                  {/* Active Beam */}
+                  {conversation.id === activeConversation && (
+                    <motion.div
+                      className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[var(--snaps-accent-blue)] to-[var(--snaps-accent-purple)]"
+                      layoutId="activeBeam"
                       style={{
-                        color: conversation.id === activeConversation
-                          ? 'var(--snaps-accent-blue)'
-                          : 'var(--snaps-text-secondary)'
+                        boxShadow: '0 0 20px rgba(0, 212, 255, 0.6)'
                       }}
                     />
-                    <div className="flex-1 min-w-0">
-                      <h3
-                        className="font-semibold mb-1 truncate"
+                  )}
+
+                  <div
+                    className="px-6 py-4 transition-all"
+                    style={{
+                      backgroundColor: conversation.id === activeConversation
+                        ? 'rgba(0, 212, 255, 0.1)'
+                        : 'transparent'
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <MessageSquare
+                        className="w-5 h-5 mt-0.5 flex-shrink-0"
                         style={{
                           color: conversation.id === activeConversation
-                            ? 'var(--snaps-text-primary)'
-                            : 'var(--snaps-text-primary)',
-                          fontSize: '14px'
+                            ? 'var(--snaps-accent-blue)'
+                            : 'var(--snaps-text-secondary)'
                         }}
-                      >
-                        {conversation.title}
-                      </h3>
-                      <p
-                        className="text-xs truncate mb-1"
-                        style={{ color: 'var(--snaps-text-secondary)' }}
-                      >
-                        {conversation.lastMessage}
-                      </p>
-                      <span
-                        className="text-xs flex items-center gap-1"
-                        style={{ color: 'var(--snaps-text-secondary)' }}
-                      >
-                        <Clock className="w-3 h-3" />
-                        {conversation.timestamp}
-                      </span>
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3
+                          className="font-semibold mb-1 truncate"
+                          style={{
+                            color: conversation.id === activeConversation
+                              ? 'var(--snaps-text-primary)'
+                              : 'var(--snaps-text-primary)',
+                            fontSize: '14px'
+                          }}
+                        >
+                          {conversation.title}
+                        </h3>
+                        <p
+                          className="text-xs truncate mb-1"
+                          style={{ color: 'var(--snaps-text-secondary)' }}
+                        >
+                          {conversation.lastMessage}
+                        </p>
+                        <span
+                          className="text-xs flex items-center gap-1"
+                          style={{ color: 'var(--snaps-text-secondary)' }}
+                        >
+                          <Clock className="w-3 h-3" />
+                          {conversation.timestamp}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))}
           </div>
 
           {/* Action Buttons */}

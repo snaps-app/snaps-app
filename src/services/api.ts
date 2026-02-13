@@ -106,6 +106,12 @@ export const createProject = async (data: ProjectCreate): Promise<Project> => {
     return response.data;
 };
 
+export const updateProject = async (projectId: string, data: Partial<ProjectCreate>): Promise<Project> => {
+    const response = await api.patch(`/projects/${projectId}`, data);
+    return response.data;
+};
+
+
 // --- Snap Functions ---
 export const getSnaps = async (projectId: string, skip = 0, limit = 100): Promise<Snap[]> => {
     const response = await api.get(`/projects/${projectId}/snaps/`, { params: { skip, limit } });
@@ -204,11 +210,18 @@ export const createMessage = async (chatId: string, content: string, role: 'user
 };
 
 export const streamChat = async (projectId: string, message: string, onEvent: (event: any) => void) => {
+    console.log('[API] streamChat calling:', { projectId, message });
     const response = await fetch(`${AGENT_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, message })
     });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[API] streamChat error:', { status: response.status, body: errorText });
+        throw new Error(`Chat API Error ${response.status}: ${errorText}`);
+    }
 
     if (!response.body) return;
     const reader = response.body.getReader();
@@ -217,10 +230,10 @@ export const streamChat = async (projectId: string, message: string, onEvent: (e
     while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        
+
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n');
-        
+
         for (const line of lines) {
             if (line.startsWith('data: ')) {
                 try {
@@ -238,6 +251,8 @@ const apiService = {
     getProjects,
     getProject,
     createProject,
+    updateProject,
+
     getSnaps,
     createSnap,
     getAllSnaps,
@@ -256,7 +271,43 @@ const apiService = {
     streamChat,
     importDocument: async (projectId: string, fileName: string, fileContent: string, onEvent: (event: any) => void) => {
         const message = `IMPORT_FILE: ${fileName}\nContent:\n${fileContent}`;
-        return apiService.streamChat(projectId, message, onEvent);
+        // Use the dedicated /import endpoint
+        console.log('[API] importDocument calling /import:', { projectId, fileName });
+
+        const response = await fetch(`${AGENT_URL}/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId, message })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[API] importDocument error:', { status: response.status, body: errorText });
+            throw new Error(`Import API Error ${response.status}: ${errorText}`);
+        }
+
+        if (!response.body) return;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        onEvent(data);
+                    } catch (e) {
+                        console.error("Error parsing SSE chunk:", e);
+                    }
+                }
+            }
+        }
     }
 };
 

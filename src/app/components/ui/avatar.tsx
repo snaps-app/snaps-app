@@ -1,53 +1,45 @@
-"use client";
-
 import * as React from "react";
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { motion } from "motion/react";
 
-import { cn } from "./utils";
-
-function Avatar({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Root>) {
-  return (
-    <AvatarPrimitive.Root
-      data-slot="avatar"
-      className={cn(
-        "relative flex size-10 shrink-0 overflow-hidden rounded-full",
-        className,
-      )}
-      {...props}
-    />
-  );
+interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
+    className?: string;
 }
 
-function AvatarImage({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
-  return (
-    <AvatarPrimitive.Image
-      data-slot="avatar-image"
-      className={cn("aspect-square size-full", className)}
-      {...props}
-    />
-  );
+export function Avatar({ className, children, ...props }: AvatarProps) {
+    return (
+        <div
+            className={`relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ${className}`}
+            {...props}
+        >
+            {children}
+        </div>
+    );
 }
 
-function AvatarFallback({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
-  return (
-    <AvatarPrimitive.Fallback
-      data-slot="avatar-fallback"
-      className={cn(
-        "bg-muted flex size-full items-center justify-center rounded-full",
-        className,
-      )}
-      {...props}
-    />
-  );
+interface AvatarImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+    className?: string;
 }
 
-export { Avatar, AvatarImage, AvatarFallback };
+export function AvatarImage({ className, ...props }: AvatarImageProps) {
+    return (
+        <img
+            className={`aspect-square h-full w-full ${className}`}
+            {...props}
+        />
+    );
+}
+
+interface AvatarFallbackProps extends React.HTMLAttributes<HTMLDivElement> {
+    className?: string;
+}
+
+export function AvatarFallback({ className, children, ...props }: AvatarFallbackProps) {
+    return (
+        <div
+            className={`flex h-full w-full items-center justify-center rounded-full text-sm font-medium ${className}`}
+            {...props}
+        >
+            {children}
+        </div>
+    );
+}

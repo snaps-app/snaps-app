@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/services/api';
+
 import { Sparkles, ArrowLeft, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
 
 interface EditProjectProps {
+  projectId: string | null;
   onBack?: () => void;
   onUpdate?: (project: { name: string; description: string; instructions: string; template: string }) => void;
 }
+
 
 const templates = [
   { id: 'free', name: 'Free Template', description: 'Start from scratch with no constraints' },
@@ -15,15 +19,28 @@ const templates = [
   { id: 'second-brain', name: 'Second Brain', description: 'Progressive summarization workflow' }
 ];
 
-export function EditProject({ onBack, onUpdate }: EditProjectProps) {
+export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
   // Pre-populate with existing project data (in real app, would come from props)
-  const [projectName, setProjectName] = useState('Second Brain Framework');
-  const [description, setDescription] = useState('A comprehensive knowledge management system designed to enhance thinking and creativity through structured note-taking and intelligent connections.');
-  const [instructions, setInstructions] = useState('Use atomic note principles. Each note should contain one clear idea. Create bidirectional links between related concepts. Apply progressive summarization to surface key insights.');
-  const [selectedTemplate, setSelectedTemplate] = useState('second-brain');
+  const [projectName, setProjectName] = useState('');
+  const [description, setDescription] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('free');
+
   const [isImprovingDescription, setIsImprovingDescription] = useState(false);
   const [isImprovingInstructions, setIsImprovingInstructions] = useState(false);
   const [sparks, setSparks] = useState<Array<{ id: number; x: number; y: number }>>([]);
+
+  useEffect(() => {
+    if (projectId) {
+      api.getProject(projectId).then(project => {
+        setProjectName(project.name);
+        setDescription(project.description);
+        setInstructions(project.instructions);
+        setSelectedTemplate(project.template);
+      });
+    }
+  }, [projectId]);
+
 
   const handleImprove = (field: 'description' | 'instructions', targetRef: HTMLTextAreaElement | null) => {
     if (!targetRef) return;
@@ -58,16 +75,32 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
     }, 2000);
   };
 
-  const handleUpdate = () => {
-    if (onUpdate && projectName) {
-      onUpdate({
-        name: projectName,
-        description,
-        instructions,
-        template: selectedTemplate
-      });
+  const handleUpdate = async () => {
+    if (projectId && projectName) {
+      try {
+        await api.updateProject(projectId, {
+          name: projectName,
+          description,
+          instructions,
+          template: selectedTemplate
+        });
+        if (onUpdate) {
+          onUpdate({
+            name: projectName,
+            description,
+            instructions,
+            template: selectedTemplate
+          });
+        }
+        if (onBack) {
+          onBack();
+        }
+      } catch (error) {
+        console.error('Failed to update project:', error);
+      }
     }
   };
+
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
@@ -121,7 +154,7 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
           className="w-full max-w-3xl"
         >
           {/* Form Container */}
-          <div 
+          <div
             className="rounded-3xl backdrop-blur-[40px] p-8 relative overflow-hidden"
             style={{
               background: 'rgba(10, 10, 10, 0.7)',
@@ -130,7 +163,7 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
             }}
           >
             {/* Glow Effect */}
-            <div 
+            <div
               className="absolute inset-0 opacity-30 pointer-events-none"
               style={{
                 background: 'radial-gradient(circle at top, rgba(168, 85, 247, 0.2), transparent 60%)'
@@ -139,9 +172,9 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
 
             {/* Header */}
             <div className="relative z-10 mb-8">
-              <motion.h1 
+              <motion.h1
                 className="text-4xl font-bold mb-2"
-                style={{ 
+                style={{
                   background: 'linear-gradient(135deg, #A855F7 0%, #00D4FF 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -153,7 +186,7 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
               >
                 Edit Project
               </motion.h1>
-              <motion.p 
+              <motion.p
                 className="text-sm"
                 style={{ color: 'var(--snaps-text-secondary)' }}
                 initial={{ opacity: 0 }}
@@ -172,7 +205,7 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
               >
-                <label 
+                <label
                   className="block text-sm font-semibold mb-2"
                   style={{ color: 'var(--snaps-text-primary)' }}
                 >
@@ -209,7 +242,7 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                 className="relative"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <label 
+                  <label
                     className="text-sm font-semibold"
                     style={{ color: 'var(--snaps-text-primary)' }}
                   >
@@ -225,8 +258,8 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                     disabled={isImprovingDescription}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative overflow-hidden"
                     style={{
-                      background: isImprovingDescription 
-                        ? 'rgba(0, 212, 255, 0.2)' 
+                      background: isImprovingDescription
+                        ? 'rgba(0, 212, 255, 0.2)'
                         : 'rgba(0, 212, 255, 0.1)',
                       border: '1px solid rgba(0, 212, 255, 0.3)',
                       color: 'var(--snaps-accent-blue)'
@@ -234,20 +267,20 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     {isImprovingDescription ? 'Improving...' : 'Improve with AI'}
-                    
+
                     {/* Sparks Animation */}
                     <AnimatePresence>
                       {isImprovingDescription && sparks.map((spark) => (
                         <motion.div
                           key={spark.id}
                           className="absolute w-1 h-1 rounded-full"
-                          style={{ 
+                          style={{
                             background: 'var(--snaps-accent-blue)',
                             left: '50%',
                             top: '50%'
                           }}
                           initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                          animate={{ 
+                          animate={{
                             scale: [0, 1.5, 0],
                             x: spark.x,
                             y: spark.y,
@@ -291,7 +324,7 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                 className="relative"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <label 
+                  <label
                     className="text-sm font-semibold"
                     style={{ color: 'var(--snaps-text-primary)' }}
                   >
@@ -310,8 +343,8 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                     disabled={isImprovingInstructions}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative overflow-hidden"
                     style={{
-                      background: isImprovingInstructions 
-                        ? 'rgba(168, 85, 247, 0.2)' 
+                      background: isImprovingInstructions
+                        ? 'rgba(168, 85, 247, 0.2)'
                         : 'rgba(168, 85, 247, 0.1)',
                       border: '1px solid rgba(168, 85, 247, 0.3)',
                       color: 'var(--snaps-accent-purple)'
@@ -319,20 +352,20 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     {isImprovingInstructions ? 'Improving...' : 'Improve'}
-                    
+
                     {/* Sparks Animation */}
                     <AnimatePresence>
                       {isImprovingInstructions && sparks.map((spark) => (
                         <motion.div
                           key={spark.id}
                           className="absolute w-1 h-1 rounded-full"
-                          style={{ 
+                          style={{
                             background: 'var(--snaps-accent-purple)',
                             left: '50%',
                             top: '50%'
                           }}
                           initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                          animate={{ 
+                          animate={{
                             scale: [0, 1.5, 0],
                             x: spark.x,
                             y: spark.y,
@@ -374,7 +407,7 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.7 }}
               >
-                <label 
+                <label
                   className="block text-sm font-semibold mb-3"
                   style={{ color: 'var(--snaps-text-primary)' }}
                 >
@@ -392,8 +425,8 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                       onClick={() => setSelectedTemplate(template.id)}
                       className="p-4 rounded-xl text-left transition-all relative overflow-hidden"
                       style={{
-                        background: selectedTemplate === template.id 
-                          ? 'rgba(168, 85, 247, 0.15)' 
+                        background: selectedTemplate === template.id
+                          ? 'rgba(168, 85, 247, 0.15)'
                           : 'rgba(255, 255, 255, 0.05)',
                         border: selectedTemplate === template.id
                           ? '2px solid rgba(168, 85, 247, 0.5)'
@@ -417,18 +450,18 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                           <Check className="w-4 h-4" style={{ color: 'white' }} />
                         </motion.div>
                       )}
-                      <h3 
+                      <h3
                         className="font-semibold mb-1"
-                        style={{ 
-                          color: selectedTemplate === template.id 
-                            ? 'var(--snaps-accent-purple)' 
+                        style={{
+                          color: selectedTemplate === template.id
+                            ? 'var(--snaps-accent-purple)'
                             : 'var(--snaps-text-primary)',
                           fontSize: '14px'
                         }}
                       >
                         {template.name}
                       </h3>
-                      <p 
+                      <p
                         className="text-xs leading-relaxed"
                         style={{ color: 'var(--snaps-text-secondary)' }}
                       >
@@ -453,11 +486,11 @@ export function EditProject({ onBack, onUpdate }: EditProjectProps) {
                   disabled={!projectName}
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all"
                   style={{
-                    background: projectName 
+                    background: projectName
                       ? 'linear-gradient(135deg, #A855F7 0%, #7E22CE 100%)'
                       : 'rgba(255, 255, 255, 0.05)',
                     color: projectName ? 'white' : 'var(--snaps-text-secondary)',
-                    boxShadow: projectName 
+                    boxShadow: projectName
                       ? '0 8px 32px rgba(168, 85, 247, 0.4)'
                       : 'none',
                     opacity: projectName ? 1 : 0.5,
