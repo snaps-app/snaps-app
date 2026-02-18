@@ -1,148 +1,68 @@
 import { useEffect, useState } from 'react';
-import { Settings, FolderOpen, Zap, Bot, ArrowLeft, X, Send, Plus } from 'lucide-react';
+import { Settings, ArrowLeft, Plus, Check, Palette, FolderOpen, Upload, Bot, X, Send, Layers, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { Card as CardComponent } from './card';
 import { NeuralBackground } from './neural-background';
 import { CardModal } from './card-modal';
+import { BoardCard } from './board-card';
 import api, { Card, Board } from '@/services/api';
+import { useParams, useNavigate } from 'react-router-dom';
 
-interface BoardViewProps {
-  projectId: string | null;
-  onBack?: () => void;
-}
+const BOARD_COLORS = [
+  '#A855F7', // Purple
+  '#00D4FF', // Blue
+  '#22C55E', // Green
+  '#FF6B35', // Orange
+  '#EF4444', // Red
+  '#EC4899', // Pink
+  '#F59E0B', // Yellow
+  '#64748B', // Slate
+  '#14B8A6', // Teal
+  '#6366F1', // Indigo
+  '#84CC16', // Lime
+  '#F43F5E', // Rose
+  '#0EA5E9', // Sky
+  '#D946EF', // Fuchsia
+  '#10B981', // Emerald
+  '#D97706'  // Amber
+];
 
-interface TaskCardProps {
-  task: Card;
-  onMove: (taskId: string, newStatus: 'todo' | 'inprogress' | 'done') => void;
-  onClick: (task: Card) => void;
-}
-
-function TaskCard({ task, onMove, onClick }: TaskCardProps) {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: 'TASK',
-    item: { id: task.id, status: task.status },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging()
-    })
-  }));
-
-  const [isHovered, setIsHovered] = useState(false);
-
-  return (
-    <motion.div
-      ref={drag as any}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: isDragging ? 0.5 : 1, scale: 1 }}
-      whileHover={{ scale: 1.02, y: -2 }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
-      onClick={() => onClick(task)}
-      className="cursor-move mb-3"
-    >
-      <CardComponent
-        size="compact"
-        style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          position: 'relative'
-        }}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <h3
-              className="font-semibold mb-2"
-              style={{ color: 'var(--snaps-text-primary)', fontSize: '14px' }}
-            >
-              {task.title}
-            </h3>
-            <p
-              className="text-xs mb-2"
-              style={{ color: 'var(--snaps-text-secondary)', lineHeight: '1.5' }}
-            >
-              {task.description}
-            </p>
-
-            {/* Meta Info */}
-            <div className="flex items-center gap-2 mt-2">
-              {task.priority && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded border ${task.priority === 'High' ? 'border-red-500/50 text-red-400 bg-red-500/10' :
-                      task.priority === 'Medium' ? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10' :
-                        'border-green-500/50 text-green-400 bg-green-500/10'
-                    }`}
-                >
-                  {task.priority}
-                </span>
-              )}
-              {task.labels && task.labels.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded border border-blue-500/50 text-blue-400 bg-blue-500/10">
-                  {task.labels.length} tags
-                </span>
-              )}
-            </div>
-          </div>
-
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all relative"
-            style={{
-              background: isHovered
-                ? 'rgba(255, 215, 0, 0.15)'
-                : 'rgba(255, 215, 0, 0.05)',
-              border: '1px solid rgba(255, 215, 0, 0.3)'
-            }}
-          >
-            {isHovered && (
-              <motion.div
-                className="absolute inset-0 rounded-lg"
-                style={{
-                  background: 'rgba(255, 215, 0, 0.2)',
-                  boxShadow: '0 0 20px rgba(255, 215, 0, 0.6)'
-                }}
-                animate={{
-                  opacity: [0.5, 1, 0.5],
-                  scale: [1, 1.1, 1]
-                }}
-                transition={{
-                  duration: 0.6,
-                  repeat: Infinity,
-                  ease: 'easeInOut'
-                }}
-              />
-            )}
-            <Zap
-              className="w-4 h-4 relative z-10"
-              style={{
-                color: isHovered ? '#FFD700' : 'rgba(255, 215, 0, 0.7)',
-                filter: isHovered ? 'drop-shadow(0 0 8px rgba(255, 215, 0, 0.8))' : 'none'
-              }}
-            />
-          </motion.button>
-        </div>
-      </CardComponent>
-    </motion.div>
-  );
-}
 
 interface ColumnProps {
   title: string;
-  status: 'todo' | 'inprogress' | 'done';
+  status: string;
   tasks: Card[];
-  onMove: (taskId: string, newStatus: 'todo' | 'inprogress' | 'done') => void;
+  onMove: (taskId: string, newStatus: string) => void;
   onCardClick: (card: Card) => void;
+  onTitleChange: (newTitle: string) => void;
+  onColorChange: (newColor: string) => void;
+  onMoveColumn: (dragIndex: number, hoverIndex: number) => void;
+  index: number;
   color: string;
 }
 
-function Column({ title, status, tasks, onMove, onCardClick, color }: ColumnProps) {
-  const [{ isOver }, drop] = useDrop(() => ({
+function Column({
+  title,
+  status,
+  tasks,
+  onMove,
+  onCardClick,
+  onTitleChange,
+  onColorChange,
+  onMoveColumn,
+  index,
+  color
+}: ColumnProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(title);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+
+  const [{ isOver }, dropCard] = useDrop(() => ({
     accept: 'TASK',
     drop: (item: { id: string; status: string }) => {
       if (item.status !== status) {
-        onMove(item.id, status as 'todo' | 'inprogress' | 'done');
+        onMove(item.id, status);
       }
     },
     collect: (monitor) => ({
@@ -150,47 +70,131 @@ function Column({ title, status, tasks, onMove, onCardClick, color }: ColumnProp
     })
   }));
 
+  const [, dragColumn] = useDrag({
+    type: 'COLUMN',
+    item: { index },
+  });
+
+  const [, dropColumn] = useDrop({
+    accept: 'COLUMN',
+    hover(item: { index: number }) {
+      if (item.index !== index) {
+        onMoveColumn(item.index, index);
+        item.index = index;
+      }
+    },
+  });
+
+  // Convert hex to rgb for styling
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '168, 85, 247';
+  };
+
+  const rgbColor = hexToRgb(color);
+
   return (
     <div
-      ref={drop as any}
+      ref={(node) => {
+        dropCard(dropColumn(node));
+      }}
       className="flex-1 min-w-[300px]"
     >
       <div
-        className="p-4 rounded-t-xl backdrop-blur-xl border-b-2 relative overflow-hidden"
+        ref={dragColumn as any}
+        className="p-4 rounded-t-xl backdrop-blur-xl border-b-2 relative cursor-move group"
         style={{
-          background: `rgba(${color}, 0.1)`,
-          borderColor: `rgba(${color}, 0.5)`,
-          boxShadow: `0 0 20px rgba(${color}, 0.3)`
+          background: `rgba(${rgbColor}, 0.1)`,
+          borderColor: `rgba(${rgbColor}, 0.5)`,
+          boxShadow: `0 0 20px rgba(${rgbColor}, 0.3)`
         }}
       >
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            background: `linear-gradient(135deg, rgba(${color}, 0.3), rgba(${color}, 0))`,
-            filter: 'blur(20px)'
-          }}
-        />
-
         <div className="relative z-10 flex items-center justify-between">
-          <h2
-            className="text-lg font-bold"
-            style={{
-              color: `rgb(${color})`,
-              textShadow: `0 0 10px rgba(${color}, 0.6)`
-            }}
-          >
-            {title}
-          </h2>
-          <span
-            className="text-sm px-2 py-1 rounded-full"
-            style={{
-              background: `rgba(${color}, 0.2)`,
-              color: `rgb(${color})`,
-              border: `1px solid rgba(${color}, 0.4)`
-            }}
-          >
-            {tasks.length}
-          </span>
+          <div className="flex items-center gap-2 flex-1 mr-2">
+            {isEditingTitle ? (
+              <input
+                autoFocus
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                onBlur={() => {
+                  setIsEditingTitle(false);
+                  if (editedTitle.trim() && editedTitle !== title) {
+                    onTitleChange(editedTitle);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setIsEditingTitle(false);
+                    if (editedTitle.trim() && editedTitle !== title) {
+                      onTitleChange(editedTitle);
+                    }
+                  }
+                }}
+                className="bg-transparent border-none text-lg font-bold focus:outline-none w-full"
+                style={{ color: `rgb(${rgbColor})` }}
+              />
+            ) : (
+              <h2
+                onClick={() => setIsEditingTitle(true)}
+                className="text-lg font-bold cursor-pointer hover:opacity-80 transition-opacity truncate"
+                style={{
+                  color: `rgb(${rgbColor})`,
+                  textShadow: `0 0 10px rgba(${rgbColor}, 0.6)`
+                }}
+              >
+                {title}
+              </h2>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                className="p-1.5 rounded-lg hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ color: `rgb(${rgbColor})` }}
+              >
+                <Palette className="w-4 h-4" />
+              </button>
+
+              <AnimatePresence>
+                {isColorPickerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsColorPickerOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      className="absolute top-full right-0 mt-2 p-2 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl z-50 grid grid-cols-4 gap-2 min-w-[120px]"
+                    >
+                      {BOARD_COLORS.map(c => (
+                        <button
+                          key={c}
+                          onClick={() => {
+                            onColorChange(c);
+                            setIsColorPickerOpen(false);
+                          }}
+                          className="w-6 h-6 rounded-full border border-white/20 transition-transform hover:scale-110"
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <span
+              className="text-sm px-2 py-1 rounded-full"
+              style={{
+                background: `rgba(${rgbColor}, 0.2)`,
+                color: `rgb(${rgbColor})`,
+                border: `1px solid rgba(${rgbColor}, 0.4)`
+              }}
+            >
+              {tasks.length}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -198,7 +202,7 @@ function Column({ title, status, tasks, onMove, onCardClick, color }: ColumnProp
         className="p-4 rounded-b-xl min-h-[500px] transition-all"
         style={{
           background: isOver
-            ? `rgba(${color}, 0.08)`
+            ? `rgba(${rgbColor}, 0.08)`
             : 'rgba(255, 255, 255, 0.02)',
           border: '1px solid rgba(255, 255, 255, 0.05)',
           borderTop: 'none'
@@ -213,7 +217,11 @@ function Column({ title, status, tasks, onMove, onCardClick, color }: ColumnProp
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
             >
-              <TaskCard task={task} onMove={onMove} onClick={onCardClick} />
+              <CardWrapper
+                task={task}
+                onCardClick={onCardClick}
+                boardColor={color}
+              />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -222,55 +230,348 @@ function Column({ title, status, tasks, onMove, onCardClick, color }: ColumnProp
   );
 }
 
-export function BoardView({ projectId, onBack }: BoardViewProps) {
+function CardWrapper({ task, onCardClick, boardColor }: { task: Card, onCardClick: (card: Card) => void, boardColor: string }) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'TASK',
+    item: { id: task.id, status: task.status },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging()
+    })
+  }));
+
+  return (
+    <div ref={drag as any} style={{ opacity: isDragging ? 0.5 : 1 }}>
+      <BoardCard
+        card={task}
+        onClick={onCardClick}
+        boardColor={boardColor}
+      />
+    </div>
+  );
+}
+
+export function BoardView() {
+  const { projectId, boardId } = useParams<{ projectId: string, boardId: string }>();
+  const navigate = useNavigate();
+
+  const [board, setBoard] = useState<Board | null>(null);
   const [tasks, setTasks] = useState<Card[]>([]);
-  const [boardId, setBoardId] = useState<string | null>(null);
+  // Use local state for current board ID if created
+  const [localBoardId, setLocalBoardId] = useState<string | null>(boardId || null);
+
+  const [boardName, setBoardName] = useState('');
+  const [boardColor, setBoardColor] = useState(BOARD_COLORS[0]);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [project, setProject] = useState<any>(null);
-  const [isPlannerOpen, setIsPlannerOpen] = useState(false);
-  const [plannerInput, setPlannerInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [initialState, setInitialState] = useState({ name: '', color: '', columns: [] as any[] });
+
+  const isDirty = boardName !== initialState.name ||
+    boardColor !== initialState.color ||
+    JSON.stringify(board?.columns) !== JSON.stringify(initialState.columns);
 
   // Card Modal State
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
 
-  const fetchBoard = async () => {
-    if (!projectId) return;
+  // Planner State
+  const [isPlannerOpen, setIsPlannerOpen] = useState(false);
+  const [plannerInput, setPlannerInput] = useState('');
+
+  // Bulk Apply State
+  const [isBulkApplyOpen, setIsBulkApplyOpen] = useState(false);
+  const [allBoards, setAllBoards] = useState<any[]>([]);
+  const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [isLoadingBoards, setIsLoadingBoards] = useState(false);
+
+  const handleCreateCard = () => {
+    setSelectedCard(null);
+    setIsCardModalOpen(true);
+  };
+
+  const fetchBoard = async (id: string) => {
     try {
-      const board = await api.getProjectBoard(projectId);
-      setBoardId(board.id);
-      // Ensure cards are mapped correctly to Card type, if backend structure differs slightly adapt here
-      // Assuming api.ts Card interface matches backend response
-      setTasks(board.cards || []);
+      const data = await api.getBoard(id);
+
+      // Inject default colors for standard columns if they don't have them
+      const columnsWithDefaults = (data.columns || []).map(col => {
+        if (!col.color) {
+          if (col.id === 'todo' || col.title.toLowerCase() === 'to do') return { ...col, color: BOARD_COLORS[0] };
+          if (col.id === 'inprogress' || col.title.toLowerCase() === 'in progress') return { ...col, color: BOARD_COLORS[1] };
+          if (col.id === 'done' || col.title.toLowerCase() === 'done') return { ...col, color: BOARD_COLORS[2] };
+        }
+        return col;
+      });
+
+      setBoard({ ...data, columns: columnsWithDefaults });
+      setBoardName(data.name);
+      setBoardColor(data.color || BOARD_COLORS[0]);
+      setInitialState({
+        name: data.name,
+        color: data.color || BOARD_COLORS[0],
+        columns: columnsWithDefaults
+      });
+      setTasks(data.cards || []);
     } catch (error) {
       console.error('Failed to fetch board:', error);
     }
   };
 
+  // Helper to determine least used color
+  const getLeastUsedColor = async () => {
+    try {
+      const projects = await api.getProjects();
+      const boardsPromises = projects.map(p => api.getProjectBoards(p.id));
+      const boardsResults = await Promise.all(boardsPromises);
+      const allBoards = boardsResults.flat();
+
+      const colorCounts: Record<string, number> = {};
+      BOARD_COLORS.forEach(c => colorCounts[c] = 0);
+
+      allBoards.forEach(b => {
+        if (b.color && colorCounts[b.color] !== undefined) {
+          colorCounts[b.color]++;
+        }
+      });
+
+      let minCount = Infinity;
+      let candidates: string[] = [];
+
+      BOARD_COLORS.forEach(c => {
+        const count = colorCounts[c];
+        if (count < minCount) {
+          minCount = count;
+          candidates = [c];
+        } else if (count === minCount) {
+          candidates.push(c);
+        }
+      });
+
+      return candidates.length > 0
+        ? candidates[Math.floor(Math.random() * candidates.length)]
+        : BOARD_COLORS[0];
+
+    } catch (error) {
+      console.warn('Failed to calculate least used color:', error);
+      return BOARD_COLORS[0];
+    }
+  };
+
   useEffect(() => {
-    fetchBoard();
+    if (boardId) {
+      setLocalBoardId(boardId);
+      fetchBoard(boardId);
+    } else if (projectId) {
+      // Logic for new board
+      setBoardName('Main Board');
+
+      // Initialize with default first, then update with calculated color
+      setBoardColor(BOARD_COLORS[0]);
+      setInitialState({ name: 'Main Board', color: BOARD_COLORS[0], columns: [] });
+      setTasks([]);
+      setLocalBoardId(null);
+      setBoard({
+        id: '',
+        project_id: projectId,
+        name: 'Main Board',
+        color: BOARD_COLORS[0],
+        columns: []
+      } as Board);
+
+      // Async fetch for optimal color
+      getLeastUsedColor().then(optimalColor => {
+        setBoardColor(optimalColor);
+        setInitialState(prev => ({ ...prev, color: optimalColor }));
+        setBoard(prev => prev ? { ...prev, color: optimalColor } : prev);
+      });
+    }
+
     if (projectId) {
       api.getProject(projectId).then(setProject);
     }
-  }, [projectId]);
+  }, [boardId, projectId]);
 
-  const handleMove = async (taskId: string, newStatus: 'todo' | 'inprogress' | 'done') => {
-    // Optimistic update
+  const handleSaveBoard = async () => {
+    if (!projectId) return;
+    setIsSaving(true);
+    try {
+      const columnsToSave = board?.columns || [];
+      if (localBoardId) {
+        // Update existing board
+        const updated = await api.updateBoard(localBoardId, {
+          name: boardName,
+          color: boardColor,
+          columns: columnsToSave
+        });
+        setBoard(updated);
+        setInitialState({
+          name: boardName,
+          color: boardColor,
+          columns: updated.columns || []
+        });
+      } else {
+        // Create new board
+        const newBoard = await api.createBoard(projectId, {
+          name: boardName,
+          color: boardColor,
+          columns: [
+            { id: "todo", title: "To Do", color: BOARD_COLORS[0] },
+            { id: "inprogress", title: "In Progress", color: BOARD_COLORS[1] },
+            { id: "done", title: "Done", color: BOARD_COLORS[2] }
+          ]
+        });
+        setLocalBoardId(newBoard.id);
+        const updatedWithDefaults = {
+          ...newBoard,
+          columns: newBoard.columns?.map(col => {
+            if (col.id === 'todo') return { ...col, color: BOARD_COLORS[0] };
+            if (col.id === 'inprogress') return { ...col, color: BOARD_COLORS[1] };
+            if (col.id === 'done') return { ...col, color: BOARD_COLORS[2] };
+            return col;
+          })
+        };
+        setBoard(updatedWithDefaults);
+        setInitialState({
+          name: newBoard.name,
+          color: newBoard.color || BOARD_COLORS[0],
+          columns: updatedWithDefaults.columns || []
+        });
+        navigate(`/project/${projectId}/board/${newBoard.id}`, { replace: true });
+      }
+    } catch (error) {
+      console.error('Failed to save board:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleOpenBulkApply = async () => {
+    setIsBulkApplyOpen(true);
+    setIsLoadingBoards(true);
+    try {
+      const projects = await api.getProjects();
+      const boardsPromises = projects.map(async p => {
+        try {
+          const boards = await api.getProjectBoards(p.id);
+          return boards.map(b => ({ ...b, projectName: p.name }));
+        } catch {
+          return [];
+        }
+      });
+      const results = await Promise.all(boardsPromises);
+      const flatBoards = results.flat().filter(b => b.id !== localBoardId); // Exclude current board
+      setAllBoards(flatBoards);
+    } catch (error) {
+      console.error('Failed to load boards for bulk apply:', error);
+    } finally {
+      setIsLoadingBoards(false);
+    }
+  };
+
+  const handleBulkApplyConfirm = async () => {
+    if (!board?.columns) return;
+    setIsBulkSaving(true);
+    try {
+      // First save current board if dirty
+      if (isDirty) {
+        await handleSaveBoard();
+      }
+
+      // Then apply to others
+      const updates = Array.from(selectedBoardIds).map(id =>
+        api.updateBoard(id, { columns: board.columns })
+      );
+      await Promise.all(updates);
+
+      setIsBulkApplyOpen(false);
+      setSelectedBoardIds(new Set());
+      // Optional: Show success toast
+    } catch (error) {
+      console.error('Failed to bulk apply:', error);
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
+
+  const toggleBoardSelection = (id: string) => {
+    const newSelected = new Set(selectedBoardIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedBoardIds(newSelected);
+  };
+
+  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  const [newColumnTitle, setNewColumnTitle] = useState('');
+  const [newColumnColor, setNewColumnColor] = useState(BOARD_COLORS[0]);
+
+  const handleAddField = () => {
+    setIsAddingColumn(true);
+    setNewColumnTitle('');
+    setNewColumnColor(boardColor);
+  };
+
+  const handleConfirmAddColumn = () => {
+    if (!board || !newColumnTitle.trim()) {
+      setIsAddingColumn(false);
+      return;
+    }
+
+    const newColumns = [
+      ...(board.columns || []),
+      {
+        id: newColumnTitle.toLowerCase().replace(/\s+/g, '-'),
+        title: newColumnTitle,
+        color: newColumnColor
+      }
+    ];
+
+    const updatedBoard = { ...board, columns: newColumns };
+    setBoard(updatedBoard);
+    setIsAddingColumn(false);
+  };
+
+  const handleUpdateColumnTitle = (colId: string, newTitle: string) => {
+    if (!board) return;
+    const newColumns = (board.columns || []).map(col =>
+      col.id === colId ? { ...col, title: newTitle } : col
+    );
+    setBoard({ ...board, columns: newColumns });
+  };
+
+  const handleUpdateColumnColor = (colId: string, newColor: string) => {
+    if (!board) return;
+    const newColumns = (board.columns || []).map(col =>
+      col.id === colId ? { ...col, color: newColor } : col
+    );
+    setBoard({ ...board, columns: newColumns });
+  };
+
+  const handleMoveColumn = (dragIndex: number, hoverIndex: number) => {
+    if (!board || !board.columns) return;
+    const newColumns = [...board.columns];
+    const draggedColumn = newColumns[dragIndex];
+    newColumns.splice(dragIndex, 1);
+    newColumns.splice(hoverIndex, 0, draggedColumn);
+    setBoard({ ...board, columns: newColumns });
+  };
+
+  const handleMove = async (taskId: string, newStatus: string) => {
     setTasks(prev => prev.map(task =>
-      task.id === taskId ? { ...task, status: newStatus } : task
+      task.id === taskId ? { ...task, status: newStatus as any } : task
     ));
 
     try {
       await api.updateCardStatus(taskId, newStatus);
     } catch (error) {
       console.error('Failed to update task status:', error);
-      fetchBoard(); // Revert/Refresh on error
+      if (localBoardId) fetchBoard(localBoardId);
     }
   };
 
-  const handleCreateCard = () => {
-    setSelectedCard(null);
-    setIsCardModalOpen(true);
-  };
 
   const handleEditCard = (card: Card) => {
     setSelectedCard(card);
@@ -278,17 +579,13 @@ export function BoardView({ projectId, onBack }: BoardViewProps) {
   };
 
   const handleSaveCard = async (cardData: Partial<Card>) => {
-    if (!boardId) return;
-
+    if (!localBoardId) return;
     try {
       if (selectedCard) {
-        // Update
         await api.updateCard(selectedCard.id, cardData);
       } else {
-        // Create
         if (cardData.title && cardData.status) {
-          // description is optional but createCard expects Partial<Card> which is fine
-          await api.createCard(boardId, {
+          await api.createCard(localBoardId, {
             title: cardData.title,
             description: cardData.description || '',
             status: cardData.status,
@@ -299,304 +596,553 @@ export function BoardView({ projectId, onBack }: BoardViewProps) {
         }
       }
       setIsCardModalOpen(false);
-      fetchBoard();
+      fetchBoard(localBoardId);
     } catch (error) {
       console.error("Failed to save card:", error);
     }
   };
 
-  const todoTasks = tasks.filter(t => t.status === 'todo');
-  const inProgressTasks = tasks.filter(t => t.status === 'inprogress');
-  const doneTasks = tasks.filter(t => t.status === 'done');
+  const columns = board?.columns || [];
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
-        {/* Neural Network Background */}
         <NeuralBackground />
 
-        {/* Main Container */}
         <div className="relative z-10 h-screen flex flex-col">
           {/* Header */}
           <motion.div
-            className="p-6 border-b border-white/10 backdrop-blur-[30px]"
+            className="p-6 border-b border-white/10 backdrop-blur-[30px] z-20"
             style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {onBack && (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={onBack}
-                    className="w-9 h-9 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-                    style={{
-                      background: 'rgba(255, 107, 53, 0.1)',
-                      border: '1px solid rgba(255, 107, 53, 0.3)',
-                      boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
-                    }}
-                  >
-                    <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
-                  </motion.button>
-                )}
-                <div>
-                  <h1
-                    className="text-2xl font-bold"
-                    style={{
-                      background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text'
-                    }}
-                  >
-                    Project Board
-                  </h1>
-                  <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                    {project?.name || 'Second Brain Framework'}
-                  </p>
+              <div className="flex items-center gap-6">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate(`/project/${projectId}`)}
+                  className="w-10 h-10 rounded-xl backdrop-blur-xl flex items-center justify-center transition-all"
+                  style={{
+                    background: 'rgba(255, 107, 53, 0.1)',
+                    border: '1px solid rgba(255, 107, 53, 0.3)',
+                  }}
+                >
+                  <ArrowLeft className="w-5 h-5 text-orange-500" />
+                </motion.button>
+
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="text"
+                      value={boardName}
+                      onChange={(e) => setBoardName(e.target.value)}
+                      className="bg-transparent border-none text-2xl font-bold text-white focus:outline-none focus:ring-1 focus:ring-white/20 rounded px-2"
+                      placeholder="Board Name"
+                    />
+
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                        className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-2"
+                      >
+                        <div
+                          className="w-4 h-4 rounded-full border border-white/20"
+                          style={{ backgroundColor: boardColor, boxShadow: `0 0 10px ${boardColor}` }}
+                        />
+                        <Palette className="w-4 h-4 text-gray-400" />
+                      </button>
+
+                      <AnimatePresence>
+                        {isColorPickerOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl z-50 grid grid-cols-4 gap-3 min-w-[160px] w-max"
+                          >
+                            {BOARD_COLORS.map(color => (
+                              <button
+                                key={color}
+                                onClick={() => {
+                                  setBoardColor(color);
+                                  setIsColorPickerOpen(false);
+                                }}
+                                className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
+                                style={{
+                                  backgroundColor: color,
+                                  borderColor: boardColor === color ? 'white' : 'transparent'
+                                }}
+                              />
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                  {project?.name && (
+                    <p className="text-xs text-gray-500 px-2 leading-none">{project.name}</p>
+                  )}
                 </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                {(isDirty || !boardId) && (
+                  <div className="flex items-center gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleSaveBoard}
+                      disabled={isSaving}
+                      className="px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold transition-all"
+                      style={{
+                        background: 'rgba(34, 197, 94, 0.2)',
+                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                        color: '#22C55E'
+                      }}
+                    >
+                      {isSaving ? <div className="w-4 h-4 border-2 border-green-500/30 border-t-green-500 rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                      Apply
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleOpenBulkApply}
+                      disabled={isSaving}
+                      className="px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold transition-all"
+                      style={{
+                        background: 'rgba(0, 212, 255, 0.2)',
+                        border: '1px solid rgba(0, 212, 255, 0.4)',
+                        color: '#00D4FF'
+                      }}
+                    >
+                      <Layers className="w-4 h-4" />
+                      Bulk Apply
+                    </motion.button>
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
 
-          {/* Board Columns */}
-          <div className="flex-1 overflow-x-auto p-6">
-            <div className="flex gap-6 min-w-max">
-              <Column
-                title="To Do"
-                status="todo"
-                tasks={todoTasks}
-                onMove={handleMove}
-                onCardClick={handleEditCard}
-                color="168, 85, 247" // Purple
-              />
-              <Column
-                title="In Progress"
-                status="inprogress"
-                tasks={inProgressTasks}
-                onMove={handleMove}
-                onCardClick={handleEditCard}
-                color="0, 212, 255" // Blue
-              />
-              <Column
-                title="Done"
-                status="done"
-                tasks={doneTasks}
-                onMove={handleMove}
-                onCardClick={handleEditCard}
-                color="34, 197, 94" // Green
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Floating Action Buttons - Right Edge */}
-        <motion.div
-          className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20"
-          initial={{ x: 100, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
-          {/* Create Card Button - Green */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleCreateCard}
-            className="w-16 h-16 rounded-full backdrop-blur-xl flex items-center justify-center transition-all relative group"
-            style={{
-              background: 'rgba(34, 197, 94, 0.15)',
-              border: '2px solid rgba(34, 197, 94, 0.5)',
-              boxShadow: '0 4px 20px rgba(34, 197, 94, 0.5)'
-            }}
-          >
-            <Plus className="w-8 h-8 relative z-10" style={{ color: 'var(--snaps-accent-green, #22c55e)' }} />
-            <div className="absolute right-full mr-4 bg-black/80 px-3 py-1 rounded text-sm text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-              Create Card
-            </div>
-          </motion.button>
-
-          {/* Planner Agent Button - Orange with Pulsing Ring */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setIsPlannerOpen(true)}
-            className="w-16 h-16 rounded-full backdrop-blur-xl flex items-center justify-center transition-all relative"
-            style={{
-              background: 'rgba(255, 107, 53, 0.15)',
-              border: '2px solid rgba(255, 107, 53, 0.5)',
-              boxShadow: '0 4px 20px rgba(255, 107, 53, 0.5)'
-            }}
-          >
-            <motion.div
-              className="absolute inset-0 rounded-full"
-              style={{
-                border: '3px solid rgba(255, 107, 53, 0.6)',
-                boxShadow: '0 0 30px rgba(255, 107, 53, 0.8)'
-              }}
-              animate={{
-                scale: [1, 1.3, 1],
-                opacity: [0.8, 0.3, 0.8]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: 'easeInOut'
-              }}
-            />
-            <Bot className="w-7 h-7 relative z-10" style={{ color: 'var(--snaps-accent-orange)' }} />
-          </motion.button>
-
-          {/* Settings Button - Purple */}
-          <motion.button
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-            className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
-            style={{
-              background: 'rgba(168, 85, 247, 0.1)',
-              border: '2px solid rgba(168, 85, 247, 0.5)',
-              boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)'
-            }}
-          >
-            <Settings className="w-6 h-6" style={{ color: 'var(--snaps-accent-purple)' }} />
-          </motion.button>
-        </motion.div>
-
-        {/* Planner Agent Slide-over Panel */}
-        <AnimatePresence>
-          {isPlannerOpen && (
-            <>
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsPlannerOpen(false)}
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-              />
-
-              {/* Slide-over Panel */}
-              <motion.div
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                className="fixed right-0 top-0 bottom-0 w-[500px] z-50 flex flex-col"
-                style={{
-                  background: 'rgba(10, 10, 10, 0.95)',
-                  backdropFilter: 'blur(40px)',
-                  borderLeft: '1px solid rgba(255, 107, 53, 0.3)',
-                  boxShadow: '-10px 0 50px rgba(255, 107, 53, 0.2)'
-                }}
-              >
-                {/* Panel Header */}
-                <div className="p-6 border-b border-white/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center"
-                        style={{
-                          background: 'rgba(255, 107, 53, 0.2)',
-                          border: '2px solid rgba(255, 107, 53, 0.5)',
-                          boxShadow: '0 0 20px rgba(255, 107, 53, 0.4)'
-                        }}
-                      >
-                        <Bot className="w-6 h-6" style={{ color: 'var(--snaps-accent-orange)' }} />
-                      </div>
+          {/* Bulk Apply Modal */}
+          <AnimatePresence>
+            {isBulkApplyOpen && (
+              <>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl"
+                  >
+                    <div className="p-6 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#0A0A0A] z-10 rounded-t-2xl">
                       <div>
-                        <h2
-                          className="text-xl font-bold"
-                          style={{ color: 'var(--snaps-text-primary)' }}
-                        >
-                          Planner Agent
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                          <Layers className="w-5 h-5 text-blue-400" />
+                          Bulk Apply Columns
                         </h2>
-                        <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                          Talk to your board
+                        <p className="text-gray-400 text-sm mt-1">
+                          Select boards to apply the current column configuration to
                         </p>
                       </div>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setIsPlannerOpen(false)}
-                      className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)'
-                      }}
-                    >
-                      <X className="w-5 h-5" style={{ color: 'var(--snaps-text-secondary)' }} />
-                    </motion.button>
-                  </div>
-                </div>
-
-                {/* Chat Area */}
-                <div className="flex-1 p-6 overflow-y-auto">
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <div
-                      className="p-4 rounded-2xl backdrop-blur-xl"
-                      style={{
-                        background: 'rgba(255, 107, 53, 0.1)',
-                        border: '1px solid rgba(255, 107, 53, 0.3)'
-                      }}
-                    >
-                      <p
-                        className="text-sm leading-relaxed"
-                        style={{ color: 'var(--snaps-text-primary)' }}
+                      <button
+                        onClick={() => setIsBulkApplyOpen(false)}
+                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                       >
-                        Hi! I'm your Planner Agent. I can help you organize tasks, suggest priorities, and optimize your workflow. What would you like to plan?
-                      </p>
+                        <X className="w-5 h-5 text-gray-400" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6">
+                      {isLoadingBoards ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                        </div>
+                      ) : allBoards.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                          No other boards found.
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {/* Group by Project */}
+                          {Array.from(new Set(allBoards.map(b => b.projectName))).map(projectName => {
+                            const projectBoards = allBoards.filter(b => b.projectName === projectName);
+                            if (projectBoards.length === 0) return null;
+
+                            return (
+                              <div key={projectName}>
+                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                  <Globe className="w-3 h-3" />
+                                  {projectName}
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {projectBoards.map(board => (
+                                    <div
+                                      key={board.id}
+                                      onClick={() => toggleBoardSelection(board.id)}
+                                      className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${selectedBoardIds.has(board.id)
+                                        ? 'bg-blue-500/10 border-blue-500/50'
+                                        : 'bg-white/5 border-white/10 hover:border-white/20'
+                                        }`}
+                                    >
+                                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedBoardIds.has(board.id)
+                                        ? 'bg-blue-500 border-blue-500'
+                                        : 'border-gray-500'
+                                        }`}>
+                                        {selectedBoardIds.has(board.id) && <Check className="w-3 h-3 text-white" />}
+                                      </div>
+                                      <div>
+                                        <div className="font-medium text-white">{board.name}</div>
+                                        <div className="text-xs text-gray-500">{board.columns?.length || 0} columns</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-6 border-t border-white/10 bg-[#0A0A0A] rounded-b-2xl flex justify-end gap-3">
+                      <button
+                        onClick={() => setIsBulkApplyOpen(false)}
+                        className="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleBulkApplyConfirm}
+                        disabled={selectedBoardIds.size === 0 || isBulkSaving}
+                        className="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isBulkSaving ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Layers className="w-4 h-4" />
+                        )}
+                        Apply to {selectedBoardIds.size} Boards
+                      </button>
                     </div>
                   </motion.div>
                 </div>
+              </>
+            )}
+          </AnimatePresence>
 
-                {/* Input Area */}
-                <div className="p-6 border-t border-white/10">
+          {/* Floating Action Buttons - Right Edge */}
+          {boardId && (
+            <motion.div
+              className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20"
+              initial={{ x: 100, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+            >
+              {/* Create Card Button - Green */}
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleCreateCard}
+                className="w-16 h-16 rounded-full backdrop-blur-xl flex items-center justify-center transition-all relative group"
+                style={{
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  border: '2px solid rgba(34, 197, 94, 0.5)',
+                  boxShadow: '0 4px 20px rgba(34, 197, 94, 0.5)'
+                }}
+              >
+                <Plus className="w-8 h-8 relative z-10" style={{ color: 'var(--snaps-accent-green, #22c55e)' }} />
+                <div className="absolute right-full mr-4 bg-black/80 px-3 py-1 rounded text-sm text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  Create Card
+                </div>
+              </motion.button>
+
+              {/* Planner Agent Button - Orange with Pulsing Ring */}
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsPlannerOpen(true)}
+                className="w-16 h-16 rounded-full backdrop-blur-xl flex items-center justify-center transition-all relative"
+                style={{
+                  background: 'rgba(255, 107, 53, 0.15)',
+                  border: '2px solid rgba(255, 107, 53, 0.5)',
+                  boxShadow: '0 4px 20px rgba(255, 107, 53, 0.5)'
+                }}
+              >
+                <motion.div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    border: '3px solid rgba(255, 107, 53, 0.6)',
+                    boxShadow: '0 0 30px rgba(255, 107, 53, 0.8)'
+                  }}
+                  animate={{
+                    scale: [1, 1.3, 1],
+                    opacity: [0.8, 0.3, 0.8]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: 'easeInOut'
+                  }}
+                />
+                <Bot className="w-7 h-7 relative z-10" style={{ color: 'var(--snaps-accent-orange)' }} />
+              </motion.button>
+
+              {/* Settings Button - Purple */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
+                style={{
+                  background: 'rgba(168, 85, 247, 0.1)',
+                  border: '2px solid rgba(168, 85, 247, 0.5)',
+                  boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)'
+                }}
+              >
+                <Settings className="w-6 h-6" style={{ color: 'var(--snaps-accent-purple)' }} />
+              </motion.button>
+            </motion.div>
+          )}
+
+          {/* Planner Agent Slide-over Panel */}
+          <AnimatePresence>
+            {isPlannerOpen && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsPlannerOpen(false)}
+                  className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+                />
+
+                {/* Slide-over Panel */}
+                <motion.div
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                  className="fixed right-0 top-0 bottom-0 w-[500px] z-50 flex flex-col"
+                  style={{
+                    background: 'rgba(10, 10, 10, 0.95)',
+                    backdropFilter: 'blur(40px)',
+                    borderLeft: '1px solid rgba(255, 107, 53, 0.3)',
+                    boxShadow: '-10px 0 50px rgba(255, 107, 53, 0.2)'
+                  }}
+                >
+                  {/* Panel Header */}
+                  <div className="p-6 border-b border-white/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center"
+                          style={{
+                            background: 'rgba(255, 107, 53, 0.2)',
+                            border: '2px solid rgba(255, 107, 53, 0.5)',
+                            boxShadow: '0 0 20px rgba(255, 107, 53, 0.4)'
+                          }}
+                        >
+                          <Bot className="w-6 h-6" style={{ color: 'var(--snaps-accent-orange)' }} />
+                        </div>
+                        <div>
+                          <h2
+                            className="text-xl font-bold"
+                            style={{ color: 'var(--snaps-text-primary)' }}
+                          >
+                            Planner Agent
+                          </h2>
+                          <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
+                            Talk to your board
+                          </p>
+                        </div>
+                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setIsPlannerOpen(false)}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)'
+                        }}
+                      >
+                        <X className="w-5 h-5" style={{ color: 'var(--snaps-text-secondary)' }} />
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Chat Area */}
+                  <div className="flex-1 p-6 overflow-y-auto">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <div
+                        className="p-4 rounded-2xl backdrop-blur-xl"
+                        style={{
+                          background: 'rgba(255, 107, 53, 0.1)',
+                          border: '1px solid rgba(255, 107, 53, 0.3)'
+                        }}
+                      >
+                        <p
+                          className="text-sm leading-relaxed"
+                          style={{ color: 'var(--snaps-text-primary)' }}
+                        >
+                          Hi! I'm your Planner Agent. I can help you organize tasks, suggest priorities, and optimize your workflow. What would you like to plan?
+                        </p>
+                      </div>
+                    </motion.div>
+                  </div>
+
+                  {/* Input Area */}
+                  <div className="p-6 border-t border-white/10">
+                    <div
+                      className="relative rounded-2xl backdrop-blur-xl"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={plannerInput}
+                        onChange={(e) => setPlannerInput(e.target.value)}
+                        placeholder="Ask the planner..."
+                        className="w-full px-6 py-4 bg-transparent text-sm focus:outline-none"
+                        style={{ color: 'var(--snaps-text-primary)' }}
+                      />
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        disabled={!plannerInput.trim()}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                        style={{
+                          background: plannerInput.trim()
+                            ? 'linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%)'
+                            : 'rgba(255, 255, 255, 0.05)',
+                          boxShadow: plannerInput.trim()
+                            ? '0 0 20px rgba(255, 107, 53, 0.4)'
+                            : 'none',
+                          opacity: plannerInput.trim() ? 1 : 0.5
+                        }}
+                      >
+                        <Send className="w-5 h-5" style={{ color: 'white' }} />
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          <input
+            id="doc-import-input"
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file && projectId) {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                  const content = event.target?.result as string;
+                  // Handle import logic if needed or just show toast
+                  console.log('Importing:', file.name);
+                };
+                reader.readAsText(file);
+              }
+            }}
+          />
+
+          {/* Board Columns */}
+          <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
+            <div className="flex gap-6 min-w-max h-full items-start">
+              {columns.map((col: any, index: number) => (
+                <Column
+                  key={col.id}
+                  index={index}
+                  title={col.title}
+                  status={col.id}
+                  tasks={tasks.filter(t => t.status === col.id)}
+                  onMove={handleMove}
+                  onCardClick={handleEditCard}
+                  onTitleChange={(newTitle) => handleUpdateColumnTitle(col.id, newTitle)}
+                  onColorChange={(newColor) => handleUpdateColumnColor(col.id, newColor)}
+                  onMoveColumn={handleMoveColumn}
+                  color={col.color || boardColor}
+                />
+              ))}
+
+              {isAddingColumn ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="w-[300px] rounded-xl border border-white/10 bg-white/5 flex flex-col shrink-0"
+                  style={{ backdropFilter: 'blur(20px)' }}
+                >
                   <div
-                    className="relative rounded-2xl backdrop-blur-xl"
+                    className="p-4 rounded-t-xl border-b-2"
                     style={{
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+                      backgroundColor: `${newColumnColor}1a`,
+                      borderColor: newColumnColor,
                     }}
                   >
                     <input
+                      autoFocus
                       type="text"
-                      value={plannerInput}
-                      onChange={(e) => setPlannerInput(e.target.value)}
-                      placeholder="Ask the planner..."
-                      className="w-full px-6 py-4 bg-transparent text-sm focus:outline-none"
-                      style={{ color: 'var(--snaps-text-primary)' }}
+                      value={newColumnTitle}
+                      onChange={(e) => setNewColumnTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleConfirmAddColumn()}
+                      placeholder="Nome da Coluna..."
+                      className="bg-transparent border-none text-white font-bold w-full focus:outline-none"
                     />
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      disabled={!plannerInput.trim()}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center transition-all"
-                      style={{
-                        background: plannerInput.trim()
-                          ? 'linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%)'
-                          : 'rgba(255, 255, 255, 0.05)',
-                        boxShadow: plannerInput.trim()
-                          ? '0 0 20px rgba(255, 107, 53, 0.4)'
-                          : 'none',
-                        opacity: plannerInput.trim() ? 1 : 0.5
-                      }}
-                    >
-                      <Send className="w-5 h-5" style={{ color: 'white' }} />
-                    </motion.button>
                   </div>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+                  <div className="p-4 space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      {BOARD_COLORS.map(c => (
+                        <button
+                          key={c}
+                          onClick={() => setNewColumnColor(c)}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${newColumnColor === c ? 'border-white' : 'border-transparent'}`}
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleConfirmAddColumn}
+                        className="flex-1 py-2 rounded-lg bg-green-500/20 text-green-400 border border-green-500/30 text-sm font-bold"
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        onClick={() => setIsAddingColumn(false)}
+                        className="flex-1 py-2 rounded-lg bg-white/5 text-gray-400 border border-white/10 text-sm"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleAddField}
+                  className="w-[300px] h-[100px] rounded-xl border-2 border-dashed border-white/10 hover:border-purple-500/30 hover:bg-white/5 transition-all flex flex-col items-center justify-center gap-2 group shrink-0"
+                >
+                  <Plus className="w-6 h-6 text-gray-500 group-hover:text-purple-400" />
+                  <span className="text-sm text-gray-500 group-hover:text-purple-400">Adicionar Coluna</span>
+                </motion.button>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Card Modal */}
         <CardModal
@@ -604,7 +1150,7 @@ export function BoardView({ projectId, onBack }: BoardViewProps) {
           onClose={() => setIsCardModalOpen(false)}
           onSave={handleSaveCard}
           initialData={selectedCard}
-          boardId={boardId || undefined}
+          boardId={localBoardId || undefined}
         />
       </div>
     </DndProvider>

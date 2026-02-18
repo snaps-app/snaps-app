@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from '@/app/components/home';
 import { ProjectWorkspace } from '@/app/components/project-workspace';
 import { ActiveChat } from '@/app/components/active-chat';
@@ -9,110 +9,37 @@ import { GenerateDocument } from '@/app/components/generate-document';
 import { DocumentsView } from '@/app/components/documents-view';
 import { Profile } from '@/app/components/profile';
 import { MemoryView } from '@/app/components/memory-view';
-import { Button } from '@/app/components/button';
-import api, { Project } from '@/services/api';
-import { useEffect } from 'react';
+import { GlobalBoard } from '@/app/components/global-board';
 
 export default function App() {
-    const [currentView, setCurrentView] = useState<'home' | 'project' | 'chat' | 'board' | 'new-project' | 'edit-project' | 'generate-document' | 'documents' | 'profile' | 'memory'>('home');
-    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-    const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-    const [projects, setProjects] = useState<Project[]>([]);
-
-    const fetchProjects = async () => {
-        try {
-            const data = await api.getProjects();
-            setProjects(data);
-        } catch (error) {
-            console.error('Failed to fetch projects:', error);
-        }
-    };
-
-    useEffect(() => {
-        fetchProjects();
-    }, []);
-
-    const handleProjectClick = (projectId: string) => {
-        setSelectedProjectId(projectId);
-        setCurrentView('project');
-    };
-
-    const handleBackToHome = () => {
-        setCurrentView('home');
-        setSelectedProjectId(null);
-        setSelectedSessionId(null);
-    };
-
-    const handleBackToProject = () => {
-        setCurrentView('project');
-        setSelectedSessionId(null);
-    };
-
-    const handleChatOpen = (sessionId: string | null) => {
-        setSelectedSessionId(sessionId);
-        setCurrentView('chat');
-    };
-
-    const handleBoardOpen = (projectId: string) => {
-        setSelectedProjectId(projectId);
-        setCurrentView('board');
-    };
-
-    const handleNewProject = () => {
-        setCurrentView('new-project');
-    };
-
-    const handleEditProject = () => {
-        setCurrentView('edit-project');
-    };
-
-    const handleGenerateDocument = () => {
-        setCurrentView('generate-document');
-    };
-
-    const handleDocumentsView = () => {
-        setCurrentView('documents');
-    };
-
-    const handleCreateProject = async (project: { name: string; description: string; instructions: string; template: string }) => {
-        console.log('Creating project:', project);
-        try {
-            await api.createProject(project);
-            await fetchProjects();
-            setCurrentView('home');
-        } catch (error) {
-            console.error('Failed to create project:', error);
-        }
-    };
-
-    const handleUpdateProject = (project: { name: string; description: string; instructions: string; template: string }) => {
-        console.log('Updating project:', project);
-        // In a real app, update the project
-        setCurrentView('project');
-    };
-
-    const handleGenerateDoc = (doc: { prompt: string; format: string; selectedSnaps: string[] }) => {
-        console.log('Generating document:', doc);
-        // In a real app, generate the document
-        setCurrentView('project');
-    };
-
     return (
-        <div className="min-h-screen" style={{ backgroundColor: 'var(--snaps-bg)' }}>
-            {/* Content */}
-            {currentView === 'home' && <Home projects={projects} onProjectClick={handleProjectClick} onNewProject={handleNewProject} onProfileClick={() => setCurrentView('profile')} onMemoryClick={() => setCurrentView('memory')} />}
-            {currentView === 'project' && <ProjectWorkspace projectId={selectedProjectId} onBack={handleBackToHome} onChatOpen={handleChatOpen} onBoardOpen={handleBoardOpen} onEdit={handleEditProject} onGenerateDocument={handleGenerateDocument} onDocumentsView={handleDocumentsView} />}
-            {currentView === 'chat' && <ActiveChat sessionId={selectedSessionId} projectId={selectedProjectId} onBack={handleBackToProject} />}
-            {currentView === 'board' && <BoardView projectId={selectedProjectId} onBack={handleBackToProject} />}
-            {currentView === 'new-project' && <NewProject onBack={handleBackToHome} onCreate={handleCreateProject} />}
-            {currentView === 'new-project' && <NewProject onBack={handleBackToHome} onCreate={handleCreateProject} />}
-            {currentView === 'edit-project' && <EditProject projectId={selectedProjectId} onBack={handleBackToProject} onUpdate={handleUpdateProject} />}
-            {currentView === 'generate-document' && <GenerateDocument onBack={handleBackToProject} onGenerate={handleGenerateDoc} />}
+        <BrowserRouter>
+            <div className="min-h-screen" style={{ backgroundColor: 'var(--snaps-bg)' }}>
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/new-project" element={<NewProject />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/memory" element={<MemoryView />} />
+                    <Route path="/global-board" element={<GlobalBoard />} />
 
-            {currentView === 'generate-document' && <GenerateDocument onBack={handleBackToProject} onGenerate={handleGenerateDoc} />}
-            {currentView === 'documents' && <DocumentsView projectId={selectedProjectId} onBack={handleBackToProject} />}
-            {currentView === 'profile' && <Profile onBack={handleBackToHome} />}
-            {currentView === 'memory' && <MemoryView onBack={handleBackToHome} />}
-        </div>
+                    {/* Project Routes */}
+                    <Route path="/project/:projectId" element={<ProjectWorkspace />} />
+                    <Route path="/project/:projectId/edit" element={<EditProject />} />
+                    <Route path="/project/:projectId/docs" element={<DocumentsView />} />
+                    <Route path="/project/:projectId/generate" element={<GenerateDocument />} />
+
+                    {/* Chat Routes */}
+                    <Route path="/project/:projectId/chat" element={<ActiveChat />} />
+                    <Route path="/project/:projectId/chat/:sessionId" element={<ActiveChat />} />
+
+                    {/* Board Routes */}
+                    <Route path="/project/:projectId/board" element={<BoardView />} />
+                    <Route path="/project/:projectId/board/:boardId" element={<BoardView />} />
+
+                    {/* Fallback */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </div>
+        </BrowserRouter>
     );
 }

@@ -7,10 +7,7 @@ import { NeuralBackground } from './neural-background';
 import { SnapDetailModal } from './snap-detail-modal';
 import api, { Snap, Project } from '@/services/api';
 import { SnapCard } from './snap-card';
-
-interface MemoryViewProps {
-  onBack?: () => void;
-}
+import { useNavigate } from 'react-router-dom';
 
 interface FolderNode {
   id: string;
@@ -110,7 +107,8 @@ function FolderTree({ nodes, level = 0 }: { nodes: FolderNode[]; level?: number 
 
 // MemoryCardComponent removed. Using SnapCard instead.
 
-export function MemoryView({ onBack }: MemoryViewProps) {
+export function MemoryView() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<MemoryCard | null>(null);
@@ -152,23 +150,21 @@ export function MemoryView({ onBack }: MemoryViewProps) {
       <NeuralBackground density="high" />
 
       {/* Back Button */}
-      {onBack && (
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-          style={{
-            background: 'rgba(255, 107, 53, 0.1)',
-            border: '1px solid rgba(255, 107, 53, 0.3)',
-            boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
-          }}
-        >
-          <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
-        </motion.button>
-      )}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => navigate('/')}
+        className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
+        style={{
+          background: 'rgba(255, 107, 53, 0.1)',
+          border: '1px solid rgba(255, 107, 53, 0.3)',
+          boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
+        }}
+      >
+        <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
+      </motion.button>
 
       <div className="relative z-10 h-screen flex">
         {/* LEFT SIDEBAR - Folder Structure */}

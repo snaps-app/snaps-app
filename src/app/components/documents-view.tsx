@@ -1,12 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, FileText, Download, Trash2, Eye, File, FileSpreadsheet, Image as ImageIcon, Clock, HardDrive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
-
-interface DocumentsViewProps {
-  projectId: string | null;
-  onBack?: () => void;
-}
+import { useParams, useNavigate } from 'react-router-dom';
+import api from '@/services/api';
 
 interface Document {
   id: string;
@@ -89,15 +86,17 @@ const formatColors = {
   jpg: { bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.3)', color: '#A855F7' }
 };
 
-export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
+export function DocumentsView() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'generated' | 'imported'>('generated');
   const [project, setProject] = useState<any>(null);
 
-  useState(() => {
+  useEffect(() => {
     if (projectId) {
-      import('@/services/api').then(m => m.default.getProject(projectId)).then(setProject);
+      api.getProject(projectId).then(setProject);
     }
-  });
+  }, [projectId]);
 
   const filteredDocuments = mockDocuments.filter(doc => doc.type === activeTab);
 
@@ -107,24 +106,22 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
       <NeuralBackground />
 
       {/* Back Button */}
-      {onBack && (
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-          style={{
-            background: 'rgba(255, 107, 53, 0.1)',
-            border: '1px solid rgba(255, 107, 53, 0.3)',
-            boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
-          }}
-        >
-          <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
-        </motion.button>
-      )}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => navigate(`/project/${projectId}`)}
+        className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
+        style={{
+          background: 'rgba(255, 107, 53, 0.1)',
+          border: '1px solid rgba(255, 107, 53, 0.3)',
+          boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
+        }}
+      >
+        <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
+      </motion.button>
 
       {/* Main Content */}
       <div className="relative z-10 min-h-screen p-6 pt-20">
@@ -136,9 +133,9 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
         >
           {/* Header */}
           <div className="mb-8">
-            <motion.h1 
+            <motion.h1
               className="text-4xl font-bold mb-2"
-              style={{ 
+              style={{
                 background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -150,7 +147,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
             >
               Documents
             </motion.h1>
-            <motion.p 
+            <motion.p
               className="text-sm"
               style={{ color: 'var(--snaps-text-secondary)' }}
               initial={{ opacity: 0 }}
@@ -172,8 +169,8 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
               onClick={() => setActiveTab('generated')}
               className="relative px-6 py-3 rounded-lg font-medium text-sm transition-all"
               style={{
-                background: activeTab === 'generated' 
-                  ? 'rgba(0, 212, 255, 0.15)' 
+                background: activeTab === 'generated'
+                  ? 'rgba(0, 212, 255, 0.15)'
                   : 'rgba(255, 255, 255, 0.05)',
                 border: activeTab === 'generated'
                   ? '1px solid rgba(0, 212, 255, 0.5)'
@@ -189,7 +186,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
               whileTap={{ scale: 0.98 }}
             >
               Generated Documents
-              <span 
+              <span
                 className="ml-2 px-2 py-0.5 rounded text-xs"
                 style={{
                   background: activeTab === 'generated'
@@ -205,8 +202,8 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
               onClick={() => setActiveTab('imported')}
               className="relative px-6 py-3 rounded-lg font-medium text-sm transition-all"
               style={{
-                background: activeTab === 'imported' 
-                  ? 'rgba(168, 85, 247, 0.15)' 
+                background: activeTab === 'imported'
+                  ? 'rgba(168, 85, 247, 0.15)'
                   : 'rgba(255, 255, 255, 0.05)',
                 border: activeTab === 'imported'
                   ? '1px solid rgba(168, 85, 247, 0.5)'
@@ -222,7 +219,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
               whileTap={{ scale: 0.98 }}
             >
               Imported Documents
-              <span 
+              <span
                 className="ml-2 px-2 py-0.5 rounded text-xs"
                 style={{
                   background: activeTab === 'imported'
@@ -264,7 +261,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
                     }}
                   >
                     {/* File Icon Area */}
-                    <div 
+                    <div
                       className="flex items-center justify-center h-32 relative"
                       style={{
                         background: colors.bg,
@@ -272,7 +269,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
                       }}
                     >
                       <Icon className="w-16 h-16" style={{ color: colors.color }} />
-                      
+
                       {/* Format Badge */}
                       <div
                         className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-bold uppercase"
@@ -288,22 +285,22 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
 
                     {/* File Info */}
                     <div className="p-4">
-                      <h3 
+                      <h3
                         className="font-semibold mb-2 truncate"
                         style={{ color: 'var(--snaps-text-primary)' }}
                       >
                         {doc.name}
                       </h3>
-                      
+
                       <div className="flex items-center justify-between text-xs mb-3">
-                        <span 
+                        <span
                           className="flex items-center gap-1"
                           style={{ color: 'var(--snaps-text-secondary)' }}
                         >
                           <HardDrive className="w-3 h-3" />
                           {doc.size}
                         </span>
-                        <span 
+                        <span
                           className="flex items-center gap-1"
                           style={{ color: 'var(--snaps-text-secondary)' }}
                         >
@@ -327,7 +324,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
                           <Eye className="w-3 h-3" />
                           View
                         </motion.button>
-                        
+
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
@@ -340,7 +337,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
                         >
                           <Download className="w-3 h-3" />
                         </motion.button>
-                        
+
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
@@ -382,7 +379,7 @@ export function DocumentsView({ projectId, onBack }: DocumentsViewProps) {
                 No documents yet
               </h3>
               <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                {activeTab === 'generated' 
+                {activeTab === 'generated'
                   ? 'Generate your first document to get started'
                   : 'Import documents to see them here'}
               </p>

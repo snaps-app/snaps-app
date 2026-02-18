@@ -22,7 +22,8 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [flyingNodes, setFlyingNodes] = useState<Array<{ id: number; x: number; y: number; tag: string }>>([]);
 
-  const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink'> = ['blue', 'orange', 'purple', 'green', 'pink'];
+  const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink' | 'red' | 'yellow' | 'slate' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky' | 'fuchsia' | 'emerald' | 'amber'> =
+    ['blue', 'orange', 'purple', 'green', 'pink', 'red', 'yellow', 'slate', 'teal', 'indigo', 'lime', 'rose', 'sky', 'fuchsia', 'emerald', 'amber'];
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -46,7 +47,7 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
       y: Math.random() * 200 - 100,
       tag
     }));
-    
+
     setFlyingNodes(nodes);
 
     // Simulate AI processing
@@ -97,7 +98,7 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
               className="w-full max-w-2xl pointer-events-auto relative"
             >
               {/* Modal Container */}
-              <div 
+              <div
                 className="rounded-2xl backdrop-blur-[40px] p-6 relative overflow-hidden"
                 style={{
                   background: 'rgba(10, 10, 10, 0.95)',
@@ -109,7 +110,7 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
                 }}
               >
                 {/* Glow Effect */}
-                <div 
+                <div
                   className="absolute inset-0 opacity-20 pointer-events-none"
                   style={{
                     background: 'radial-gradient(circle at top, rgba(0, 212, 255, 0.3), transparent 60%)'
@@ -118,9 +119,9 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
 
                 {/* Header */}
                 <div className="relative z-10 flex items-center justify-between mb-6">
-                  <h2 
+                  <h2
                     className="text-2xl font-bold"
-                    style={{ 
+                    style={{
                       background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
@@ -147,7 +148,7 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
                 <div className="relative z-10 space-y-4">
                   {/* Title */}
                   <div>
-                    <label 
+                    <label
                       className="block text-sm font-semibold mb-2"
                       style={{ color: 'var(--snaps-text-primary)' }}
                     >
@@ -178,7 +179,7 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
 
                   {/* Content */}
                   <div>
-                    <label 
+                    <label
                       className="block text-sm font-semibold mb-2"
                       style={{ color: 'var(--snaps-text-primary)' }}
                     >
@@ -209,13 +210,13 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
                   {/* Tags */}
                   <div className="relative">
                     <div className="flex items-center justify-between mb-2">
-                      <label 
+                      <label
                         className="text-sm font-semibold"
                         style={{ color: 'var(--snaps-text-primary)' }}
                       >
                         Tags
                       </label>
-                      
+
                       {/* AI Sparkle Button */}
                       <motion.button
                         whileHover={{ scale: 1.05 }}
@@ -224,8 +225,8 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
                         disabled={isGeneratingTags}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative overflow-hidden"
                         style={{
-                          background: isGeneratingTags 
-                            ? 'rgba(168, 85, 247, 0.2)' 
+                          background: isGeneratingTags
+                            ? 'rgba(168, 85, 247, 0.2)'
                             : 'rgba(168, 85, 247, 0.1)',
                           border: '1px solid rgba(168, 85, 247, 0.3)',
                           color: 'var(--snaps-accent-purple)'
@@ -233,21 +234,21 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
                       >
                         <Sparkles className="w-3.5 h-3.5" />
                         {isGeneratingTags ? 'Generating...' : 'AI Suggest'}
-                        
+
                         {/* Flying Nodes Animation */}
                         <AnimatePresence>
                           {flyingNodes.map((node) => (
                             <motion.div
                               key={node.id}
                               className="absolute w-2 h-2 rounded-full"
-                              style={{ 
+                              style={{
                                 background: 'var(--snaps-accent-purple)',
                                 left: '50%',
                                 top: '50%',
                                 boxShadow: '0 0 10px rgba(168, 85, 247, 0.8)'
                               }}
                               initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                              animate={{ 
+                              animate={{
                                 scale: [0, 1.5, 0.5],
                                 x: node.x,
                                 y: node.y,
@@ -283,12 +284,12 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
                         disabled={!tagInput.trim()}
                         className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
                         style={{
-                          background: tagInput.trim() 
-                            ? 'rgba(0, 212, 255, 0.15)' 
+                          background: tagInput.trim()
+                            ? 'rgba(0, 212, 255, 0.15)'
                             : 'rgba(255, 255, 255, 0.05)',
                           border: '1px solid rgba(0, 212, 255, 0.3)',
-                          color: tagInput.trim() 
-                            ? 'var(--snaps-accent-blue)' 
+                          color: tagInput.trim()
+                            ? 'var(--snaps-accent-blue)'
                             : 'var(--snaps-text-secondary)',
                           opacity: tagInput.trim() ? 1 : 0.5
                         }}
@@ -299,7 +300,7 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
 
                     {/* Tags Display */}
                     {tags.length > 0 && (
-                      <motion.div 
+                      <motion.div
                         className="flex flex-wrap gap-2"
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -355,12 +356,12 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
                     disabled={!title.trim()}
                     className="px-6 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2"
                     style={{
-                      background: title.trim() 
+                      background: title.trim()
                         ? 'linear-gradient(135deg, #00D4FF 0%, #0099CC 100%)'
                         : 'rgba(255, 255, 255, 0.05)',
                       border: '1px solid rgba(0, 212, 255, 0.3)',
                       color: title.trim() ? 'white' : 'var(--snaps-text-secondary)',
-                      boxShadow: title.trim() 
+                      boxShadow: title.trim()
                         ? '0 4px 20px rgba(0, 212, 255, 0.4)'
                         : 'none',
                       opacity: title.trim() ? 1 : 0.5,

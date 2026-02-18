@@ -82,11 +82,18 @@ export interface Card {
     updated_at: string;
 }
 
+export interface CardWithProject extends Card {
+    project_id: string;
+    project_name: string;
+    board_color?: string;
+}
+
 export interface Board {
     id: string;
     project_id: string;
     name: string;
-    columns?: any;
+    color?: string;
+    columns?: { id: string; title: string; color?: string }[];
     cards?: Card[];
 }
 
@@ -131,8 +138,33 @@ export const getAllSnaps = async (): Promise<{ snaps: Snap[], projects: Project[
     return { snaps: allSnaps, projects };
 };
 
+export const getAllCards = async (skip = 0, limit = 100): Promise<CardWithProject[]> => {
+    const response = await api.get('/cards/', { params: { skip, limit } });
+    return response.data;
+};
+
 export const getProjectBoard = async (projectId: string): Promise<Board> => {
     const response = await api.get(`/projects/${projectId}/board`);
+    return response.data;
+};
+
+export const getProjectBoards = async (projectId: string): Promise<Board[]> => {
+    const response = await api.get(`/projects/${projectId}/boards`);
+    return response.data;
+};
+
+export const getBoard = async (boardId: string): Promise<Board> => {
+    const response = await api.get(`/boards/${boardId}`);
+    return response.data;
+};
+
+export const createBoard = async (projectId: string, data: Partial<Board>): Promise<Board> => {
+    const response = await api.post(`/projects/${projectId}/boards`, { project_id: projectId, ...data });
+    return response.data;
+};
+
+export const updateBoard = async (boardId: string, data: Partial<Board>): Promise<Board> => {
+    const response = await api.patch(`/boards/${boardId}`, data);
     return response.data;
 };
 
@@ -257,10 +289,15 @@ const apiService = {
     createSnap,
     getAllSnaps,
     getProjectBoard,
+    getProjectBoards,
+    getBoard,
+    createBoard,
+    updateBoard,
     createCard,
     updateCard,
     deleteCard,
     updateCardStatus,
+    getAllCards,
     createTask,
     updateTask,
     deleteTask,

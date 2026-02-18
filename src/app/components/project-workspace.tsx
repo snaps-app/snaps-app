@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Settings, FolderOpen, Search, MessageSquare, Tag as TagIcon, Clock, Hash, ArrowLeft, LayoutDashboard, KanbanSquare, Upload, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Button } from './button';
+// import { Button } from './button'; // Unused
 import { Card } from './card';
 import { Tag } from './tag';
 import { NeuralBackground } from './neural-background';
@@ -10,6 +10,8 @@ import { SnapDetailModal } from './snap-detail-modal';
 import api, { Snap, Project, Chat } from '@/services/api';
 
 import { SnapCard } from './snap-card';
+import { BoardListModal } from './board-list-modal';
+import { useParams, useNavigate } from 'react-router-dom';
 
 // ... interface Conversation ... (keep or import if shared)
 interface Conversation {
@@ -20,24 +22,14 @@ interface Conversation {
   isActive?: boolean;
 }
 
-interface ProjectWorkspaceProps {
-  projectId: string | null;
-  onBack?: () => void;
-  onChatOpen?: (sessionId: string | null) => void;
-  onBoardOpen?: (projectId: string) => void;
-  onEdit?: () => void;
-  onGenerateDocument?: () => void;
-  onDocumentsView?: () => void;
-}
-
-// Removing mockConversations as we will fetch them from the API
-
-
 const allTags = [
   { label: 'All', count: 0 }
 ];
 
-export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, onEdit, onGenerateDocument, onDocumentsView }: ProjectWorkspaceProps) {
+export function ProjectWorkspace() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+
   const [activeConversation, setActiveConversation] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState('All');
   const [isSnapModalOpen, setIsSnapModalOpen] = useState(false);
@@ -47,9 +39,8 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
   const [project, setProject] = useState<Project | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-
-
+  // const [importStatus, setImportStatus] = useState<string | null>(null); // Unused
+  const [isBoardListModalOpen, setIsBoardListModalOpen] = useState(false);
 
   const fetchProject = async () => {
     if (!projectId) return;
@@ -90,9 +81,11 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
   };
 
   useEffect(() => {
-    fetchSnaps();
-    fetchProject();
-    fetchConversations();
+    if (projectId) {
+      fetchSnaps();
+      fetchProject();
+      fetchConversations();
+    }
   }, [projectId]);
 
 
@@ -148,22 +141,22 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
               </h2>
 
               {/* Dashboard Button */}
-              {onBack && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={onBack}
-                  className="w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-                  style={{
-                    background: 'rgba(0, 212, 255, 0.1)',
-                    border: '1px solid rgba(0, 212, 255, 0.3)',
-                    boxShadow: '0 2px 10px rgba(0, 212, 255, 0.2)'
-                  }}
-                  title="Back to Dashboard"
-                >
-                  <LayoutDashboard className="w-5 h-5" style={{ color: 'var(--snaps-accent-blue)' }} />
-                </motion.button>
-              )}
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/')}
+                className="w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
+                style={{
+                  background: 'rgba(0, 212, 255, 0.1)',
+                  border: '1px solid rgba(0, 212, 255, 0.3)',
+                  boxShadow: '0 2px 10px rgba(0, 212, 255, 0.2)'
+                }}
+                title="Back to Dashboard"
+              >
+                <LayoutDashboard className="w-5 h-5" style={{ color: 'var(--snaps-accent-blue)' }} />
+              </motion.button>
+
             </div>
 
             {/* Search */}
@@ -194,9 +187,7 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
 
                   onClick={() => {
                     setActiveConversation(conversation.id);
-                    if (onChatOpen) {
-                      onChatOpen(conversation.id);
-                    }
+                    navigate(`/project/${projectId}/chat/${conversation.id}`);
                   }}
                   className="relative cursor-pointer group"
                 >
@@ -263,29 +254,29 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
           {/* Action Buttons */}
           <div className="p-4 border-t border-white/10 space-y-3">
             {/* Generate Document Button */}
-            {onGenerateDocument && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onGenerateDocument}
-                className="w-full py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
-                style={{
-                  background: 'rgba(34, 197, 94, 0.15)',
-                  border: '1px solid rgba(34, 197, 94, 0.3)',
-                  color: 'var(--snaps-accent-green)',
-                  boxShadow: '0 2px 10px rgba(34, 197, 94, 0.2)'
-                }}
-              >
-                <FileText className="w-5 h-5" />
-                Generate Document
-              </motion.button>
-            )}
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate(`/project/${projectId}/generate`)}
+              className="w-full py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+              style={{
+                background: 'rgba(34, 197, 94, 0.15)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: 'var(--snaps-accent-green)',
+                boxShadow: '0 2px 10px rgba(34, 197, 94, 0.2)'
+              }}
+            >
+              <FileText className="w-5 h-5" />
+              Generate Document
+            </motion.button>
+
 
             {/* New Chat Button */}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => onChatOpen?.(null)}
+              onClick={() => navigate(`/project/${projectId}/chat`)}
               className="w-full py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
               style={{
                 background: 'linear-gradient(135deg, #00D4FF 0%, #0099CC 100%)',
@@ -373,11 +364,14 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
                 </motion.button>
 
                 {/* Board View Button */}
-                {onBoardOpen && projectId && (
+                {projectId && (
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => onBoardOpen(projectId)}
+                    onClick={() => {
+                      console.log('Board View clicked - opening modal');
+                      setIsBoardListModalOpen(true);
+                    }}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all"
                     style={{
                       background: 'rgba(168, 85, 247, 0.15)',
@@ -456,27 +450,27 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
           transition={{ duration: 0.5, delay: 0.4 }}
         >
           {/* Back Button - Orange */}
-          {onBack && (
-            <motion.button
-              whileHover={{ scale: 1.1, x: -2 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={onBack}
-              className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
-              style={{
-                background: 'rgba(255, 107, 53, 0.1)',
-                border: '2px solid rgba(255, 107, 53, 0.5)',
-                boxShadow: '0 4px 20px rgba(255, 107, 53, 0.4)'
-              }}
-            >
-              <ArrowLeft className="w-6 h-6" style={{ color: 'var(--snaps-accent-orange)' }} />
-            </motion.button>
-          )}
+
+          <motion.button
+            whileHover={{ scale: 1.1, x: -2 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => navigate('/')}
+            className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
+            style={{
+              background: 'rgba(255, 107, 53, 0.1)',
+              border: '2px solid rgba(255, 107, 53, 0.5)',
+              boxShadow: '0 4px 20px rgba(255, 107, 53, 0.4)'
+            }}
+          >
+            <ArrowLeft className="w-6 h-6" style={{ color: 'var(--snaps-accent-orange)' }} />
+          </motion.button>
+
 
           {/* Settings Button - Purple */}
           <motion.button
             whileHover={{ scale: 1.1, rotate: 90 }}
             whileTap={{ scale: 0.9 }}
-            onClick={onEdit}
+            onClick={() => navigate(`/project/${projectId}/edit`)}
             className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
             style={{
               background: 'rgba(168, 85, 247, 0.1)',
@@ -491,7 +485,7 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={onDocumentsView}
+            onClick={() => navigate(`/project/${projectId}/docs`)}
             className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
             style={{
               background: 'rgba(0, 212, 255, 0.1)',
@@ -532,6 +526,22 @@ export function ProjectWorkspace({ projectId, onBack, onChatOpen, onBoardOpen, o
         onClose={() => setIsSnapDetailModalOpen(false)}
         snap={selectedSnap}
       />
+
+      {projectId && (
+        <BoardListModal
+          isOpen={isBoardListModalOpen}
+          onClose={() => setIsBoardListModalOpen(false)}
+          projectId={projectId}
+          onSelectBoard={(boardId) => {
+            setIsBoardListModalOpen(false);
+            navigate(`/project/${projectId}/board/${boardId}`);
+          }}
+          onAddBoard={() => {
+            setIsBoardListModalOpen(false);
+            navigate(`/project/${projectId}/board`);
+          }}
+        />
+      )}
     </div>
   );
 }

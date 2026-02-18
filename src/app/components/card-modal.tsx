@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Calendar, Hash, Check, Plus, Trash2, Bot, Layers, Sparkles } from 'lucide-react';
+import { X, Hash, Check, Plus, Trash2, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tag } from './tag';
 import { Card, Task, createTask, updateTask, deleteTask } from '@/services/api';
@@ -20,6 +20,9 @@ export function CardModal({ isOpen, onClose, onSave, initialData }: CardModalPro
     const [dueDate, setDueDate] = useState('');
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
+
+    const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink' | 'red' | 'yellow' | 'slate' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky' | 'fuchsia' | 'emerald' | 'amber'> =
+        ['blue', 'orange', 'purple', 'green', 'pink', 'red', 'yellow', 'slate', 'teal', 'indigo', 'lime', 'rose', 'sky', 'fuchsia', 'emerald', 'amber'];
 
     // Tasks state
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -308,8 +311,8 @@ export function CardModal({ isOpen, onClose, onSave, initialData }: CardModalPro
                                         <div>
                                             <label className="block text-sm font-medium mb-2 text-white/50">Tags</label>
                                             <div className="flex flex-wrap gap-2 mb-2">
-                                                {tags.map(tag => (
-                                                    <Tag key={tag} variant="blue">
+                                                {tags.map((tag, index) => (
+                                                    <Tag key={tag} variant={tagVariants[index % tagVariants.length]}>
                                                         <Hash className="w-3 h-3" />
                                                         {tag}
                                                         <button onClick={() => removeTag(tag)} className="ml-1 hover:text-white"><X className="w-3 h-3" /></button>

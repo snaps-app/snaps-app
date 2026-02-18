@@ -3,10 +3,7 @@ import { ArrowLeft, User, Key, HardDrive, Server, Eye, EyeOff, Copy, Check } fro
 import { motion, AnimatePresence } from 'motion/react';
 import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { NeuralBackground } from './neural-background';
-
-interface ProfileProps {
-  onBack?: () => void;
-}
+import { useNavigate } from 'react-router-dom';
 
 type TabType = 'account' | 'ai-models' | 'storage' | 'mcp-servers';
 
@@ -35,18 +32,18 @@ function CyberpunkToggle({ label, description, checked, onChange }: ToggleProps)
           </div>
         )}
       </div>
-      
+
       <motion.button
         onClick={() => onChange(!checked)}
         className="relative w-14 h-7 rounded-full transition-all"
         style={{
-          background: checked 
+          background: checked
             ? 'linear-gradient(135deg, #00D4FF 0%, #0099CC 100%)'
             : 'rgba(255, 255, 255, 0.1)',
-          border: checked 
+          border: checked
             ? '2px solid rgba(0, 212, 255, 0.5)'
             : '2px solid rgba(255, 255, 255, 0.2)',
-          boxShadow: checked 
+          boxShadow: checked
             ? '0 0 20px rgba(0, 212, 255, 0.4), inset 0 0 10px rgba(0, 212, 255, 0.3)'
             : 'none'
         }}
@@ -61,7 +58,7 @@ function CyberpunkToggle({ label, description, checked, onChange }: ToggleProps)
             transition={{ duration: 1.5, repeat: Infinity }}
           />
         )}
-        
+
         {/* Slider */}
         <motion.div
           className="absolute top-0.5 w-6 h-6 rounded-full"
@@ -126,10 +123,10 @@ function CircularProgress({ value, max, label, size = 120 }: CircularProgressPro
             </linearGradient>
           </defs>
         </svg>
-        
+
         {/* Center text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold" style={{ 
+          <span className="text-2xl font-bold" style={{
             background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
@@ -139,7 +136,7 @@ function CircularProgress({ value, max, label, size = 120 }: CircularProgressPro
           </span>
         </div>
       </div>
-      
+
       <div className="mt-3 text-center">
         <div className="text-sm font-medium" style={{ color: 'var(--snaps-text-primary)' }}>
           {label}
@@ -171,7 +168,8 @@ function ScanLine() {
   );
 }
 
-export function Profile({ onBack }: ProfileProps) {
+export function Profile() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('account');
   const [settings, setSettings] = useState({
     emailNotifications: true,
@@ -201,23 +199,21 @@ export function Profile({ onBack }: ProfileProps) {
       <NeuralBackground />
 
       {/* Back Button */}
-      {onBack && (
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-          style={{
-            background: 'rgba(255, 107, 53, 0.1)',
-            border: '1px solid rgba(255, 107, 53, 0.3)',
-            boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
-          }}
-        >
-          <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
-        </motion.button>
-      )}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => navigate('/')}
+        className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
+        style={{
+          background: 'rgba(255, 107, 53, 0.1)',
+          border: '1px solid rgba(255, 107, 53, 0.3)',
+          boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
+        }}
+      >
+        <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
+      </motion.button>
 
       {/* Main Content */}
       <div className="relative z-10 max-w-5xl mx-auto px-6 py-12">
@@ -227,9 +223,9 @@ export function Profile({ onBack }: ProfileProps) {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 
+          <h1
             className="text-4xl font-bold mb-2"
-            style={{ 
+            style={{
               background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -260,17 +256,17 @@ export function Profile({ onBack }: ProfileProps) {
                 onClick={() => setActiveTab(tab.id)}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl font-medium whitespace-nowrap transition-all"
                 style={{
-                  background: activeTab === tab.id 
-                    ? 'rgba(0, 212, 255, 0.15)' 
+                  background: activeTab === tab.id
+                    ? 'rgba(0, 212, 255, 0.15)'
                     : 'rgba(255, 255, 255, 0.05)',
                   border: activeTab === tab.id
                     ? '2px solid rgba(0, 212, 255, 0.5)'
                     : '1px solid rgba(255, 255, 255, 0.1)',
-                  color: activeTab === tab.id 
-                    ? 'var(--snaps-accent-blue)' 
+                  color: activeTab === tab.id
+                    ? 'var(--snaps-accent-blue)'
                     : 'var(--snaps-text-secondary)',
-                  boxShadow: activeTab === tab.id 
-                    ? '0 0 20px rgba(0, 212, 255, 0.3)' 
+                  boxShadow: activeTab === tab.id
+                    ? '0 0 20px rgba(0, 212, 255, 0.3)'
                     : 'none'
                 }}
               >
@@ -416,9 +412,9 @@ export function Profile({ onBack }: ProfileProps) {
                 <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--snaps-text-primary)' }}>
                   API Keys
                 </h3>
-                
+
                 <div className="space-y-4">
-                  <div 
+                  <div
                     className="p-4 rounded-xl backdrop-blur-xl"
                     style={{
                       background: 'rgba(255, 255, 255, 0.03)',
@@ -567,9 +563,9 @@ export function Profile({ onBack }: ProfileProps) {
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full"
-                          style={{ 
+                          style={{
                             background: item.color,
                             boxShadow: `0 0 10px ${item.color}`
                           }}
@@ -619,9 +615,9 @@ export function Profile({ onBack }: ProfileProps) {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-3">
-                          <div 
+                          <div
                             className="w-2 h-2 rounded-full"
-                            style={{ 
+                            style={{
                               background: server.status === 'Connected' ? '#22C55E' : '#EF4444',
                               boxShadow: `0 0 10px ${server.status === 'Connected' ? '#22C55E' : '#EF4444'}`
                             }}
@@ -631,11 +627,11 @@ export function Profile({ onBack }: ProfileProps) {
                           </span>
                         </div>
                         <span className="text-xs px-2 py-1 rounded" style={{
-                          background: server.status === 'Connected' 
-                            ? 'rgba(34, 197, 94, 0.2)' 
+                          background: server.status === 'Connected'
+                            ? 'rgba(34, 197, 94, 0.2)'
                             : 'rgba(239, 68, 68, 0.2)',
-                          color: server.status === 'Connected' 
-                            ? 'var(--snaps-accent-green)' 
+                          color: server.status === 'Connected'
+                            ? 'var(--snaps-accent-green)'
                             : '#EF4444',
                           border: server.status === 'Connected'
                             ? '1px solid rgba(34, 197, 94, 0.3)'

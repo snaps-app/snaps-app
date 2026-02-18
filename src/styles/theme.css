@@ -16,6 +16,17 @@
   --snaps-accent-purple: #A855F7;
   --snaps-accent-green: #22C55E;
   --snaps-accent-pink: #EC4899;
+  --snaps-accent-red: #EF4444;
+  --snaps-accent-yellow: #F59E0B;
+  --snaps-accent-slate: #64748B;
+  --snaps-accent-teal: #14B8A6;
+  --snaps-accent-indigo: #6366F1;
+  --snaps-accent-lime: #84CC16;
+  --snaps-accent-rose: #F43F5E;
+  --snaps-accent-sky: #0EA5E9;
+  --snaps-accent-fuchsia: #D946EF;
+  --snaps-accent-emerald: #10B981;
+  --snaps-accent-amber: #D97706;
   
   /* State Colors */
   --snaps-success: #22C55E;

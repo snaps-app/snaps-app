@@ -2,11 +2,8 @@ import { useState } from 'react';
 import { Sparkles, ArrowLeft, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
-
-interface NewProjectProps {
-  onBack?: () => void;
-  onCreate?: (project: { name: string; description: string; instructions: string; template: string }) => void;
-}
+import { useNavigate } from 'react-router-dom';
+import api from '@/services/api';
 
 const templates = [
   { id: 'free', name: 'Free Template', description: 'Start from scratch with no constraints' },
@@ -15,7 +12,8 @@ const templates = [
   { id: 'second-brain', name: 'Second Brain', description: 'Progressive summarization workflow' }
 ];
 
-export function NewProject({ onBack, onCreate }: NewProjectProps) {
+export function NewProject() {
+  const navigate = useNavigate();
   const [projectName, setProjectName] = useState('');
   const [description, setDescription] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -23,6 +21,7 @@ export function NewProject({ onBack, onCreate }: NewProjectProps) {
   const [isImprovingDescription, setIsImprovingDescription] = useState(false);
   const [isImprovingInstructions, setIsImprovingInstructions] = useState(false);
   const [sparks, setSparks] = useState<Array<{ id: number; x: number; y: number }>>([]);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleImprove = (field: 'description' | 'instructions', targetRef: HTMLTextAreaElement | null) => {
     if (!targetRef) return;
@@ -57,17 +56,21 @@ export function NewProject({ onBack, onCreate }: NewProjectProps) {
     }, 2000);
   };
 
-  const handleCreate = () => {
-    console.log('NewProject: handleCreate called', { projectName, description, instructions, selectedTemplate });
-    if (onCreate && projectName) {
-      onCreate({
+  const handleCreate = async () => {
+    if (!projectName) return;
+    setIsCreating(true);
+    try {
+      const newProject = await api.createProject({
         name: projectName,
         description,
         instructions,
         template: selectedTemplate
       });
-    } else {
-      console.warn('NewProject: onCreate missing or projectName empty');
+      navigate(`/project/${newProject.id}`);
+    } catch (error) {
+      console.error('Failed to create project:', error);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -95,24 +98,22 @@ export function NewProject({ onBack, onCreate }: NewProjectProps) {
       </div>
 
       {/* Back Button - Top Left */}
-      {onBack && (
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-          style={{
-            background: 'rgba(255, 107, 53, 0.1)',
-            border: '1px solid rgba(255, 107, 53, 0.3)',
-            boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
-          }}
-        >
-          <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
-        </motion.button>
-      )}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => navigate('/')}
+        className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
+        style={{
+          background: 'rgba(255, 107, 53, 0.1)',
+          border: '1px solid rgba(255, 107, 53, 0.3)',
+          boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
+        }}
+      >
+        <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
+      </motion.button>
 
       {/* Main Content */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
@@ -452,7 +453,7 @@ export function NewProject({ onBack, onCreate }: NewProjectProps) {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleCreate}
-                  disabled={!projectName}
+                  disabled={!projectName || isCreating}
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all"
                   style={{
                     background: projectName
@@ -466,7 +467,7 @@ export function NewProject({ onBack, onCreate }: NewProjectProps) {
                     cursor: projectName ? 'pointer' : 'not-allowed'
                   }}
                 >
-                  Create Project
+                  {isCreating ? 'Creating...' : 'Create Project'}
                 </motion.button>
               </motion.div>
             </div>

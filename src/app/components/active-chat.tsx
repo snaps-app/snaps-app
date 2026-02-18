@@ -6,6 +6,7 @@ import { Tag } from './tag';
 import { Card } from './card';
 import { SnapDetailModal } from './snap-detail-modal';
 import api, { Project, Message, Chat } from '@/services/api';
+import { useParams, useNavigate } from 'react-router-dom';
 
 interface ReferencedSnap {
   id: string;
@@ -23,12 +24,6 @@ interface SuggestedSnap {
   tags: Array<{ label: string; variant: 'blue' | 'orange' | 'purple' | 'green' | 'pink' }>;
   confidence: number;
   timestamp: string;
-}
-
-interface ActiveChatProps {
-  sessionId: string | null;
-  projectId: string | null;
-  onBack?: () => void;
 }
 
 const mockReferencedSnaps: ReferencedSnap[] = [
@@ -92,12 +87,15 @@ const mockSuggestedSnaps: SuggestedSnap[] = [
   }
 ];
 
-export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
+export function ActiveChat() {
+  const { projectId, sessionId } = useParams<{ projectId: string, sessionId?: string }>();
+  const navigate = useNavigate();
+
   // State
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [project, setProject] = useState<Project | null>(null);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(sessionId);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(sessionId || null);
   const [isThinking, setIsThinking] = useState(false);
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<ReferencedSnap | null>(null);
@@ -112,14 +110,14 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
         <div className="text-center">
           <h2 className="text-xl font-bold mb-4">No Project Selected</h2>
           <p className="text-gray-400 mb-6">Please go back and select a project to start chatting.</p>
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors"
-            >
-              Back to Dashboard
-            </button>
-          )}
+
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors"
+          >
+            Back to Dashboard
+          </button>
+
         </div>
       </div>
     );
@@ -188,9 +186,8 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
         const newChat = await api.createChat(projectId, userContent.slice(0, 30) || 'New Chat');
         activeChatId = newChat.id;
         setCurrentChatId(activeChatId);
-        // Update URL without navigation if possible, or just rely on internal state
-        // If we want to update the URL, we might need a callback to parent to change route, 
-        // but for now internal state is fine.
+        // Navigate to the new chat URL to persist the session ID in the browser URL
+        navigate(`/project/${projectId}/chat/${activeChatId}`, { replace: true });
       }
 
       // 2. Persist User Message
@@ -296,21 +293,21 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
           {/* Chat Header */}
           <div className="p-6 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {onBack && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={onBack}
-                  className="w-9 h-9 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-                  style={{
-                    background: 'rgba(255, 107, 53, 0.1)',
-                    border: '1px solid rgba(255, 107, 53, 0.3)',
-                    boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
-                  }}
-                >
-                  <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
-                </motion.button>
-              )}
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate(`/project/${projectId}`)}
+                className="w-9 h-9 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
+                style={{
+                  background: 'rgba(255, 107, 53, 0.1)',
+                  border: '1px solid rgba(255, 107, 53, 0.3)',
+                  boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
+                }}
+              >
+                <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
+              </motion.button>
+
               <div>
                 <h2
                   className="text-xl font-bold"
@@ -798,40 +795,6 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
                               <Check className="w-4 h-4" />
                               Accept
                             </motion.button>
-
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleEditSnap(snap.id)}
-                              className="px-3 py-2 rounded-lg flex items-center justify-center transition-all"
-                              style={{
-                                background: 'rgba(0, 212, 255, 0.2)',
-                                border: '1px solid rgba(0, 212, 255, 0.5)',
-                                color: 'var(--snaps-accent-blue)'
-                              }}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </motion.button>
-
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleRejectSnap(snap.id)}
-                              className="px-3 py-2 rounded-lg flex items-center justify-center transition-all"
-                              style={{
-                                background: 'rgba(239, 68, 68, 0.2)',
-                                border: '1px solid rgba(239, 68, 68, 0.5)',
-                                color: '#EF4444'
-                              }}
-                            >
-                              <X className="w-4 h-4" />
-                            </motion.button>
-                          </div>
-
-                          <div className="mt-3 pt-3 border-t border-white/5">
-                            <span className="text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
-                              {snap.timestamp}
-                            </span>
                           </div>
                         </Card>
                       </motion.div>
@@ -842,42 +805,6 @@ export function ActiveChat({ sessionId, projectId, onBack }: ActiveChatProps) {
             </AnimatePresence>
           </div>
         </div>
-
-        {/* Floating Action Buttons - Right Edge */}
-        <motion.div
-          className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20"
-          initial={{ x: 100, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
-          {/* Settings Button - Purple */}
-          <motion.button
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-            className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
-            style={{
-              background: 'rgba(168, 85, 247, 0.1)',
-              border: '2px solid rgba(168, 85, 247, 0.5)',
-              boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)'
-            }}
-          >
-            <Settings className="w-6 h-6" style={{ color: 'var(--snaps-accent-purple)' }} />
-          </motion.button>
-
-          {/* Docs Button - Blue */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
-            style={{
-              background: 'rgba(0, 212, 255, 0.1)',
-              border: '2px solid rgba(0, 212, 255, 0.5)',
-              boxShadow: '0 4px 20px rgba(0, 212, 255, 0.4)'
-            }}
-          >
-            <FolderOpen className="w-6 h-6" style={{ color: 'var(--snaps-accent-blue)' }} />
-          </motion.button>
-        </motion.div>
       </div>
 
       {/* Snap Detail Modal */}

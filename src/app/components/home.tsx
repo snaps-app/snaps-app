@@ -1,24 +1,29 @@
-import { useState } from 'react';
-import { Plus, Menu, Brain, Search, Activity } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Menu, Search, Activity, Brain } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Button } from './button';
 import { Card } from './card';
-import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback } from './ui/avatar';
 import { NeuralBackground } from './neural-background';
-import { ActivitySparkline } from './activity-sparkline';
+// import { ActivitySparkline } from './activity-sparkline'; // Commenting out unused component for now
+import { useNavigate } from 'react-router-dom';
+import api, { Project } from '@/services/api';
 
-import { Project } from '@/services/api';
+export function Home() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const navigate = useNavigate();
 
-interface HomeProps {
-  projects: Project[];
-  onProjectClick?: (projectId: string) => void;
-  onNewProject?: () => void;
-  onProfileClick?: () => void;
-  onMemoryClick?: () => void;
-}
-
-export function Home({ projects, onProjectClick, onNewProject, onProfileClick, onMemoryClick }: HomeProps) {
-  const [searchFocused, setSearchFocused] = useState(false);
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const data = await api.getProjects();
+        setProjects(data);
+      } catch (error) {
+        console.error('Failed to fetch projects:', error);
+      }
+    };
+    fetchProjects();
+  }, []);
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
@@ -47,7 +52,7 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
 
             <Avatar
               className="w-9 h-9 ring-2 ring-[var(--snaps-accent-blue)] cursor-pointer"
-              onClick={onProfileClick}
+              onClick={() => navigate('/profile')}
             >
               <AvatarFallback style={{ backgroundColor: 'var(--snaps-accent-blue)', color: 'white' }}>BB</AvatarFallback>
             </Avatar>
@@ -65,11 +70,11 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
 
           {/* Mobile Quick Actions */}
           <div className="grid grid-cols-2 gap-3 mt-4">
-            <Button variant="primary" className="w-full justify-center gap-2">
+            <Button variant="primary" className="w-full justify-center gap-2" onClick={() => navigate('/new-project')}>
               <Plus className="w-5 h-5" />
               New Project
             </Button>
-            <Button variant="secondary" className="w-full justify-center gap-2">
+            <Button variant="secondary" className="w-full justify-center gap-2" onClick={() => navigate('/memory')}>
               <Brain className="w-5 h-5" />
               Memory
             </Button>
@@ -102,7 +107,7 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              onClick={onProfileClick}
+              onClick={() => navigate('/profile')}
             >
               <Avatar className="w-12 h-12 ring-2 ring-[var(--snaps-accent-blue)] cursor-pointer hover:ring-[var(--snaps-accent-purple)] transition-all">
                 <AvatarFallback style={{ backgroundColor: 'var(--snaps-accent-blue)', color: 'white' }}>BB</AvatarFallback>
@@ -130,7 +135,7 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
                   boxShadow: '0 8px 32px rgba(0, 212, 255, 0.5), 0 0 60px rgba(0, 212, 255, 0.3)',
                   border: '1px solid rgba(0, 212, 255, 0.3)'
                 }}
-                onClick={onNewProject}
+                onClick={() => navigate('/new-project')}
               >
                 <Plus className="w-6 h-6" />
                 New Project
@@ -150,10 +155,30 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
                   border: '1px solid rgba(168, 85, 247, 0.5)',
                   boxShadow: '0 8px 32px rgba(168, 85, 247, 0.3), inset 0 0 60px rgba(168, 85, 247, 0.1)'
                 }}
-                onClick={onMemoryClick}
+                onClick={() => navigate('/memory')}
               >
                 <Brain className="w-6 h-6" />
                 Access Global Memory
+              </Button>
+            </motion.div>
+
+            <motion.div
+              className="flex-1"
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Button
+                variant="secondary"
+                className="w-full gap-3 px-8 py-5 text-lg font-semibold rounded-2xl backdrop-blur-xl justify-center"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(10, 255, 180, 0.5)',
+                  boxShadow: '0 8px 32px rgba(10, 255, 180, 0.3), inset 0 0 60px rgba(10, 255, 180, 0.1)'
+                }}
+                onClick={() => navigate('/global-board')}
+              >
+                <Activity className="w-6 h-6" />
+                View Global Board
               </Button>
             </motion.div>
           </motion.div>
@@ -201,7 +226,7 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
                   backgroundOrigin: 'border-box',
                   backgroundClip: 'padding-box, border-box'
                 }}
-                onClick={() => onProjectClick?.(project.id)}
+                onClick={() => navigate(`/project/${project.id}`)}
               >
                 {/* Shimmer effect on hover */}
                 <div
@@ -230,17 +255,6 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
                       {project.description}
                     </p>
                   </div>
-
-                  {/* Activity Sparkline Placeholder */}
-                  {/* <div className="flex items-center gap-3">
-                    <ActivitySparkline data={project.activity || []} />
-                    <span 
-                      className="text-xs"
-                      style={{ color: 'var(--snaps-accent-green)' }}
-                    >
-                      Active
-                    </span>
-                  </div> */}
 
                   <div className="pt-2 border-t border-white/5">
                     <span
@@ -274,7 +288,7 @@ export function Home({ projects, onProjectClick, onNewProject, onProfileClick, o
             boxShadow: '0 8px 30px rgba(0, 212, 255, 0.4), 0 0 60px rgba(168, 85, 247, 0.3)'
           }}
           aria-label="Create new project"
-          onClick={onNewProject}
+          onClick={() => navigate('/new-project')}
         >
           <Plus className="w-6 h-6" />
         </Button>

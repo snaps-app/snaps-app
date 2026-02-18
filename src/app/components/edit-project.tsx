@@ -4,13 +4,7 @@ import api from '@/services/api';
 import { Sparkles, ArrowLeft, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
-
-interface EditProjectProps {
-  projectId: string | null;
-  onBack?: () => void;
-  onUpdate?: (project: { name: string; description: string; instructions: string; template: string }) => void;
-}
-
+import { useParams, useNavigate } from 'react-router-dom';
 
 const templates = [
   { id: 'free', name: 'Free Template', description: 'Start from scratch with no constraints' },
@@ -19,8 +13,10 @@ const templates = [
   { id: 'second-brain', name: 'Second Brain', description: 'Progressive summarization workflow' }
 ];
 
-export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
-  // Pre-populate with existing project data (in real app, would come from props)
+export function EditProject() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+
   const [projectName, setProjectName] = useState('');
   const [description, setDescription] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -29,6 +25,7 @@ export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
   const [isImprovingDescription, setIsImprovingDescription] = useState(false);
   const [isImprovingInstructions, setIsImprovingInstructions] = useState(false);
   const [sparks, setSparks] = useState<Array<{ id: number; x: number; y: number }>>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     if (projectId) {
@@ -77,6 +74,7 @@ export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
 
   const handleUpdate = async () => {
     if (projectId && projectName) {
+      setIsUpdating(true);
       try {
         await api.updateProject(projectId, {
           name: projectName,
@@ -84,19 +82,11 @@ export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
           instructions,
           template: selectedTemplate
         });
-        if (onUpdate) {
-          onUpdate({
-            name: projectName,
-            description,
-            instructions,
-            template: selectedTemplate
-          });
-        }
-        if (onBack) {
-          onBack();
-        }
+        navigate(`/project/${projectId}`);
       } catch (error) {
         console.error('Failed to update project:', error);
+      } finally {
+        setIsUpdating(false);
       }
     }
   };
@@ -126,24 +116,22 @@ export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
       </div>
 
       {/* Back Button - Top Left */}
-      {onBack && (
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
-          style={{
-            background: 'rgba(255, 107, 53, 0.1)',
-            border: '1px solid rgba(255, 107, 53, 0.3)',
-            boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
-          }}
-        >
-          <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
-        </motion.button>
-      )}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => navigate(`/project/${projectId}`)}
+        className="fixed top-6 left-6 z-20 w-10 h-10 rounded-lg backdrop-blur-xl flex items-center justify-center transition-all"
+        style={{
+          background: 'rgba(255, 107, 53, 0.1)',
+          border: '1px solid rgba(255, 107, 53, 0.3)',
+          boxShadow: '0 2px 10px rgba(255, 107, 53, 0.2)'
+        }}
+      >
+        <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
+      </motion.button>
 
       {/* Main Content */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
@@ -483,7 +471,7 @@ export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleUpdate}
-                  disabled={!projectName}
+                  disabled={!projectName || isUpdating}
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all"
                   style={{
                     background: projectName
@@ -497,7 +485,7 @@ export function EditProject({ projectId, onBack, onUpdate }: EditProjectProps) {
                     cursor: projectName ? 'pointer' : 'not-allowed'
                   }}
                 >
-                  Update Project
+                  {isUpdating ? 'Updating...' : 'Update Project'}
                 </motion.button>
               </motion.div>
             </div>
