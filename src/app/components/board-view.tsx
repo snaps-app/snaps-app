@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Settings, ArrowLeft, Plus, Check, Palette, FolderOpen, Upload, Bot, X, Send, Layers, Globe } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Settings, ArrowLeft, Plus, Check, Palette, FolderOpen, Upload, Bot, X, Send, Layers, Globe, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { NeuralBackground } from './neural-background';
 import { CardModal } from './card-modal';
 import { BoardCard } from './board-card';
-import api, { Card, Board } from '@/services/api';
+import api, { Card, Board, Epic } from '@/services/api';
 import { useParams, useNavigate } from 'react-router-dom';
 
 const BOARD_COLORS = [
@@ -28,7 +28,6 @@ const BOARD_COLORS = [
   '#D97706'  // Amber
 ];
 
-
 interface ColumnProps {
   title: string;
   status: string;
@@ -40,6 +39,8 @@ interface ColumnProps {
   onMoveColumn: (dragIndex: number, hoverIndex: number) => void;
   index: number;
   color: string;
+  epics: Epic[];
+  boardColor: string;
 }
 
 function Column({
@@ -52,7 +53,9 @@ function Column({
   onColorChange,
   onMoveColumn,
   index,
-  color
+  color,
+  epics,
+  boardColor
 }: ColumnProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(title);
@@ -220,7 +223,8 @@ function Column({
               <CardWrapper
                 task={task}
                 onCardClick={onCardClick}
-                boardColor={color}
+                boardColor={boardColor}
+                epic={epics.find(e => e.id === task.epic_id)}
               />
             </motion.div>
           ))}
@@ -230,7 +234,7 @@ function Column({
   );
 }
 
-function CardWrapper({ task, onCardClick, boardColor }: { task: Card, onCardClick: (card: Card) => void, boardColor: string }) {
+function CardWrapper({ task, onCardClick, boardColor, epic }: { task: Card, onCardClick: (card: Card) => void, boardColor: string, epic?: Epic }) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'TASK',
     item: { id: task.id, status: task.status },
@@ -245,6 +249,7 @@ function CardWrapper({ task, onCardClick, boardColor }: { task: Card, onCardClic
         card={task}
         onClick={onCardClick}
         boardColor={boardColor}
+        epic={epic}
       />
     </div>
   );
@@ -285,6 +290,15 @@ export function BoardView() {
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
 
+  const [epics, setEpics] = useState<Epic[]>([]);
+  const [selectedEpicId, setSelectedEpicId] = useState<string | null>(null);
+  const [isEpicModalOpen, setIsEpicModalOpen] = useState(false);
+  const [editingEpicId, setEditingEpicId] = useState<string | null>(null);
+  const [isCreatingEpic, setIsCreatingEpic] = useState(false);
+  const [isCreatingEpicUtils, setIsCreatingEpicUtils] = useState(false);
+  const [epicNameInput, setEpicNameInput] = useState('');
+  const [epicColorInput, setEpicColorInput] = useState(BOARD_COLORS[0]);
+
   const handleCreateCard = () => {
     setSelectedCard(null);
     setIsCardModalOpen(true);
@@ -315,6 +329,15 @@ export function BoardView() {
       setTasks(data.cards || []);
     } catch (error) {
       console.error('Failed to fetch board:', error);
+    }
+  };
+
+  const fetchEpics = async (pid: string) => {
+    try {
+      const data = await api.getEpics(pid);
+      setEpics(data);
+    } catch (error) {
+      console.error('Failed to fetch epics:', error);
     }
   };
 
@@ -389,8 +412,78 @@ export function BoardView() {
 
     if (projectId) {
       api.getProject(projectId).then(setProject);
+      fetchEpics(projectId);
     }
   }, [boardId, projectId]);
+
+
+
+  const handleCreateEpic = async () => {
+    if (!projectId || !epicNameInput.trim() || isCreatingEpicUtils) return;
+    setIsCreatingEpicUtils(true);
+    try {
+      await api.createEpic(projectId, {
+        name: epicNameInput,
+        color: epicColorInput,
+        project_id: projectId
+      });
+      setIsCreatingEpic(false);
+      setEpicNameInput('');
+      setEpicColorInput(BOARD_COLORS[0]);
+      fetchEpics(projectId);
+    } catch (error) {
+      console.error('Failed to create epic:', error);
+    } finally {
+      setIsCreatingEpicUtils(false);
+    }
+  };
+
+  const handleDeleteEpic = async (epicId: string) => {
+    if (!confirm('Are you sure you want to delete this epic? This will remove the epic from all associated cards.')) return;
+    try {
+      await api.deleteEpic(epicId);
+      if (editingEpicId === epicId) {
+        setEditingEpicId(null);
+        setEpicNameInput('');
+      }
+      fetchEpics(projectId!);
+      // Refresh board to reflect removed epic associations on cards
+      if (boardId) {
+        fetchBoard(boardId);
+      }
+    } catch (error) {
+      console.error('Failed to delete epic:', error);
+    }
+  };
+
+  const handleUpdateEpic = async (epicId: string) => {
+    if (!epicNameInput.trim()) return;
+    try {
+      await api.updateEpic(epicId, {
+        name: epicNameInput,
+        color: epicColorInput
+      });
+      setEditingEpicId(null);
+      setEpicNameInput('');
+      fetchEpics(projectId!);
+    } catch (error) {
+      console.error('Failed to update epic:', error);
+    }
+  };
+
+  const startEditingEpic = (epic: Epic) => {
+    setEditingEpicId(epic.id);
+    setEpicNameInput(epic.name);
+    setEpicColorInput(epic.color);
+    setIsCreatingEpic(false);
+  };
+
+  const startCreatingEpic = () => {
+    setIsCreatingEpic(true);
+    setEditingEpicId(null);
+    setEpicNameInput('');
+    setEpicColorInput(BOARD_COLORS[0]);
+  };
 
   const handleSaveBoard = async () => {
     if (!projectId) return;
@@ -591,7 +684,8 @@ export function BoardView() {
             status: cardData.status,
             priority: cardData.priority,
             due_date: cardData.due_date,
-            labels: cardData.labels
+            labels: cardData.labels,
+            epic_id: cardData.epic_id
           });
         }
       }
@@ -603,6 +697,20 @@ export function BoardView() {
   };
 
   const columns = board?.columns || [];
+
+  const priorityOrder: Record<string, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
+
+  const filteredAndSortedTasks = useMemo(() => {
+    let result = selectedEpicId
+      ? tasks.filter(t => selectedEpicId === 'no_epic' ? !t.epic_id : t.epic_id === selectedEpicId)
+      : tasks;
+    
+    return [...result].sort((a, b) => {
+      const pA = priorityOrder[a.priority as string] || 0;
+      const pB = priorityOrder[b.priority as string] || 0;
+      return pB - pA;
+    });
+  }, [tasks, selectedEpicId]);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -686,6 +794,33 @@ export function BoardView() {
                     <p className="text-xs text-gray-500 px-2 leading-none">{project.name}</p>
                   )}
                 </div>
+
+                {/* Epic Filter */}
+                <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
+                   <div className="relative">
+                      <button
+                        onClick={() => setIsEpicModalOpen(true)}
+                        className="px-3 py-2 rounded-lg bg-transparent border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-2 text-sm"
+                        style={{ color: 'var(--snaps-text-primary)' }}
+                      >
+                        <Settings className="w-4 h-4" />
+                        Manage Epics
+                      </button>
+                   </div>
+                   
+                   <select
+                      value={selectedEpicId || ''}
+                      onChange={(e) => setSelectedEpicId(e.target.value || null)}
+                      className="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
+                      style={{ color: 'var(--snaps-text-primary)' }}
+                   >
+                      <option value="">All Epics</option>
+                      <option value="no_epic">No Epic</option>
+                      {epics.map(epic => (
+                        <option key={epic.id} value={epic.id}>{epic.name}</option>
+                      ))}
+                   </select>
+                </div>
               </div>
 
               <div className="flex items-center gap-4">
@@ -727,6 +862,144 @@ export function BoardView() {
             </div>
           </motion.div>
 
+          {/* Epic Modal */}
+      <AnimatePresence>
+        {isEpicModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[80vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold">Manage Epics</h2>
+                <button
+                  onClick={() => setIsEpicModalOpen(false)}
+                  className="p-1 rounded-lg hover:bg-white/10"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2">
+                {epics.map(epic => (
+                  <div key={epic.id} className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    {editingEpicId === epic.id ? (
+                      <div className="flex flex-col gap-3">
+                        <input
+                          type="text"
+                          value={epicNameInput}
+                          onChange={(e) => setEpicNameInput(e.target.value)}
+                          className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-white"
+                          placeholder="Epic Name"
+                          autoFocus
+                        />
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1 flex-wrap">
+                            {BOARD_COLORS.slice(0, 8).map(c => (
+                              <button
+                                key={c}
+                                onClick={() => setEpicColorInput(c)}
+                                className={`w-5 h-5 rounded-full border-2 ${epicColorInput === c ? 'border-white' : 'border-transparent'}`}
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex-1" />
+                          <button
+                            onClick={() => handleDeleteEpic(epic.id)}
+                            className="p-2 rounded hover:bg-red-500/10 text-red-500 hover:text-red-400 transition-colors"
+                            title="Delete Epic"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingEpicId(null)}
+                            className="p-2 rounded hover:bg-white/10 text-xs text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleUpdateEpic(epic.id)}
+                            className="p-2 rounded bg-green-500/20 text-green-400 text-xs font-bold"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: epic.color }} />
+                          <span className="font-medium text-white">{epic.name}</span>
+                        </div>
+                        <button
+                          onClick={() => startEditingEpic(epic)}
+                          className="p-2 rounded-lg hover:bg-white/10 opacity-50 hover:opacity-100 text-white"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {isCreatingEpic ? (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex flex-col gap-3">
+                        <input
+                          type="text"
+                          value={epicNameInput}
+                          onChange={(e) => setEpicNameInput(e.target.value)}
+                          className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-white"
+                          placeholder="New Epic Name"
+                          autoFocus
+                        />
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1 flex-wrap">
+                            {BOARD_COLORS.slice(0, 8).map(c => (
+                              <button
+                                key={c}
+                                onClick={() => setEpicColorInput(c)}
+                                className={`w-5 h-5 rounded-full border-2 ${epicColorInput === c ? 'border-white' : 'border-transparent'}`}
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex-1" />
+                          <button
+                            onClick={() => setIsCreatingEpic(false)}
+                            className="p-2 rounded hover:bg-white/10 text-xs text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleCreateEpic}
+                            disabled={!epicNameInput.trim() || isCreatingEpicUtils}
+                            className="p-2 rounded bg-blue-500/20 text-blue-400 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            {isCreatingEpicUtils ? (
+                                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : 'Create'}
+                          </button>
+                        </div>
+                      </div>
+                  </div>
+                ) : (
+                   <button
+                    onClick={startCreatingEpic}
+                    className="w-full py-3 rounded-xl border border-dashed border-white/10 hover:border-white/30 hover:bg-white/5 text-gray-400 hover:text-white transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                   >
+                     <Plus className="w-4 h-4" />
+                     Add New Epic
+                   </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
           {/* Bulk Apply Modal */}
           <AnimatePresence>
             {isBulkApplyOpen && (
@@ -1068,13 +1341,24 @@ export function BoardView() {
                   index={index}
                   title={col.title}
                   status={col.id}
-                  tasks={tasks.filter(t => t.status === col.id)}
+                  tasks={filteredAndSortedTasks.filter(t => {
+                    if (t.status === col.id) return true;
+                    // Fuzzy match for common interchangeable statuses
+                    const s = t.status.toLowerCase();
+                    const cid = col.id.toLowerCase();
+                    if ((s === 'doing' || s === 'inprogress' || s === 'in-progress') && 
+                        (cid === 'doing' || cid === 'inprogress' || cid === 'in-progress')) return true;
+                    if ((s === 'todo' || s === 'to-do') && (cid === 'todo' || cid === 'to-do')) return true;
+                    return false;
+                  })}
                   onMove={handleMove}
                   onCardClick={handleEditCard}
                   onTitleChange={(newTitle) => handleUpdateColumnTitle(col.id, newTitle)}
                   onColorChange={(newColor) => handleUpdateColumnColor(col.id, newColor)}
                   onMoveColumn={handleMoveColumn}
                   color={col.color || boardColor}
+                  epics={epics}
+                  boardColor={boardColor}
                 />
               ))}
 
@@ -1150,7 +1434,8 @@ export function BoardView() {
           onClose={() => setIsCardModalOpen(false)}
           onSave={handleSaveCard}
           initialData={selectedCard}
-          boardId={localBoardId || undefined}
+          epics={epics}
+          columns={board?.columns}
         />
       </div>
     </DndProvider>

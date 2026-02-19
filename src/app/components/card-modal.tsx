@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { X, Hash, Check, Plus, Trash2, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tag } from './tag';
-import { Card, Task, createTask, updateTask, deleteTask } from '@/services/api';
+import { Card, Task, createTask, updateTask, deleteTask, Epic } from '@/services/api';
+import { formatToISODateOnly, parseDateForStorage } from '@/lib/date-utils';
 
 interface CardModalProps {
     isOpen: boolean;
@@ -10,16 +11,19 @@ interface CardModalProps {
     onSave: (cardData: Partial<Card>) => void;
     initialData?: Card | null;
     boardId?: string; // Needed if creating mostly? Or handled by parent
+    epics?: Epic[];
+    columns?: { id: string; title: string }[];
 }
 
-export function CardModal({ isOpen, onClose, onSave, initialData }: CardModalProps) {
+export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], columns = [] }: CardModalProps) {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [status, setStatus] = useState<'todo' | 'inprogress' | 'done'>('todo');
+    const [status, setStatus] = useState<string>('todo');
     const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
     const [dueDate, setDueDate] = useState('');
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
+    const [epicId, setEpicId] = useState<string>('');
 
     const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink' | 'red' | 'yellow' | 'slate' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky' | 'fuchsia' | 'emerald' | 'amber'> =
         ['blue', 'orange', 'purple', 'green', 'pink', 'red', 'yellow', 'slate', 'teal', 'indigo', 'lime', 'rose', 'sky', 'fuchsia', 'emerald', 'amber'];
@@ -36,21 +40,23 @@ export function CardModal({ isOpen, onClose, onSave, initialData }: CardModalPro
                 setDescription(initialData.description || '');
                 setStatus(initialData.status);
                 setPriority(initialData.priority || 'Medium');
-                setDueDate(initialData.due_date ? new Date(initialData.due_date).toISOString().split('T')[0] : '');
+                setDueDate(formatToISODateOnly(initialData.due_date));
                 setTags(initialData.labels || []); // Assuming labels are strings for now
                 setTasks(initialData.tasks || []);
+                setEpicId(initialData.epic_id || '');
             } else {
                 // Reset for new card
                 setTitle('');
                 setDescription('');
-                setStatus('todo');
+                setStatus(columns.length > 0 ? columns[0].id : 'todo');
                 setPriority('Medium');
                 setDueDate('');
                 setTags([]);
                 setTasks([]);
+                setEpicId('');
             }
         }
-    }, [isOpen, initialData]);
+    }, [isOpen, initialData, columns]);
 
     const handleSave = () => {
         if (title.trim()) {
@@ -60,8 +66,9 @@ export function CardModal({ isOpen, onClose, onSave, initialData }: CardModalPro
                 description,
                 status,
                 priority,
-                due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
-                // labels: tags, // TODO: Implement label management (backend expects UUIDs)
+                due_date: parseDateForStorage(dueDate),
+                epic_id: epicId || undefined,
+                labels: tags,
                 // Tasks are handled separately via API usually, but if creating new card, we might need to handle them after save?
                 // For MVP, tasks might only be editable on existing cards or we pass them to create endpoint if supported.
                 // Let's assume onSave handles the main card update/create.
@@ -159,13 +166,21 @@ export function CardModal({ isOpen, onClose, onSave, initialData }: CardModalPro
                                         <div className="flex gap-4 text-sm items-center">
                                             <select
                                                 value={status}
-                                                onChange={(e) => setStatus(e.target.value as any)}
+                                                onChange={(e) => setStatus(e.target.value)}
                                                 className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none"
                                                 style={{ color: 'var(--snaps-text-secondary)' }}
                                             >
-                                                <option value="todo">To Do</option>
-                                                <option value="inprogress">In Progress</option>
-                                                <option value="done">Done</option>
+                                                {columns.length > 0 ? (
+                                                    columns.map(col => (
+                                                        <option key={col.id} value={col.id}>{col.title}</option>
+                                                    ))
+                                                ) : (
+                                                    <>
+                                                        <option value="todo">To Do</option>
+                                                        <option value="inprogress">In Progress</option>
+                                                        <option value="done">Done</option>
+                                                    </>
+                                                )}
                                             </select>
                                             <select
                                                 value={priority}
@@ -184,6 +199,17 @@ export function CardModal({ isOpen, onClose, onSave, initialData }: CardModalPro
                                                 className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none"
                                                 style={{ color: 'var(--snaps-text-secondary)', colorScheme: 'dark' }}
                                             />
+                                            <select
+                                                value={epicId}
+                                                onChange={(e) => setEpicId(e.target.value)}
+                                                className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none max-w-[150px]"
+                                                style={{ color: 'var(--snaps-text-secondary)' }}
+                                            >
+                                                <option value="">No Epic</option>
+                                                {epics.map(epic => (
+                                                    <option key={epic.id} value={epic.id}>{epic.name}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                     <motion.button

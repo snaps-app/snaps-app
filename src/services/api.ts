@@ -59,6 +59,21 @@ export interface SnapCreate {
     };
 }
 
+export interface Epic {
+    id: string;
+    project_id: string;
+    name: string;
+    color: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface EpicCreate {
+    project_id: string;
+    name: string;
+    color: string;
+}
+
 export interface Task {
     id: string;
     card_id: string;
@@ -73,10 +88,11 @@ export interface Card {
     board_id: string;
     title: string;
     description: string;
-    status: 'todo' | 'inprogress' | 'done';
+    status: string;
     priority: 'Low' | 'Medium' | 'High';
     due_date?: string;
     labels?: string[]; // Simplified to strings for now, backend expects UUIDs? Let's assume strings or IDs 
+    epic_id?: string;
     tasks?: Task[]; // Populated if backend returns them
     created_at: string;
     updated_at: string;
@@ -86,6 +102,8 @@ export interface CardWithProject extends Card {
     project_id: string;
     project_name: string;
     board_color?: string;
+    epic_name?: string;
+    epic_color?: string;
 }
 
 export interface Board {
@@ -116,6 +134,26 @@ export const createProject = async (data: ProjectCreate): Promise<Project> => {
 export const updateProject = async (projectId: string, data: Partial<ProjectCreate>): Promise<Project> => {
     const response = await api.patch(`/projects/${projectId}`, data);
     return response.data;
+};
+
+// --- Epic Functions ---
+export const getEpics = async (projectId: string): Promise<Epic[]> => {
+    const response = await api.get(`/projects/${projectId}/epics/`);
+    return response.data;
+};
+
+export const createEpic = async (projectId: string, data: EpicCreate): Promise<Epic> => {
+    const response = await api.post(`/projects/${projectId}/epics/`, data);
+    return response.data;
+};
+
+export const updateEpic = async (epicId: string, data: Partial<EpicCreate>): Promise<Epic> => {
+    const response = await api.patch(`/epics/${epicId}`, data);
+    return response.data;
+};
+
+export const deleteEpic = async (epicId: string): Promise<void> => {
+    await api.delete(`/epics/${epicId}`);
 };
 
 
@@ -284,6 +322,12 @@ const apiService = {
     getProject,
     createProject,
     updateProject,
+    
+    // Epic Functions
+    getEpics,
+    createEpic,
+    updateEpic,
+    deleteEpic,
 
     getSnaps,
     createSnap,

@@ -10,17 +10,22 @@ import { DocumentsView } from '@/app/components/documents-view';
 import { Profile } from '@/app/components/profile';
 import { MemoryView } from '@/app/components/memory-view';
 import { GlobalBoard } from '@/app/components/global-board';
+import { MainLayout } from '@/app/components/main-layout';
+import { CalendarView } from '@/app/components/calendar-view';
 
 export default function App() {
     return (
         <BrowserRouter>
             <div className="min-h-screen" style={{ backgroundColor: 'var(--snaps-bg)' }}>
                 <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/new-project" element={<NewProject />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/memory" element={<MemoryView />} />
-                    <Route path="/global-board" element={<GlobalBoard />} />
+                    <Route element={<MainLayout />}>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/new-project" element={<NewProject />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/memory" element={<MemoryView />} />
+                        <Route path="/global-board" element={<GlobalBoard />} />
+                        <Route path="/calendar" element={<CalendarView />} />
+                    </Route>
 
                     {/* Project Routes */}
                     <Route path="/project/:projectId" element={<ProjectWorkspace />} />
