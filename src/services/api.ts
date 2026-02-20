@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // --- Configuration ---
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -218,7 +218,7 @@ export interface Chat {
     created_at: string;
 }
 
-const AGENT_URL = 'http://localhost:8001';
+const AGENT_URL = import.meta.env.VITE_AGENT_URL || 'http://localhost:8001';
 
 // --- Chat Functions ---
 export const createChat = async (projectId: string, title: string): Promise<Chat> => {
