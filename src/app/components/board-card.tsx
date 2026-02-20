@@ -2,15 +2,17 @@ import { motion } from 'motion/react';
 import { Card as CardContainer } from './card';
 import { Flame, AlertCircle, CircleMinus, Calendar } from 'lucide-react';
 import { Card as CardType } from '@/services/api';
+import { formatToSaoPauloShort } from '@/lib/date-utils';
 
 interface BoardCardProps {
     card: CardType;
     onClick?: (card: CardType) => void;
     projectName?: string;
     boardColor?: string; // Expected to be in a format compatible with CSS background/border
+    epic?: { name: string; color: string };
 }
 
-export function BoardCard({ card, onClick, projectName, boardColor = 'rgba(168, 85, 247, 0.5)' }: BoardCardProps) {
+export function BoardCard({ card, onClick, projectName, boardColor = 'rgba(168, 85, 247, 0.5)', epic }: BoardCardProps) {
     const taskCount = card.tasks?.length || 0;
 
     const getPriorityIcon = () => {
@@ -50,13 +52,46 @@ export function BoardCard({ card, onClick, projectName, boardColor = 'rgba(168, 
                 }}
             >
                 <div className="flex flex-col gap-1">
-                    {projectName && (
-                        <div
-                            className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
-                            style={{ color: boardColor.includes('#') ? boardColor : `rgb(${boardColor})` }}
-                        >
-                            {projectName}
+                    {/* Top row: Project Name and Epic Tag (Global Board) */}
+                    {projectName ? (
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <div
+                                className="text-[10px] font-bold uppercase tracking-widest"
+                                style={{ color: boardColor.includes('#') ? boardColor : `rgb(${boardColor})` }}
+                            >
+                                {projectName}
+                            </div>
+                            {epic && (
+                                <div
+                                    className="text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium"
+                                    style={{
+                                        backgroundColor: `${epic.color}20`,
+                                        border: `1px solid ${epic.color}40`,
+                                        color: epic.color
+                                    }}
+                                >
+                                    <div className="w-1 h-1 rounded-full shadow-[0_0_3px_currentColor]" style={{ backgroundColor: epic.color }} />
+                                    {epic.name}
+                                </div>
+                            )}
                         </div>
+                    ) : (
+                        /* Top row: Epic Tag only (Project Board) */
+                        epic && (
+                            <div className="mb-1.5">
+                                <div
+                                    className="text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium w-fit"
+                                    style={{
+                                        backgroundColor: `${epic.color}20`,
+                                        border: `1px solid ${epic.color}40`,
+                                        color: epic.color
+                                    }}
+                                >
+                                    <div className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: epic.color }} />
+                                    {epic.name}
+                                </div>
+                            </div>
+                        )
                     )}
 
                     <div className="flex items-start justify-between gap-4">
@@ -85,7 +120,7 @@ export function BoardCard({ card, onClick, projectName, boardColor = 'rgba(168, 
                                 {card.due_date && (
                                     <div className="flex items-center gap-1 text-[10px]">
                                         <Calendar className="w-3 h-3 opacity-50" />
-                                        {new Date(card.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                        {formatToSaoPauloShort(card.due_date)}
                                     </div>
                                 )}
                             </div>

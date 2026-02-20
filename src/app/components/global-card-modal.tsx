@@ -14,13 +14,17 @@ export function GlobalCardModal({ isOpen, onClose, onCardCreated }: GlobalCardMo
     const [step, setStep] = useState<'project' | 'board' | 'details'>('project');
     const [projects, setProjects] = useState<Project[]>([]);
     const [boards, setBoards] = useState<Board[]>([]);
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+    const [epics, setEpics] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setStep('project');
             setSelectedBoardId(null);
+            setSelectedProjectId(null);
+            setEpics([]);
             setLoading(true);
             api.getProjects()
                 .then(setProjects)
@@ -30,12 +34,17 @@ export function GlobalCardModal({ isOpen, onClose, onCardCreated }: GlobalCardMo
 
     const handleSelectProject = async (projectId: string) => {
         setLoading(true);
+        setSelectedProjectId(projectId);
         try {
-            const projectBoards = await api.getProjectBoards(projectId);
+            const [projectBoards, projectEpics] = await Promise.all([
+                api.getProjectBoards(projectId),
+                api.getEpics(projectId)
+            ]);
             setBoards(projectBoards);
+            setEpics(projectEpics);
             setStep('board');
         } catch (error) {
-            console.error('Failed to fetch boards:', error);
+            console.error('Failed to fetch project data:', error);
         } finally {
             setLoading(false);
         }
@@ -60,12 +69,15 @@ export function GlobalCardModal({ isOpen, onClose, onCardCreated }: GlobalCardMo
     if (!isOpen) return null;
 
     if (step === 'details' && selectedBoardId) {
+        const selectedBoard = boards.find(b => b.id === selectedBoardId);
         return (
             <CardModal
                 isOpen={true}
                 onClose={() => setStep('board')}
                 onSave={handleSaveCard}
                 boardId={selectedBoardId}
+                columns={selectedBoard?.columns}
+                epics={epics}
             />
         );
     }

@@ -3,6 +3,7 @@ import { Card } from './card';
 import { Tag } from './tag';
 import { Hash, Clock } from 'lucide-react';
 import { Snap } from '@/services/api';
+import { formatToSaoPauloShort } from '@/lib/date-utils';
 
 interface SnapCardProps {
   snap: Snap;
@@ -56,7 +57,7 @@ export function SnapCard({ snap, onClick, projectName }: SnapCardProps) {
               style={{ color: 'var(--snaps-text-secondary)' }}
             >
               <Clock className="w-3 h-3" />
-              {new Date(snap.created_at).toLocaleDateString()}
+              {formatToSaoPauloShort(snap.created_at)}
             </span>
             {projectName && (
               <span

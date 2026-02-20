@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Tag } from './tag';
 
 import { Snap } from '@/services/api';
+import { formatToSaoPauloShort } from '@/lib/date-utils';
 
 interface SnapDetailModalProps {
   isOpen: boolean;
@@ -82,7 +83,7 @@ export function SnapDetailModal({ isOpen, onClose, snap, onEdit, onDelete }: Sna
                           style={{ color: 'var(--snaps-text-secondary)' }}
                         >
                           <Calendar className="w-4 h-4" />
-                          {new Date(snap.created_at).toLocaleDateString()}
+                          {formatToSaoPauloShort(snap.created_at)}
                         </span>
                         {/* 
                         {snap.project && (

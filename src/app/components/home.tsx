@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Menu, Search, Activity, Brain } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Button } from './button';
 import { Card } from './card';
-import { Avatar, AvatarFallback } from './ui/avatar';
 import { NeuralBackground } from './neural-background';
 // import { ActivitySparkline } from './activity-sparkline'; // Commenting out unused component for now
 import { useNavigate } from 'react-router-dom';
@@ -30,179 +29,35 @@ export function Home() {
       {/* Neural Network Background */}
       <NeuralBackground />
 
-      {/* Mobile Header */}
-      <header className="md:hidden border-b border-white/10 backdrop-blur-sm sticky top-0 z-10" style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)' }}>
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-              <Menu className="w-5 h-5" style={{ color: 'var(--snaps-text-primary)' }} />
-            </button>
-
-            <h1
-              className="text-2xl font-bold tracking-tight"
-              style={{
-                background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}
-            >
-              Snaps
-            </h1>
-
-            <Avatar
-              className="w-9 h-9 ring-2 ring-[var(--snaps-accent-blue)] cursor-pointer"
-              onClick={() => navigate('/profile')}
-            >
-              <AvatarFallback style={{ backgroundColor: 'var(--snaps-accent-blue)', color: 'white' }}>BB</AvatarFallback>
-            </Avatar>
-          </div>
-
-          {/* Mobile Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--snaps-text-secondary)]" />
-            <input
-              type="text"
-              placeholder="Ask your second brain..."
-              className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-[var(--snaps-text-primary)] placeholder:text-[var(--snaps-text-secondary)] focus:outline-none focus:border-[var(--snaps-accent-blue)] focus:shadow-[0_0_20px_rgba(0,212,255,0.3)] transition-all"
-            />
-          </div>
-
-          {/* Mobile Quick Actions */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <Button variant="primary" className="w-full justify-center gap-2" onClick={() => navigate('/new-project')}>
-              <Plus className="w-5 h-5" />
-              New Project
-            </Button>
-            <Button variant="secondary" className="w-full justify-center gap-2" onClick={() => navigate('/memory')}>
-              <Brain className="w-5 h-5" />
-              Memory
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Desktop Hero Section */}
-      <div className="hidden md:block relative z-10">
-        <div className="max-w-[1440px] mx-auto px-8 pt-8">
-          {/* Top Row: Logo and Avatar */}
-          <div className="flex items-center justify-between mb-8">
-            <motion.h1
-              className="text-5xl font-bold tracking-tight"
-              style={{
-                background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 50%, #FF0080 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                textShadow: '0 0 40px rgba(0, 212, 255, 0.3)'
-              }}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              Snaps
-            </motion.h1>
-
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              onClick={() => navigate('/profile')}
-            >
-              <Avatar className="w-12 h-12 ring-2 ring-[var(--snaps-accent-blue)] cursor-pointer hover:ring-[var(--snaps-accent-purple)] transition-all">
-                <AvatarFallback style={{ backgroundColor: 'var(--snaps-accent-blue)', color: 'white' }}>BB</AvatarFallback>
-              </Avatar>
-            </motion.div>
-          </div>
-
-          {/* Action Buttons Row */}
-          <motion.div
-            className="flex items-center gap-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <motion.div
-              className="flex-1"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                variant="primary"
-                className="w-full gap-3 px-8 py-5 text-lg font-semibold rounded-2xl justify-center"
-                style={{
-                  background: 'linear-gradient(135deg, #00D4FF 0%, #0099CC 100%)',
-                  boxShadow: '0 8px 32px rgba(0, 212, 255, 0.5), 0 0 60px rgba(0, 212, 255, 0.3)',
-                  border: '1px solid rgba(0, 212, 255, 0.3)'
-                }}
-                onClick={() => navigate('/new-project')}
-              >
-                <Plus className="w-6 h-6" />
-                New Project
-              </Button>
-            </motion.div>
-
-            <motion.div
-              className="flex-1"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                variant="secondary"
-                className="w-full gap-3 px-8 py-5 text-lg font-semibold rounded-2xl backdrop-blur-xl justify-center"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(168, 85, 247, 0.5)',
-                  boxShadow: '0 8px 32px rgba(168, 85, 247, 0.3), inset 0 0 60px rgba(168, 85, 247, 0.1)'
-                }}
-                onClick={() => navigate('/memory')}
-              >
-                <Brain className="w-6 h-6" />
-                Access Global Memory
-              </Button>
-            </motion.div>
-
-            <motion.div
-              className="flex-1"
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                variant="secondary"
-                className="w-full gap-3 px-8 py-5 text-lg font-semibold rounded-2xl backdrop-blur-xl justify-center"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(10, 255, 180, 0.5)',
-                  boxShadow: '0 8px 32px rgba(10, 255, 180, 0.3), inset 0 0 60px rgba(10, 255, 180, 0.1)'
-                }}
-                onClick={() => navigate('/global-board')}
-              >
-                <Activity className="w-6 h-6" />
-                View Global Board
-              </Button>
-            </motion.div>
-          </motion.div>
-        </div>
-      </div>
-
       {/* Main Content */}
-      <main className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 pt-12 pb-24">
-        {/* Section Title */}
+      <main className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8">
+        {/* Section Title & Actions */}
         <motion.div
-          className="mb-8"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
+            className="mb-8 flex items-end justify-between"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
         >
-          <h2
-            className="text-2xl md:text-3xl font-bold mb-2"
-            style={{ color: 'var(--snaps-text-primary)' }}
-          >
-            Projects
-          </h2>
-          <p style={{ color: 'var(--snaps-text-secondary)' }}>
-            Your second brain workspace
-          </p>
+            <div>
+                 <h2
+                    className="text-3xl font-bold mb-1"
+                    style={{ color: 'var(--snaps-text-primary)' }}
+                >
+                    Projects
+                </h2>
+                <p style={{ color: 'var(--snaps-text-secondary)' }}>
+                    Your second brain workspace
+                </p>
+            </div>
+            
+             <Button
+                variant="primary"
+                className="gap-2"
+                onClick={() => navigate('/new-project')}
+            >
+                <Plus className="w-5 h-5" />
+                New Project
+            </Button>
         </motion.div>
 
         {/* Project Cards Grid */}
@@ -212,7 +67,7 @@ export function Home() {
               key={project.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.7 + index * 0.1 }}
+              transition={{ duration: 0.4, delay: 0.2 + index * 0.1 }}
               whileHover={{ scale: 1.02, y: -4 }}
               whileTap={{ scale: 0.98 }}
             >
