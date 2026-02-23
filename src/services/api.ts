@@ -397,8 +397,8 @@ export const getAllDailyExecutions = async (skip = 0, limit = 500): Promise<Dail
     return response.data;
 };
 
-export const cloneYesterdayExecutions = async (): Promise<DailyExecution[]> => {
-    const response = await api.post('/daily_executions/clone_yesterday');
+export const cloneYesterdayExecutions = async (date?: string): Promise<DailyExecution[]> => {
+    const response = await api.post('/daily_executions/clone_yesterday', null, { params: { date } });
     return response.data;
 };
 

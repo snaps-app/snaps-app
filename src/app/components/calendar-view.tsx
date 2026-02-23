@@ -76,7 +76,7 @@ export function CalendarView() {
   };
 
   const handleCloneYesterday = async () => {
-    await cloneYesterdayExecutions();
+    await cloneYesterdayExecutions(format(currentDate, 'yyyy-MM-dd'));
     await fetchData();
   };
 
