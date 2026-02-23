@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Settings, ArrowLeft, Plus, Check, Palette, FolderOpen, Upload, Bot, X, Send, Layers, Globe, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { TouchBackend } from 'react-dnd-touch-backend';
 import { NeuralBackground } from './neural-background';
 import { CardModal } from './card-modal';
 import { BoardCard } from './board-card';
@@ -265,13 +265,15 @@ export function BoardView() {
   const [localBoardId, setLocalBoardId] = useState<string | null>(boardId || null);
 
   const [boardName, setBoardName] = useState('');
+  const [boardCode, setBoardCode] = useState('');
   const [boardColor, setBoardColor] = useState(BOARD_COLORS[0]);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [project, setProject] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [initialState, setInitialState] = useState({ name: '', color: '', columns: [] as any[] });
+  const [initialState, setInitialState] = useState({ name: '', code: '', color: '', columns: [] as any[] });
 
   const isDirty = boardName !== initialState.name ||
+    boardCode !== initialState.code ||
     boardColor !== initialState.color ||
     JSON.stringify(board?.columns) !== JSON.stringify(initialState.columns);
 
@@ -320,9 +322,11 @@ export function BoardView() {
 
       setBoard({ ...data, columns: columnsWithDefaults });
       setBoardName(data.name);
+      setBoardCode(data.code || '');
       setBoardColor(data.color || BOARD_COLORS[0]);
       setInitialState({
         name: data.name,
+        code: data.code || '',
         color: data.color || BOARD_COLORS[0],
         columns: columnsWithDefaults
       });
@@ -341,79 +345,63 @@ export function BoardView() {
     }
   };
 
-  // Helper to determine least used color
-  const getLeastUsedColor = async () => {
-    try {
-      const projects = await api.getProjects();
-      const boardsPromises = projects.map(p => api.getProjectBoards(p.id));
-      const boardsResults = await Promise.all(boardsPromises);
-      const allBoards = boardsResults.flat();
-
-      const colorCounts: Record<string, number> = {};
-      BOARD_COLORS.forEach(c => colorCounts[c] = 0);
-
-      allBoards.forEach(b => {
-        if (b.color && colorCounts[b.color] !== undefined) {
-          colorCounts[b.color]++;
-        }
-      });
-
-      let minCount = Infinity;
-      let candidates: string[] = [];
-
-      BOARD_COLORS.forEach(c => {
-        const count = colorCounts[c];
-        if (count < minCount) {
-          minCount = count;
-          candidates = [c];
-        } else if (count === minCount) {
-          candidates.push(c);
-        }
-      });
-
-      return candidates.length > 0
-        ? candidates[Math.floor(Math.random() * candidates.length)]
-        : BOARD_COLORS[0];
-
-    } catch (error) {
-      console.warn('Failed to calculate least used color:', error);
-      return BOARD_COLORS[0];
-    }
-  };
-
   useEffect(() => {
-    if (boardId) {
-      setLocalBoardId(boardId);
-      fetchBoard(boardId);
-    } else if (projectId) {
-      // Logic for new board
-      setBoardName('Main Board');
+    const initBoard = async () => {
+      if (!projectId) return;
 
-      // Initialize with default first, then update with calculated color
-      setBoardColor(BOARD_COLORS[0]);
-      setInitialState({ name: 'Main Board', color: BOARD_COLORS[0], columns: [] });
-      setTasks([]);
-      setLocalBoardId(null);
-      setBoard({
-        id: '',
-        project_id: projectId,
-        name: 'Main Board',
-        color: BOARD_COLORS[0],
-        columns: []
-      } as Board);
+      try {
+        // 1. Fetch Project Data first
+        const proj = await api.getProject(projectId);
+        setProject(proj);
 
-      // Async fetch for optimal color
-      getLeastUsedColor().then(optimalColor => {
-        setBoardColor(optimalColor);
-        setInitialState(prev => ({ ...prev, color: optimalColor }));
-        setBoard(prev => prev ? { ...prev, color: optimalColor } : prev);
-      });
-    }
+        // 2. Fetch Board Data
+        let boardData: Board;
+        if (boardId) {
+          boardData = await api.getBoard(boardId);
+          setLocalBoardId(boardId);
+        } else {
+          boardData = await api.getProjectBoard(projectId);
+          setLocalBoardId(boardData.id);
+        }
 
-    if (projectId) {
-      api.getProject(projectId).then(setProject);
+        // 3. Process Board Data
+        const columnsWithDefaults = (boardData.columns || []).map(col => {
+          if (!col.color) {
+            if (col.id === 'todo' || col.title.toLowerCase() === 'to do') return { ...col, color: BOARD_COLORS[0] };
+            if (col.id === 'inprogress' || col.title.toLowerCase() === 'in progress') return { ...col, color: BOARD_COLORS[1] };
+            if (col.id === 'done' || col.title.toLowerCase() === 'done') return { ...col, color: BOARD_COLORS[2] };
+          }
+          return col;
+        });
+
+        // Use existing code from database, or suggestion ONLY if it's missing and it's a new board
+        const finalCode = boardData.code || (proj.name && !boardData.id ? proj.name.substring(0, 3).toUpperCase() : '');
+
+        setBoard({ ...boardData, columns: columnsWithDefaults });
+        setBoardName(boardData.name);
+        setBoardCode(finalCode);
+        setBoardColor(boardData.color || BOARD_COLORS[0]);
+        setInitialState({
+          name: boardData.name,
+          code: finalCode,
+          color: boardData.color || BOARD_COLORS[0],
+          columns: columnsWithDefaults
+        });
+        setTasks(boardData.cards || []);
+
+      } catch (error) {
+        console.error('Failed to initialize board view:', error);
+        // Fallback for missing/error
+        setBoardName('Main Board');
+        setBoardColor(BOARD_COLORS[0]);
+        setInitialState({ name: 'Main Board', code: '', color: BOARD_COLORS[0], columns: [] });
+        setTasks([]);
+      }
+
       fetchEpics(projectId);
-    }
+    };
+
+    initBoard();
   }, [boardId, projectId]);
 
 
@@ -494,12 +482,14 @@ export function BoardView() {
         // Update existing board
         const updated = await api.updateBoard(localBoardId, {
           name: boardName,
+          code: boardCode,
           color: boardColor,
           columns: columnsToSave
         });
         setBoard(updated);
         setInitialState({
           name: boardName,
+          code: boardCode,
           color: boardColor,
           columns: updated.columns || []
         });
@@ -507,6 +497,7 @@ export function BoardView() {
         // Create new board
         const newBoard = await api.createBoard(projectId, {
           name: boardName,
+          code: boardCode,
           color: boardColor,
           columns: [
             { id: "todo", title: "To Do", color: BOARD_COLORS[0] },
@@ -527,6 +518,7 @@ export function BoardView() {
         setBoard(updatedWithDefaults);
         setInitialState({
           name: newBoard.name,
+          code: boardCode,
           color: newBoard.color || BOARD_COLORS[0],
           columns: updatedWithDefaults.columns || []
         });
@@ -704,7 +696,7 @@ export function BoardView() {
     let result = selectedEpicId
       ? tasks.filter(t => selectedEpicId === 'no_epic' ? !t.epic_id : t.epic_id === selectedEpicId)
       : tasks;
-    
+
     return [...result].sort((a, b) => {
       const pA = priorityOrder[a.priority as string] || 0;
       const pB = priorityOrder[b.priority as string] || 0;
@@ -713,7 +705,7 @@ export function BoardView() {
   }, [tasks, selectedEpicId]);
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
       <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
         <NeuralBackground />
 
@@ -742,84 +734,93 @@ export function BoardView() {
                 </motion.button>
 
                 <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="text"
-                      value={boardName}
-                      onChange={(e) => setBoardName(e.target.value)}
-                      className="bg-transparent border-none text-2xl font-bold text-white focus:outline-none focus:ring-1 focus:ring-white/20 rounded px-2"
-                      placeholder="Board Name"
-                    />
-
-                    <div className="relative">
-                      <button
-                        onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                        className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-2"
-                      >
-                        <div
-                          className="w-4 h-4 rounded-full border border-white/20"
-                          style={{ backgroundColor: boardColor, boxShadow: `0 0 10px ${boardColor}` }}
-                        />
-                        <Palette className="w-4 h-4 text-gray-400" />
-                      </button>
-
-                      <AnimatePresence>
-                        {isColorPickerOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl z-50 grid grid-cols-4 gap-3 min-w-[160px] w-max"
-                          >
-                            {BOARD_COLORS.map(color => (
-                              <button
-                                key={color}
-                                onClick={() => {
-                                  setBoardColor(color);
-                                  setIsColorPickerOpen(false);
-                                }}
-                                className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
-                                style={{
-                                  backgroundColor: color,
-                                  borderColor: boardColor === color ? 'white' : 'transparent'
-                                }}
-                              />
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
+                  <input
+                    type="text"
+                    value={boardName}
+                    onChange={(e) => setBoardName(e.target.value)}
+                    className="bg-transparent border-none text-2xl font-bold text-white focus:outline-none focus:ring-1 focus:ring-white/20 rounded px-2"
+                    placeholder="Board Name"
+                  />
                   {project?.name && (
-                    <p className="text-xs text-gray-500 px-2 leading-none">{project.name}</p>
+                    <p className="text-xs text-gray-500 px-3 leading-none">{project.name}</p>
                   )}
                 </div>
 
+                <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4 h-10">
+                  <div className="flex items-center gap-2 relative h-full">
+                    <input
+                      type="text"
+                      value={boardCode}
+                      onChange={(e) => setBoardCode(e.target.value.toUpperCase().substring(0, 3))}
+                      className="bg-transparent border border-white/10 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-white/20 rounded-lg px-3 py-2 w-[80px] text-center uppercase h-full"
+                      placeholder="XXX"
+                      maxLength={3}
+                    />
+                    <button
+                      onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center justify-center gap-2 h-full w-[54px] flex-shrink-0"
+                    >
+                      <div
+                        className="w-8 h-4 rounded-md border border-white/20"
+                        style={{ backgroundColor: boardColor, boxShadow: `0 0 10px ${boardColor}` }}
+                      />
+                      <Palette className="w-4 h-4 text-gray-400" />
+                    </button>
+
+                    <AnimatePresence>
+                      {isColorPickerOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl z-50 grid grid-cols-4 gap-3 min-w-[160px] w-max"
+                        >
+                          {BOARD_COLORS.map(color => (
+                            <button
+                              key={color}
+                              onClick={() => {
+                                setBoardColor(color);
+                                setIsColorPickerOpen(false);
+                              }}
+                              className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
+                              style={{
+                                backgroundColor: color,
+                                borderColor: boardColor === color ? 'white' : 'transparent'
+                              }}
+                            />
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+
                 {/* Epic Filter */}
                 <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
-                   <div className="relative">
-                      <button
-                        onClick={() => setIsEpicModalOpen(true)}
-                        className="px-3 py-2 rounded-lg bg-transparent border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-2 text-sm"
-                        style={{ color: 'var(--snaps-text-primary)' }}
-                      >
-                        <Settings className="w-4 h-4" />
-                        Manage Epics
-                      </button>
-                   </div>
-                   
-                   <select
-                      value={selectedEpicId || ''}
-                      onChange={(e) => setSelectedEpicId(e.target.value || null)}
-                      className="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsEpicModalOpen(true)}
+                      className="px-3 py-2 rounded-lg bg-transparent border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-2 text-sm"
                       style={{ color: 'var(--snaps-text-primary)' }}
-                   >
-                      <option value="">All Epics</option>
-                      <option value="no_epic">No Epic</option>
-                      {epics.map(epic => (
-                        <option key={epic.id} value={epic.id}>{epic.name}</option>
-                      ))}
-                   </select>
+                    >
+                      <Settings className="w-4 h-4" />
+                      Manage Epics
+                    </button>
+                  </div>
+
+                  <select
+                    value={selectedEpicId || ''}
+                    onChange={(e) => setSelectedEpicId(e.target.value || null)}
+                    className="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
+                    style={{ color: 'var(--snaps-text-primary)' }}
+                  >
+                    <option value="">All Epics</option>
+                    <option value="no_epic">No Epic</option>
+                    {epics.map(epic => (
+                      <option key={epic.id} value={epic.id}>{epic.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -863,143 +864,143 @@ export function BoardView() {
           </motion.div>
 
           {/* Epic Modal */}
-      <AnimatePresence>
-        {isEpicModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[80vh] flex flex-col"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Manage Epics</h2>
-                <button
-                  onClick={() => setIsEpicModalOpen(false)}
-                  className="p-1 rounded-lg hover:bg-white/10"
+          <AnimatePresence>
+            {isEpicModalOpen && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[80vh] flex flex-col"
                 >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold">Manage Epics</h2>
+                    <button
+                      onClick={() => setIsEpicModalOpen(false)}
+                      className="p-1 rounded-lg hover:bg-white/10"
+                    >
+                      <X className="w-5 h-5 text-gray-400" />
+                    </button>
+                  </div>
 
-              <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2">
-                {epics.map(epic => (
-                  <div key={epic.id} className="bg-white/5 border border-white/10 rounded-xl p-3">
-                    {editingEpicId === epic.id ? (
-                      <div className="flex flex-col gap-3">
-                        <input
-                          type="text"
-                          value={epicNameInput}
-                          onChange={(e) => setEpicNameInput(e.target.value)}
-                          className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-white"
-                          placeholder="Epic Name"
-                          autoFocus
-                        />
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1 flex-wrap">
-                            {BOARD_COLORS.slice(0, 8).map(c => (
+                  <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2">
+                    {epics.map(epic => (
+                      <div key={epic.id} className="bg-white/5 border border-white/10 rounded-xl p-3">
+                        {editingEpicId === epic.id ? (
+                          <div className="flex flex-col gap-3">
+                            <input
+                              type="text"
+                              value={epicNameInput}
+                              onChange={(e) => setEpicNameInput(e.target.value)}
+                              className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-white"
+                              placeholder="Epic Name"
+                              autoFocus
+                            />
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-1 flex-wrap">
+                                {BOARD_COLORS.slice(0, 8).map(c => (
+                                  <button
+                                    key={c}
+                                    onClick={() => setEpicColorInput(c)}
+                                    className={`w-5 h-5 rounded-full border-2 ${epicColorInput === c ? 'border-white' : 'border-transparent'}`}
+                                    style={{ backgroundColor: c }}
+                                  />
+                                ))}
+                              </div>
+                              <div className="flex-1" />
                               <button
-                                key={c}
-                                onClick={() => setEpicColorInput(c)}
-                                className={`w-5 h-5 rounded-full border-2 ${epicColorInput === c ? 'border-white' : 'border-transparent'}`}
-                                style={{ backgroundColor: c }}
-                              />
-                            ))}
+                                onClick={() => handleDeleteEpic(epic.id)}
+                                className="p-2 rounded hover:bg-red-500/10 text-red-500 hover:text-red-400 transition-colors"
+                                title="Delete Epic"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setEditingEpicId(null)}
+                                className="p-2 rounded hover:bg-white/10 text-xs text-white"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleUpdateEpic(epic.id)}
+                                className="p-2 rounded bg-green-500/20 text-green-400 text-xs font-bold"
+                              >
+                                Save
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex-1" />
-                          <button
-                            onClick={() => handleDeleteEpic(epic.id)}
-                            className="p-2 rounded hover:bg-red-500/10 text-red-500 hover:text-red-400 transition-colors"
-                            title="Delete Epic"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setEditingEpicId(null)}
-                            className="p-2 rounded hover:bg-white/10 text-xs text-white"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleUpdateEpic(epic.id)}
-                            className="p-2 rounded bg-green-500/20 text-green-400 text-xs font-bold"
-                          >
-                            Save
-                          </button>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: epic.color }} />
+                              <span className="font-medium text-white">{epic.name}</span>
+                            </div>
+                            <button
+                              onClick={() => startEditingEpic(epic)}
+                              className="p-2 rounded-lg hover:bg-white/10 opacity-50 hover:opacity-100 text-white"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {isCreatingEpic ? (
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 animate-in fade-in slide-in-from-top-2">
+                        <div className="flex flex-col gap-3">
+                          <input
+                            type="text"
+                            value={epicNameInput}
+                            onChange={(e) => setEpicNameInput(e.target.value)}
+                            className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-white"
+                            placeholder="New Epic Name"
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-2">
+                            <div className="flex gap-1 flex-wrap">
+                              {BOARD_COLORS.slice(0, 8).map(c => (
+                                <button
+                                  key={c}
+                                  onClick={() => setEpicColorInput(c)}
+                                  className={`w-5 h-5 rounded-full border-2 ${epicColorInput === c ? 'border-white' : 'border-transparent'}`}
+                                  style={{ backgroundColor: c }}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex-1" />
+                            <button
+                              onClick={() => setIsCreatingEpic(false)}
+                              className="p-2 rounded hover:bg-white/10 text-xs text-white"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleCreateEpic}
+                              disabled={!epicNameInput.trim() || isCreatingEpicUtils}
+                              className="p-2 rounded bg-blue-500/20 text-blue-400 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {isCreatingEpicUtils ? (
+                                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : 'Create'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: epic.color }} />
-                          <span className="font-medium text-white">{epic.name}</span>
-                        </div>
-                        <button
-                          onClick={() => startEditingEpic(epic)}
-                          className="p-2 rounded-lg hover:bg-white/10 opacity-50 hover:opacity-100 text-white"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={startCreatingEpic}
+                        className="w-full py-3 rounded-xl border border-dashed border-white/10 hover:border-white/30 hover:bg-white/5 text-gray-400 hover:text-white transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add New Epic
+                      </button>
                     )}
                   </div>
-                ))}
-
-                {isCreatingEpic ? (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-3 animate-in fade-in slide-in-from-top-2">
-                    <div className="flex flex-col gap-3">
-                        <input
-                          type="text"
-                          value={epicNameInput}
-                          onChange={(e) => setEpicNameInput(e.target.value)}
-                          className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-white"
-                          placeholder="New Epic Name"
-                          autoFocus
-                        />
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1 flex-wrap">
-                            {BOARD_COLORS.slice(0, 8).map(c => (
-                              <button
-                                key={c}
-                                onClick={() => setEpicColorInput(c)}
-                                className={`w-5 h-5 rounded-full border-2 ${epicColorInput === c ? 'border-white' : 'border-transparent'}`}
-                                style={{ backgroundColor: c }}
-                              />
-                            ))}
-                          </div>
-                          <div className="flex-1" />
-                          <button
-                            onClick={() => setIsCreatingEpic(false)}
-                            className="p-2 rounded hover:bg-white/10 text-xs text-white"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={handleCreateEpic}
-                            disabled={!epicNameInput.trim() || isCreatingEpicUtils}
-                            className="p-2 rounded bg-blue-500/20 text-blue-400 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                          >
-                            {isCreatingEpicUtils ? (
-                                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            ) : 'Create'}
-                          </button>
-                        </div>
-                      </div>
-                  </div>
-                ) : (
-                   <button
-                    onClick={startCreatingEpic}
-                    className="w-full py-3 rounded-xl border border-dashed border-white/10 hover:border-white/30 hover:bg-white/5 text-gray-400 hover:text-white transition-all flex items-center justify-center gap-2 text-sm font-medium"
-                   >
-                     <Plus className="w-4 h-4" />
-                     Add New Epic
-                   </button>
-                )}
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            )}
+          </AnimatePresence>
           {/* Bulk Apply Modal */}
           <AnimatePresence>
             {isBulkApplyOpen && (
@@ -1346,8 +1347,8 @@ export function BoardView() {
                     // Fuzzy match for common interchangeable statuses
                     const s = t.status.toLowerCase();
                     const cid = col.id.toLowerCase();
-                    if ((s === 'doing' || s === 'inprogress' || s === 'in-progress') && 
-                        (cid === 'doing' || cid === 'inprogress' || cid === 'in-progress')) return true;
+                    if ((s === 'doing' || s === 'inprogress' || s === 'in-progress') &&
+                      (cid === 'doing' || cid === 'inprogress' || cid === 'in-progress')) return true;
                     if ((s === 'todo' || s === 'to-do') && (cid === 'todo' || cid === 'to-do')) return true;
                     return false;
                   })}

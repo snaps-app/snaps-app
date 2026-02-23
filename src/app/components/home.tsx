@@ -33,31 +33,31 @@ export function Home() {
       <main className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8">
         {/* Section Title & Actions */}
         <motion.div
-            className="mb-8 flex items-end justify-between"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          className="mb-8 flex items-end justify-between"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
         >
-            <div>
-                 <h2
-                    className="text-3xl font-bold mb-1"
-                    style={{ color: 'var(--snaps-text-primary)' }}
-                >
-                    Projects
-                </h2>
-                <p style={{ color: 'var(--snaps-text-secondary)' }}>
-                    Your second brain workspace
-                </p>
-            </div>
-            
-             <Button
-                variant="primary"
-                className="gap-2"
-                onClick={() => navigate('/new-project')}
+          <div>
+            <h2
+              className="text-3xl font-bold mb-1"
+              style={{ color: 'var(--snaps-text-primary)' }}
             >
-                <Plus className="w-5 h-5" />
-                New Project
-            </Button>
+              Projects
+            </h2>
+            <p style={{ color: 'var(--snaps-text-secondary)' }}>
+              Your second brain workspace
+            </p>
+          </div>
+
+          <Button
+            variant="primary"
+            className="gap-2"
+            onClick={() => navigate('/new-project')}
+          >
+            <Plus className="w-5 h-5" />
+            New Project
+          </Button>
         </motion.div>
 
         {/* Project Cards Grid */}
@@ -128,7 +128,7 @@ export function Home() {
 
       {/* Floating Action Button (Mobile) */}
       <motion.div
-        className="md:hidden fixed bottom-6 right-6 z-20"
+        className="md:hidden fixed bottom-24 right-6 z-20"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 1 }}

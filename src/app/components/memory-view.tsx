@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Search, Folder, ChevronRight, ChevronDown, FileText, Code, Image as ImageIcon, Hash, Clock, Brain, ArrowLeft } from 'lucide-react';
+import { Search, Folder, ChevronRight, ChevronDown, FileText, Code, Image as ImageIcon, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Card } from './card';
-import { Tag } from './tag';
 import { NeuralBackground } from './neural-background';
 import { SnapDetailModal } from './snap-detail-modal';
-import api, { Snap, Project } from '@/services/api';
+import api, { Snap } from '@/services/api';
 import { SnapCard } from './snap-card';
-import { useNavigate } from 'react-router-dom';
 
 interface FolderNode {
   id: string;
@@ -108,12 +105,12 @@ function FolderTree({ nodes, level = 0 }: { nodes: FolderNode[]; level?: number 
 // MemoryCardComponent removed. Using SnapCard instead.
 
 export function MemoryView() {
-  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<MemoryCard | null>(null);
   const [memoryCards, setMemoryCards] = useState<MemoryCard[]>([]);
   const [folderStructure, setFolderStructure] = useState<FolderNode[]>([]);
+  const [mobileView, setMobileView] = useState<'sidebar' | 'main'>('main');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -151,19 +148,36 @@ export function MemoryView() {
 
 
 
-      <div className="relative z-10 h-screen flex">
+      <div className="relative z-10 h-screen flex pb-safe md:pb-0">
+        {/* Mobile View Toggle */}
+        <div className="md:hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center p-1 rounded-full backdrop-blur-2xl"
+          style={{ background: 'rgba(0, 0, 0, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <button
+            onClick={() => setMobileView('sidebar')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${mobileView === 'sidebar' ? 'bg-white/10 text-white' : 'text-white/50'}`}
+          >
+            Folders
+          </button>
+          <button
+            onClick={() => setMobileView('main')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${mobileView === 'main' ? 'bg-white/10 text-white' : 'text-white/50'}`}
+          >
+            Search
+          </button>
+        </div>
+
         {/* LEFT SIDEBAR - Folder Structure */}
         <motion.div
-          className="w-80 border-r border-white/10 backdrop-blur-[30px] flex flex-col"
+          className={`w-full md:w-80 border-r border-white/10 backdrop-blur-[30px] flex-col ${mobileView === 'sidebar' ? 'flex' : 'hidden md:flex'}`}
           style={{ backgroundColor: 'rgba(10, 10, 10, 0.7)' }}
           initial={{ x: -100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
         >
           {/* Sidebar Header */}
-          <div className="p-6 border-b border-white/10">
+          <div className="h-auto md:h-[100px] p-6 pt-20 md:py-0 border-b border-white/10 flex flex-col justify-center flex-shrink-0">
             <h2
-              className="text-2xl font-bold mb-2"
+              className="text-2xl font-bold mb-1"
               style={{
                 background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                 WebkitBackgroundClip: 'text',
@@ -229,10 +243,10 @@ export function MemoryView() {
         </motion.div>
 
         {/* MAIN AREA - Knowledge Grid */}
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex-col ${mobileView === 'main' ? 'flex' : 'hidden md:flex'}`}>
           {/* Search Header */}
           <motion.div
-            className="p-8 border-b border-white/10 backdrop-blur-[30px]"
+            className="p-8 pt-20 md:pt-8 border-b border-white/10 backdrop-blur-[30px]"
             style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

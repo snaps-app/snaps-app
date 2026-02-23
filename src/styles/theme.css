@@ -2,14 +2,20 @@
 
 :root {
   --font-size: 16px;
-  
+
+  /* Safe Areas for Mobile */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+
   /* Snaps Design System - Dark Mode Colors */
   --snaps-bg: #0a0a0a;
   --snaps-surface: rgba(255, 255, 255, 0.05);
   --snaps-text-primary: #e5e5e5;
   --snaps-text-secondary: #a3a3a3;
   --snaps-placeholder: #666666;
-  
+
   /* Accent Colors */
   --snaps-accent-blue: #00D4FF;
   --snaps-accent-orange: #FF6B35;
@@ -27,11 +33,11 @@
   --snaps-accent-fuchsia: #D946EF;
   --snaps-accent-emerald: #10B981;
   --snaps-accent-amber: #D97706;
-  
+
   /* State Colors */
   --snaps-success: #22C55E;
   --snaps-error: #EF4444;
-  
+
   /* Typography Sizes */
   --snaps-text-h1: 24px;
   --snaps-text-h2: 20px;
@@ -39,7 +45,7 @@
   --snaps-text-h4: 16px;
   --snaps-text-body: 14px;
   --snaps-text-caption: 12px;
-  
+
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -164,6 +170,11 @@
 
   body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    overscroll-behavior-y: none;
+    /* Prevents pull-to-refresh on mobile browsers */
   }
 
   /**
@@ -215,5 +226,57 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+    -webkit-user-select: auto;
+    user-select: auto;
   }
+
+  textarea {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+
+  [contenteditable="true"] {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+}
+
+/* Custom Scrollbar Styles */
+.snaps-custom-scrollbar::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.snaps-custom-scrollbar::-webkit-scrollbar-track,
+.overflow-y-auto::-webkit-scrollbar-track,
+.overflow-x-auto::-webkit-scrollbar-track,
+.overflow-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.snaps-custom-scrollbar::-webkit-scrollbar-thumb,
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.snaps-custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.overflow-x-auto::-webkit-scrollbar-thumb:hover,
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* For Firefox */
+.snaps-custom-scrollbar,
+.overflow-y-auto,
+.overflow-x-auto,
+.overflow-auto {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }

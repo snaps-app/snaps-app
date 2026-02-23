@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Snaps</string>
+    <string name="title_activity_main">Snaps</string>
+    <string name="package_name">com.snaps.knowledge</string>
+    <string name="custom_url_scheme">com.snaps.knowledge</string>
+</resources>

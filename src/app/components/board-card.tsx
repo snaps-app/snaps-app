@@ -54,51 +54,65 @@ export function BoardCard({ card, onClick, projectName, boardColor = 'rgba(168, 
                 <div className="flex flex-col gap-1">
                     {/* Top row: Project Name and Epic Tag (Global Board) */}
                     {projectName ? (
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                            <div
-                                className="text-[10px] font-bold uppercase tracking-widest"
-                                style={{ color: boardColor.includes('#') ? boardColor : `rgb(${boardColor})` }}
-                            >
-                                {projectName}
-                            </div>
-                            {epic && (
+                        <div className="flex items-start justify-between gap-4 mb-1.5">
+                            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                                 <div
-                                    className="text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium"
-                                    style={{
-                                        backgroundColor: `${epic.color}20`,
-                                        border: `1px solid ${epic.color}40`,
-                                        color: epic.color
-                                    }}
+                                    className="text-[10px] font-bold uppercase tracking-widest truncate"
+                                    style={{ color: boardColor.includes('#') ? boardColor : `rgb(${boardColor})` }}
                                 >
-                                    <div className="w-1 h-1 rounded-full shadow-[0_0_3px_currentColor]" style={{ backgroundColor: epic.color }} />
-                                    {epic.name}
+                                    {projectName}
+                                </div>
+                                {epic && (
+                                    <div
+                                        className="text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium"
+                                        style={{
+                                            backgroundColor: `${epic.color}20`,
+                                            border: `1px solid ${epic.color}40`,
+                                            color: epic.color
+                                        }}
+                                    >
+                                        <div className="w-1 h-1 rounded-full shadow-[0_0_3px_currentColor]" style={{ backgroundColor: epic.color }} />
+                                        {epic.name}
+                                    </div>
+                                )}
+                            </div>
+                            {card.code && (
+                                <div className="flex-shrink-0 text-white/50 text-[10px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded font-mono leading-none h-fit">
+                                    {card.code}
                                 </div>
                             )}
                         </div>
                     ) : (
                         /* Top row: Epic Tag only (Project Board) */
-                        epic && (
-                            <div className="mb-1.5">
-                                <div
-                                    className="text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium w-fit"
-                                    style={{
-                                        backgroundColor: `${epic.color}20`,
-                                        border: `1px solid ${epic.color}40`,
-                                        color: epic.color
-                                    }}
-                                >
-                                    <div className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: epic.color }} />
-                                    {epic.name}
-                                </div>
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                            <div className="flex-1 min-w-0">
+                                {epic && (
+                                    <div
+                                        className="text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 font-medium w-fit"
+                                        style={{
+                                            backgroundColor: `${epic.color}20`,
+                                            border: `1px solid ${epic.color}40`,
+                                            color: epic.color
+                                        }}
+                                    >
+                                        <div className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: epic.color }} />
+                                        {epic.name}
+                                    </div>
+                                )}
                             </div>
-                        )
+                            {card.code && (
+                                <div className="flex-shrink-0 text-white/50 text-[10px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded font-mono leading-none">
+                                    {card.code}
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2 mb-1">
                                 <h3
-                                    className="font-bold text-sm truncate"
+                                    className="font-bold text-sm truncate flex-1"
                                     style={{ color: 'var(--snaps-text-primary)' }}
                                 >
                                     {card.title}

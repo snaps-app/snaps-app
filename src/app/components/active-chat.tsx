@@ -102,6 +102,7 @@ export function ActiveChat() {
   const [rightPanelTab, setRightPanelTab] = useState<'memory' | 'snapper'>('memory');
   const [suggestedSnaps, setSuggestedSnaps] = useState<SuggestedSnap[]>(mockSuggestedSnaps);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [mobileView, setMobileView] = useState<'chat' | 'memory'>('chat');
 
   // Validation: If no projectId, cannot chat.
   if (!projectId) {
@@ -282,16 +283,33 @@ export function ActiveChat() {
 
       {/* Main Container */}
       <div className="relative z-10 h-screen flex">
+        {/* Mobile View Toggle */}
+        <div className="md:hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center p-1 rounded-full backdrop-blur-2xl"
+          style={{ background: 'rgba(0, 0, 0, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <button
+            onClick={() => setMobileView('chat')}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${mobileView === 'chat' ? 'bg-white/10 text-white' : 'text-white/50'}`}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => setMobileView('memory')}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${mobileView === 'memory' ? 'bg-white/10 text-white' : 'text-white/50'}`}
+          >
+            Memories
+          </button>
+        </div>
+
         {/* LEFT PANEL - Chat Stream (50%) */}
         <motion.div
-          className="w-1/2 border-r border-white/10 backdrop-blur-[30px] flex flex-col"
+          className={`w-full md:w-1/2 border-r border-white/10 backdrop-blur-[30px] flex-col pb-safe md:pb-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}
           style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
           initial={{ x: -100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
         >
           {/* Chat Header */}
-          <div className="p-6 border-b border-white/10 flex items-center justify-between">
+          <div className="p-6 pt-16 md:pt-6 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
 
               <motion.button
@@ -506,7 +524,7 @@ export function ActiveChat() {
         </motion.div>
 
         {/* RIGHT PANEL - Contextual Memory (50%) */}
-        <div className="w-1/2 flex flex-col">
+        <div className={`w-full md:w-1/2 flex-col pt-16 md:pt-0 ${mobileView === 'memory' ? 'flex' : 'hidden md:flex'}`}>
           {/* Panel Header with Tabs */}
           <motion.div
             className="backdrop-blur-[30px] border-b border-white/10"

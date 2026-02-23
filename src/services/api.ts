@@ -78,6 +78,7 @@ export interface Task {
     id: string;
     card_id: string;
     title: string;
+    code?: string;
     completed: boolean;
     runner_id?: string;
     created_at: string;
@@ -87,6 +88,7 @@ export interface Card {
     id: string;
     board_id: string;
     title: string;
+    code?: string;
     description: string;
     status: string;
     priority: 'Low' | 'Medium' | 'High';
@@ -110,9 +112,113 @@ export interface Board {
     id: string;
     project_id: string;
     name: string;
+    code?: string;
     color?: string;
     columns?: { id: string; title: string; color?: string }[];
     cards?: Card[];
+}
+
+export interface Scheduling {
+    id: string;
+    project_id: string;
+    epic_id?: string;
+    title: string;
+    description?: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+    recurrence?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SchedulingCreate {
+    title: string;
+    description?: string;
+    start_date: string;
+    end_date: string;
+    epic_id?: string;
+    status?: string;
+    recurrence?: string;
+}
+
+export interface DailyExecution {
+    id: string;
+    project_id: string;
+    epic_id?: string;
+    title: string;
+    description?: string;
+    date: string;
+    start_hour: string;
+    end_hour: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface DailyExecutionCreate {
+    title: string;
+    description?: string;
+    date: string;
+    start_hour: string;
+    end_hour: string;
+    epic_id?: string;
+    status?: string;
+    card_id?: string;
+    task_id?: string;
+}
+
+export interface SchedulingWithProject extends Scheduling {
+    project_name: string;
+    epic_name?: string;
+    epic_color?: string;
+    board_color?: string;
+}
+
+export interface DailyExecutionWithProject extends DailyExecution {
+    project_name: string;
+    epic_name?: string;
+    epic_color?: string;
+    board_color?: string;
+}
+
+export interface BoardWithProject extends Board {
+    project_name: string;
+}
+
+export interface DashboardStats {
+    total_projects: number;
+    total_cards: number;
+    total_tasks: number;
+    total_snaps: number;
+    recent_boards: BoardWithProject[];
+}
+
+// --- Routine Interfaces ---
+export interface Routine {
+    id: string;
+    title: string;
+    description?: string;
+    recurrence_type: string;  // 'daily' | 'weekdays'
+    recurrence_days: number[];  // [0=Sun, 1=Mon, ..., 6=Sat]
+    default_start_hour?: string;
+    default_end_hour?: string;
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RoutineCreate {
+    title: string;
+    description?: string;
+    recurrence_type: string;
+    recurrence_days?: number[];
+    default_start_hour?: string;
+    default_end_hour?: string;
+}
+
+export interface RoutineWithStatus extends Routine {
+    completion_status: string | null;  // null = planned
 }
 
 // --- Project Functions ---
@@ -240,6 +346,96 @@ export const deleteTask = async (taskId: string): Promise<void> => {
     await api.delete(`/tasks/${taskId}`);
 };
 
+// --- Scheduling Functions ---
+export const createScheduling = async (projectId: string, data: SchedulingCreate): Promise<Scheduling> => {
+    const response = await api.post(`/projects/${projectId}/schedulings/`, { project_id: projectId, ...data });
+    return response.data;
+};
+
+export const getSchedulings = async (projectId: string): Promise<Scheduling[]> => {
+    const response = await api.get(`/projects/${projectId}/schedulings/`);
+    return response.data;
+};
+
+export const updateScheduling = async (schedulingId: string, data: Partial<SchedulingCreate>): Promise<Scheduling> => {
+    const response = await api.patch(`/schedulings/${schedulingId}`, data);
+    return response.data;
+};
+
+export const deleteScheduling = async (schedulingId: string): Promise<void> => {
+    await api.delete(`/schedulings/${schedulingId}`);
+};
+
+// --- Daily Execution Functions ---
+export const createDailyExecution = async (projectId: string, data: DailyExecutionCreate): Promise<DailyExecution> => {
+    const response = await api.post(`/projects/${projectId}/daily_executions/`, { project_id: projectId, ...data });
+    return response.data;
+};
+
+export const getDailyExecutions = async (projectId: string): Promise<DailyExecution[]> => {
+    const response = await api.get(`/projects/${projectId}/daily_executions/`);
+    return response.data;
+};
+
+export const updateDailyExecution = async (executionId: string, data: Partial<DailyExecutionCreate>): Promise<DailyExecution> => {
+    const response = await api.patch(`/daily_executions/${executionId}`, data);
+    return response.data;
+};
+
+export const deleteDailyExecution = async (executionId: string): Promise<void> => {
+    await api.delete(`/daily_executions/${executionId}`);
+};
+
+// --- Global Calendar Functions ---
+export const getAllSchedulings = async (skip = 0, limit = 500): Promise<SchedulingWithProject[]> => {
+    const response = await api.get('/schedulings/', { params: { skip, limit } });
+    return response.data;
+};
+
+export const getAllDailyExecutions = async (skip = 0, limit = 500): Promise<DailyExecutionWithProject[]> => {
+    const response = await api.get('/daily_executions/', { params: { skip, limit } });
+    return response.data;
+};
+
+export const cloneYesterdayExecutions = async (): Promise<DailyExecution[]> => {
+    const response = await api.post('/daily_executions/clone_yesterday');
+    return response.data;
+};
+
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+    const response = await api.get('/dashboard/stats');
+    return response.data;
+};
+
+// --- Routine Functions ---
+export const createRoutine = async (data: RoutineCreate): Promise<Routine> => {
+    const response = await api.post('/routines/', data);
+    return response.data;
+};
+
+export const getRoutines = async (): Promise<Routine[]> => {
+    const response = await api.get('/routines/');
+    return response.data;
+};
+
+export const getRoutinesForDate = async (date: string): Promise<RoutineWithStatus[]> => {
+    const response = await api.get('/routines/today', { params: { date } });
+    return response.data;
+};
+
+export const updateRoutine = async (id: string, data: Partial<RoutineCreate & { active?: boolean }>): Promise<Routine> => {
+    const response = await api.patch(`/routines/${id}`, data);
+    return response.data;
+};
+
+export const deleteRoutine = async (id: string): Promise<void> => {
+    await api.delete(`/routines/${id}`);
+};
+
+export const setRoutineCompletion = async (routineId: string, date: string, status: string): Promise<void> => {
+    await api.put(`/routines/${routineId}/complete`, { date, status });
+};
+
 // --- Chat Interfaces ---
 export interface Message {
     id: string;
@@ -322,7 +518,7 @@ const apiService = {
     getProject,
     createProject,
     updateProject,
-    
+
     // Epic Functions
     getEpics,
     createEpic,
@@ -350,6 +546,33 @@ const apiService = {
     getChatHistory,
     createMessage,
     streamChat,
+
+    // Scheduling
+    createScheduling,
+    getSchedulings,
+    updateScheduling,
+    deleteScheduling,
+
+    // Daily Execution
+    createDailyExecution,
+    getDailyExecutions,
+    updateDailyExecution,
+    deleteDailyExecution,
+
+    // Global
+    getAllSchedulings,
+    getAllDailyExecutions,
+    cloneYesterdayExecutions,
+    getDashboardStats,
+
+    // Routines
+    createRoutine,
+    getRoutines,
+    getRoutinesForDate,
+    updateRoutine,
+    deleteRoutine,
+    setRoutineCompletion,
+
     importDocument: async (projectId: string, fileName: string, fileContent: string, onEvent: (event: any) => void) => {
         const message = `IMPORT_FILE: ${fileName}\nContent:\n${fileContent}`;
         // Use the dedicated /import endpoint

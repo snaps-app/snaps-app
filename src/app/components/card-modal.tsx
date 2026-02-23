@@ -212,13 +212,20 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                                             </select>
                                         </div>
                                     </div>
-                                    <motion.button
-                                        whileHover={{ rotate: 90 }}
-                                        onClick={onClose}
-                                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                                    >
-                                        <X className="w-6 h-6 text-white/50" />
-                                    </motion.button>
+                                    <div className="flex items-center gap-3">
+                                        {initialData?.code && (
+                                            <div className="text-white/50 text-sm font-mono border border-white/10 px-2 py-1 rounded bg-white/5">
+                                                {initialData.code}
+                                            </div>
+                                        )}
+                                        <motion.button
+                                            whileHover={{ rotate: 90 }}
+                                            onClick={onClose}
+                                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                        >
+                                            <X className="w-6 h-6 text-white/50" />
+                                        </motion.button>
+                                    </div>
                                 </div>
 
                                 {/* Content */}
@@ -269,6 +276,9 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                                                             >
                                                                 {task.completed && <Check className="w-3 h-3" />}
                                                             </button>
+                                                            <span className="text-[10px] opacity-70 font-mono w-6 text-center border border-white/20 bg-white/10 rounded px-1 flex-shrink-0 text-white/90">
+                                                                {task.code ? task.code.replace(initialData?.code || '', '') : '-'}
+                                                            </span>
                                                             <span
                                                                 className={`flex-1 text-sm ${task.completed ? 'text-white/30 line-through' : 'text-white/80'}`}
                                                             >

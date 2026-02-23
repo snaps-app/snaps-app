@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Plus, Settings, FolderOpen, Search, MessageSquare, Tag as TagIcon, Clock, Hash, ArrowLeft, LayoutDashboard, KanbanSquare, Upload, FileText } from 'lucide-react';
+import { Plus, Settings, FolderOpen, Search, MessageSquare, Clock, ArrowLeft, LayoutDashboard, KanbanSquare, Upload, FileText, Tag as TagIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // import { Button } from './button'; // Unused
-import { Card } from './card';
-import { Tag } from './tag';
 import { NeuralBackground } from './neural-background';
 import { SnapModal } from './snap-modal';
 import { SnapDetailModal } from './snap-detail-modal';
@@ -41,6 +39,7 @@ export function ProjectWorkspace() {
   const [searchQuery, setSearchQuery] = useState('');
   // const [importStatus, setImportStatus] = useState<string | null>(null); // Unused
   const [isBoardListModalOpen, setIsBoardListModalOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'conversations' | 'memory'>('memory');
 
   const fetchProject = async () => {
     if (!projectId) return;
@@ -116,18 +115,35 @@ export function ProjectWorkspace() {
       <NeuralBackground />
 
       {/* Main Container */}
-      <div className="relative z-10 h-screen flex">
+      <div className="relative z-10 h-screen flex pb-safe md:pb-0">
+        {/* Mobile View Toggle */}
+        <div className="md:hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center p-1 rounded-full backdrop-blur-2xl"
+          style={{ background: 'rgba(0, 0, 0, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <button
+            onClick={() => setMobileView('conversations')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${mobileView === 'conversations' ? 'bg-white/10 text-white' : 'text-white/50'}`}
+          >
+            Chats
+          </button>
+          <button
+            onClick={() => setMobileView('memory')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${mobileView === 'memory' ? 'bg-white/10 text-white' : 'text-white/50'}`}
+          >
+            Memory
+          </button>
+        </div>
+
         {/* LEFT PANEL - Conversations (25%) */}
         <motion.div
-          className="w-1/4 border-r border-white/10 backdrop-blur-[30px] flex flex-col"
+          className={`w-full md:w-1/4 border-r border-white/10 backdrop-blur-[30px] flex-col ${mobileView === 'conversations' ? 'flex' : 'hidden md:flex'}`}
           style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
           initial={{ x: -100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
         >
           {/* Panel Header */}
-          <div className="p-6 border-b border-white/10">
-            <div className="flex items-center justify-between mb-4">
+          <div className="h-auto md:h-[100px] p-6 pt-20 md:py-0 border-b border-white/10 flex flex-col justify-center flex-shrink-0">
+            <div className="flex items-center justify-between mb-2">
               <h2
                 className="text-2xl font-bold flex-1"
                 style={{
@@ -167,7 +183,7 @@ export function ProjectWorkspace() {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm text-[var(--snaps-text-primary)] placeholder:text-[var(--snaps-text-secondary)] focus:outline-none focus:border-[var(--snaps-accent-blue)] transition-all"
+                className="w-full pl-10 pr-4 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-[var(--snaps-text-primary)] placeholder:text-[var(--snaps-text-secondary)] focus:outline-none focus:border-[var(--snaps-accent-blue)] transition-all"
 
               />
             </div>
@@ -291,16 +307,16 @@ export function ProjectWorkspace() {
         </motion.div>
 
         {/* RIGHT PANEL - Project Memory (75%) */}
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex-col ${mobileView === 'memory' ? 'flex' : 'hidden md:flex'}`}>
           {/* Panel Header */}
           <motion.div
-            className="p-6 border-b border-white/10 backdrop-blur-[30px]"
+            className="h-auto md:h-[100px] p-6 pt-20 md:py-0 border-b border-white/10 backdrop-blur-[30px] flex flex-col justify-center flex-shrink-0"
             style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <h2
                 className="text-2xl font-bold"
                 style={{ color: 'var(--snaps-text-primary)' }}

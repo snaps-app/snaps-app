@@ -12,6 +12,7 @@ import { MemoryView } from '@/app/components/memory-view';
 import { GlobalBoard } from '@/app/components/global-board';
 import { MainLayout } from '@/app/components/main-layout';
 import { CalendarView } from '@/app/components/calendar-view';
+import { DashboardView } from '@/app/components/dashboard-view';
 
 export default function App() {
     return (
@@ -19,7 +20,8 @@ export default function App() {
             <div className="min-h-screen" style={{ backgroundColor: 'var(--snaps-bg)' }}>
                 <Routes>
                     <Route element={<MainLayout />}>
-                        <Route path="/" element={<Home />} />
+                        <Route path="/" element={<DashboardView />} />
+                        <Route path="/projects" element={<Home />} />
                         <Route path="/new-project" element={<NewProject />} />
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/memory" element={<MemoryView />} />

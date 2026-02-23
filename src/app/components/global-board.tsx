@@ -1,12 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowLeft, Filter, LayoutGrid } from 'lucide-react';
+import { Filter, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { TouchBackend } from 'react-dnd-touch-backend';
 import { BoardCard } from './board-card';
 import { NeuralBackground } from './neural-background';
 import api, { CardWithProject, Project, Board, Card, Epic } from '@/services/api';
-import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { GlobalCardModal } from './global-card-modal';
 import { CardModal } from './card-modal';
@@ -143,7 +142,6 @@ function CardWrapper({ task, boardColor, onCardClick }: { task: CardWithProject,
 }
 
 export function GlobalBoard() {
-    const navigate = useNavigate();
     const [tasks, setTasks] = useState<CardWithProject[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [columns, setColumns] = useState<ColumnDef[]>([]);
@@ -167,7 +165,7 @@ export function GlobalBoard() {
                 api.getProjectBoards(p.id).catch(() => [] as Board[])
             );
             const boardsResults = await Promise.all(boardsPromises);
-            
+
             // Map to store column definitions per project for ID resolution
             const projectColMap: Record<string, Record<string, string>> = {};
             const allBoards: Board[] = [];
@@ -192,12 +190,12 @@ export function GlobalBoard() {
 
             // Merge columns from all boards, deduplicated by canonical ID or title
             const columnMap = new Map<string, ColumnDef>();
-            
+
             for (const board of allBoards) {
                 for (const col of (board.columns || [])) {
                     const titleLower = col.title.toLowerCase();
                     const canonicalId = STANDARD_MAP[titleLower] || col.id;
-                    
+
                     if (!columnMap.has(canonicalId)) {
                         columnMap.set(canonicalId, {
                             id: canonicalId,
@@ -219,11 +217,11 @@ export function GlobalBoard() {
             const normalizedTasks = allCards.map(task => {
                 const projectIndex = allProjects.findIndex(p => p.id === task.project_id);
                 const projectBoards = boardsResults[projectIndex] || [];
-                
+
                 // Find column title in task's own board
                 let colTitle = '';
                 let colId = (task.status as string);
-                
+
                 for (const b of projectBoards) {
                     const found = (b.columns || []).find(c => c.id === colId);
                     if (found) {
@@ -236,7 +234,7 @@ export function GlobalBoard() {
                     const canonicalId = STANDARD_MAP[colTitle] || colId;
                     return { ...task, status: canonicalId as any };
                 }
-                
+
                 // Fallback for stray statuses
                 const statusLower = colId.toLowerCase();
                 if (statusLower.includes('todo') || statusLower.includes('to do')) return { ...task, status: 'todo' as any };
@@ -248,7 +246,25 @@ export function GlobalBoard() {
 
             setTasks(normalizedTasks);
             setProjects(allProjects);
-            setColumns(Array.from(columnMap.values()));
+            const getOrderIndex = (col: ColumnDef) => {
+                const t = col.title.toLowerCase();
+                const i = col.id.toLowerCase();
+                if (t === 'new issues' || i === 'new-issues') return 1;
+                if (t === 'to do' || i === 'todo') return 2;
+                if (t === 'in progress' || i === 'inprogress') return 3;
+                if (t === 'done' || i === 'done') return 4;
+                if (t === 'icebox' || i === 'icebox') return 5;
+                return 99; // Other columns at the end
+            };
+
+            const sortedColumns = Array.from(columnMap.values()).sort((a, b) => {
+                const indexA = getOrderIndex(a);
+                const indexB = getOrderIndex(b);
+                if (indexA !== indexB) return indexA - indexB;
+                return a.title.localeCompare(b.title);
+            });
+
+            setColumns(sortedColumns);
         } catch (error) {
             console.error('Failed to fetch global data:', error);
         } finally {
@@ -288,11 +304,11 @@ export function GlobalBoard() {
 
         // Resolve canonical ID back to project-specific ID
         const targetTitle = columns.find(c => c.id === newStatus)?.title.toLowerCase();
-        
+
         // Find all boards for this project again (or use a cached map)
         // We'll try to find a column in the project that matches the title of the target column
         let resolvedStatus = newStatus;
-        
+
         try {
             const projectBoards = await api.getProjectBoards(task.project_id);
             for (const board of projectBoards) {
@@ -327,13 +343,13 @@ export function GlobalBoard() {
         if (selectedEpicId !== 'all') {
             filtered = filtered.filter(t => selectedEpicId === 'no_epic' ? !t.epic_id : t.epic_id === selectedEpicId);
         }
-        
+
         const priorityOrder: Record<string, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
         return [...filtered].sort((a, b) => {
             const pA = priorityOrder[a.priority as string] || 0;
             const pB = priorityOrder[b.priority as string] || 0;
             if (pB !== pA) return pB - pA;
-            
+
             const nameA = a.project_name || '';
             const nameB = b.project_name || '';
             return nameA.localeCompare(nameB);
@@ -351,14 +367,14 @@ export function GlobalBoard() {
     }, [tasks]);
 
     return (
-        <DndProvider backend={HTML5Backend}>
+        <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
             <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
                 <NeuralBackground />
 
                 <div className="relative z-10 h-screen flex flex-col">
                     {/* Header */}
                     <motion.div
-                        className="p-6 border-b border-white/10 backdrop-blur-[30px]"
+                        className="h-[100px] px-6 border-b border-white/10 backdrop-blur-[30px] flex flex-col justify-center flex-shrink-0"
                         style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
                         initial={{ y: -20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
@@ -374,7 +390,7 @@ export function GlobalBoard() {
                                     </div>
                                     <div>
                                         <h1
-                                            className="text-2xl font-bold"
+                                            className="text-2xl font-bold mb-0"
                                             style={{
                                                 background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                                                 WebkitBackgroundClip: 'text',
