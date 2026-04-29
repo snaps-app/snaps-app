@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Settings, ArrowLeft, Plus, Check, Palette, FolderOpen, Upload, Bot, X, Send, Layers, Globe, Edit2, Trash2 } from 'lucide-react';
+import { Settings, ArrowLeft, Plus, Check, Palette, FolderOpen, Upload, Bot, X, Send, Layers, Globe, Edit2, Trash2, Zap, Play, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { TouchBackend } from 'react-dnd-touch-backend';
-import { NeuralBackground } from './neural-background';
 import { CardModal } from './card-modal';
 import { BoardCard } from './board-card';
-import api, { Card, Board, Epic } from '@/services/api';
+import { BoardColumnSkeleton, Spinner } from './ui/index';
+import api, { Card, Board, Epic, Sprint, getGithubConfig, createAgentExecution } from '@/services/api';
+import { ExecutionWizardModal } from './execution-wizard-modal';
 import { useParams, useNavigate } from 'react-router-dom';
 
 const BOARD_COLORS = [
@@ -40,6 +41,7 @@ interface ColumnProps {
   index: number;
   color: string;
   epics: Epic[];
+  sprints: Sprint[];
   boardColor: string;
 }
 
@@ -55,6 +57,7 @@ function Column({
   index,
   color,
   epics,
+  sprints,
   boardColor
 }: ColumnProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -225,6 +228,7 @@ function Column({
                 onCardClick={onCardClick}
                 boardColor={boardColor}
                 epic={epics.find(e => e.id === task.epic_id)}
+                sprint={sprints.find(s => s.id === task.sprint_id)}
               />
             </motion.div>
           ))}
@@ -234,7 +238,7 @@ function Column({
   );
 }
 
-function CardWrapper({ task, onCardClick, boardColor, epic }: { task: Card, onCardClick: (card: Card) => void, boardColor: string, epic?: Epic }) {
+function CardWrapper({ task, onCardClick, boardColor, epic, sprint }: { task: Card, onCardClick: (card: Card) => void, boardColor: string, epic?: Epic, sprint?: Sprint }) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'TASK',
     item: { id: task.id, status: task.status },
@@ -250,7 +254,102 @@ function CardWrapper({ task, onCardClick, boardColor, epic }: { task: Card, onCa
         onClick={onCardClick}
         boardColor={boardColor}
         epic={epic}
+        sprint={sprint}
       />
+    </div>
+  );
+}
+
+function FilterMultiSelect({
+  label,
+  options,
+  selectedIds,
+  onChange,
+  icon: Icon,
+  onManage,
+  manageTitle
+}: {
+  label: string;
+  options: { id: string, name: string }[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  icon: any;
+  onManage?: () => void;
+  manageTitle?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const toggleOption = (id: string) => {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter(i => i !== id));
+    } else {
+      onChange([...selectedIds, id]);
+    }
+  };
+
+  const displayText = selectedIds.length === 0 
+    ? `ALL ${label}` 
+    : selectedIds.length === 1 
+      ? (options.find(o => o.id === selectedIds[0])?.name.toUpperCase() || label)
+      : `${selectedIds.length} SELECTED`;
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-r border-white/5 last:border-r-0">
+        {onManage && (
+          <button
+            onClick={onManage}
+            className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/20 hover:text-white"
+            title={manageTitle}
+          >
+            <Icon className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2 text-[10px] font-black text-white/50 hover:text-white transition-colors uppercase tracking-tight"
+        >
+          {displayText}
+          <motion.div animate={{ rotate: isOpen ? 180 : 0 }}>
+             <ChevronDown className="w-3 h-3 opacity-30" />
+          </motion.div>
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute top-full left-0 mt-2 p-2 bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl z-[70] min-w-[200px] max-h-[300px] overflow-y-auto"
+            >
+              <button
+                onClick={() => { onChange([]); setIsOpen(false); }}
+                className="w-full text-left px-3 py-2 rounded-xl text-[10px] font-black hover:bg-white/5 transition-colors flex items-center justify-between"
+              >
+                ALL {label}
+                {selectedIds.length === 0 && <Check className="w-3 h-3 text-green-500" />}
+              </button>
+              <div className="h-px bg-white/5 my-1" />
+              {options.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => toggleOption(opt.id)}
+                  className="w-full text-left px-3 py-2 rounded-xl text-[10px] font-black hover:bg-white/5 transition-colors flex items-center justify-between group"
+                >
+                  <span className={selectedIds.includes(opt.id) ? 'text-white' : 'text-white/40 group-hover:text-white/70'}>
+                    {opt.name.toUpperCase()}
+                  </span>
+                  {selectedIds.includes(opt.id) && <Check className="w-3 h-3 text-purple-500" />}
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -261,6 +360,7 @@ export function BoardView() {
 
   const [board, setBoard] = useState<Board | null>(null);
   const [tasks, setTasks] = useState<Card[]>([]);
+  const [isLoadingBoard, setIsLoadingBoard] = useState(true);
   // Use local state for current board ID if created
   const [localBoardId, setLocalBoardId] = useState<string | null>(boardId || null);
 
@@ -293,13 +393,34 @@ export function BoardView() {
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
 
   const [epics, setEpics] = useState<Epic[]>([]);
-  const [selectedEpicId, setSelectedEpicId] = useState<string | null>(null);
+  const [selectedEpicIds, setSelectedEpicIds] = useState<string[]>([]);
   const [isEpicModalOpen, setIsEpicModalOpen] = useState(false);
   const [editingEpicId, setEditingEpicId] = useState<string | null>(null);
   const [isCreatingEpic, setIsCreatingEpic] = useState(false);
   const [isCreatingEpicUtils, setIsCreatingEpicUtils] = useState(false);
   const [epicNameInput, setEpicNameInput] = useState('');
   const [epicColorInput, setEpicColorInput] = useState(BOARD_COLORS[0]);
+
+  // Sprint State
+  const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [selectedSprintIds, setSelectedSprintIds] = useState<string[]>([]);
+  const [isSprintWizardOpen, setIsSprintWizardOpen] = useState(false);
+  const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
+  const [isSprintFormOpen, setIsSprintFormOpen] = useState(false);
+  const [isSprintSaving, setIsSprintSaving] = useState(false);
+  const [sprintNameInput, setSprintNameInput] = useState('');
+  const [sprintTagInput, setSprintTagInput] = useState('');
+  const [sprintObjectiveInput, setSprintObjectiveInput] = useState('');
+  const [editingSprintId, setEditingSprintId] = useState<string | null>(null);
+  
+  // Vaccination State
+  const [isVaccinationModalOpen, setIsVaccinationModalOpen] = useState(false);
+  const [vaccinationCard, setVaccinationCard] = useState<Card | null>(null);
+  const [vaccinationContent, setVaccinationContent] = useState('');
+  const [isVaccinating, setIsVaccinating] = useState(false);
+
+  // Repo Names State (from GitHub Config)
+  const [repoNames, setRepoNames] = useState<string[]>([]);
 
   const handleCreateCard = () => {
     setSelectedCard(null);
@@ -345,10 +466,19 @@ export function BoardView() {
     }
   };
 
+  const fetchSprints = async (pid: string) => {
+    try {
+      const data = await api.getSprints(pid);
+      setSprints(data);
+    } catch (error) {
+      console.error('Failed to fetch sprints:', error);
+    }
+  };
+
   useEffect(() => {
     const initBoard = async () => {
       if (!projectId) return;
-
+      setIsLoadingBoard(true);
       try {
         // 1. Fetch Project Data first
         const proj = await api.getProject(projectId);
@@ -380,11 +510,19 @@ export function BoardView() {
         setBoard({ ...boardData, columns: columnsWithDefaults });
         setBoardName(boardData.name);
         setBoardCode(finalCode);
-        setBoardColor(boardData.color || BOARD_COLORS[0]);
+        
+        // Custom logic for board colors based on type
+        let finalColor = boardData.color || BOARD_COLORS[0];
+        if (!boardData.color) {
+            if (boardData.board_type === 'support') finalColor = '#ef4444'; // Red for support
+            if (boardData.board_type === 'roadmap') finalColor = '#3b82f6'; // Blue for roadmap
+        }
+        setBoardColor(finalColor);
+
         setInitialState({
           name: boardData.name,
           code: finalCode,
-          color: boardData.color || BOARD_COLORS[0],
+          color: finalColor,
           columns: columnsWithDefaults
         });
         setTasks(boardData.cards || []);
@@ -396,9 +534,22 @@ export function BoardView() {
         setBoardColor(BOARD_COLORS[0]);
         setInitialState({ name: 'Main Board', code: '', color: BOARD_COLORS[0], columns: [] });
         setTasks([]);
+      } finally {
+        setIsLoadingBoard(false);
       }
 
       fetchEpics(projectId);
+      fetchSprints(projectId);
+
+      // Fetch repo names from GitHub config
+      try {
+        const ghConfig = await getGithubConfig(projectId);
+        if (ghConfig?.repo_names) {
+          setRepoNames(ghConfig.repo_names.split(',').map((r: string) => r.trim()).filter(Boolean));
+        }
+      } catch (e) {
+        // No github config, that's OK
+      }
     };
 
     initBoard();
@@ -471,6 +622,67 @@ export function BoardView() {
     setEditingEpicId(null);
     setEpicNameInput('');
     setEpicColorInput(BOARD_COLORS[0]);
+  };
+
+  // Sprint Handlers
+  const handleCreateSprint = async () => {
+    if (!projectId || !sprintNameInput.trim() || !sprintTagInput.trim() || isSprintSaving) return;
+    setIsSprintSaving(true);
+    try {
+      await api.createSprint(projectId, {
+        name: sprintNameInput,
+        tag: sprintTagInput.toLowerCase().replace(/\s+/g, '-'),
+        objective: sprintObjectiveInput,
+        status: 'planning'
+      });
+      setSprintNameInput('');
+      setSprintTagInput('');
+      setSprintObjectiveInput('');
+      setEditingSprintId(null);
+      setIsSprintFormOpen(false);
+      fetchSprints(projectId);
+    } catch (error) {
+      console.error('Failed to create sprint:', error);
+    } finally {
+      setIsSprintSaving(false);
+    }
+  };
+
+  const handleDeleteSprint = async (sprintId: string) => {
+    if (!confirm('Delete this sprint? Cards will be unassigned but not deleted.')) return;
+    try {
+      await api.deleteSprint(sprintId);
+      setSelectedSprintIds(prev => prev.filter(id => id !== sprintId));
+      fetchSprints(projectId!);
+      if (localBoardId) fetchBoard(localBoardId);
+    } catch (error) {
+      console.error('Failed to delete sprint:', error);
+    }
+  };
+
+  const handleUpdateSprint = async (sprintId: string) => {
+    if (!sprintNameInput.trim()) return;
+    try {
+      await api.updateSprint(sprintId, {
+        name: sprintNameInput,
+        tag: sprintTagInput.toLowerCase().replace(/\s+/g, '-'),
+        objective: sprintObjectiveInput
+      });
+      setEditingSprintId(null);
+      setSprintNameInput('');
+      setSprintTagInput('');
+      setSprintObjectiveInput('');
+      fetchSprints(projectId!);
+    } catch (error) {
+      console.error('Failed to update sprint:', error);
+    }
+  };
+
+  const startEditingSprint = (sprint: Sprint) => {
+    setEditingSprintId(sprint.id);
+    setSprintNameInput(sprint.name);
+    setSprintTagInput(sprint.tag);
+    setSprintObjectiveInput(sprint.objective || '');
   };
 
   const handleSaveBoard = async () => {
@@ -651,9 +863,43 @@ export function BoardView() {
 
     try {
       await api.updateCardStatus(taskId, newStatus);
+      
+      // Vaccination Logic: If moved to DONE in a SUPPORT board
+      if (newStatus.toLowerCase() === 'done' && board?.board_type === 'support') {
+        const card = tasks.find(t => t.id === taskId);
+        if (card) {
+          setVaccinationCard(card);
+          setIsVaccinationModalOpen(true);
+          setVaccinationContent('');
+        }
+      }
     } catch (error) {
       console.error('Failed to update task status:', error);
       if (localBoardId) fetchBoard(localBoardId);
+    }
+  };
+
+  const handleVaccinate = async () => {
+    if (!vaccinationCard || !projectId || !vaccinationContent.trim()) return;
+    setIsVaccinating(true);
+    try {
+      await api.createSnap({
+        project_id: projectId,
+        name: `[VACINA] ${vaccinationCard.title}`,
+        description: `Resolução do bug ${vaccinationCard.code || ''}: ${vaccinationCard.description}`,
+        content: vaccinationContent,
+        snadds: {
+          labels: ['bug-vaccination', ...(vaccinationCard.labels || [])],
+          status: 'vacinado'
+        }
+      });
+      setIsVaccinationModalOpen(false);
+      setVaccinationCard(null);
+      setVaccinationContent('');
+    } catch (error) {
+      console.error('Failed to vaccinate bug:', error);
+    } finally {
+      setIsVaccinating(false);
     }
   };
 
@@ -677,7 +923,9 @@ export function BoardView() {
             priority: cardData.priority,
             due_date: cardData.due_date,
             labels: cardData.labels,
-            epic_id: cardData.epic_id
+            epic_id: cardData.epic_id,
+            sprint_id: cardData.sprint_id,
+            bdd_scenarios: cardData.bdd_scenarios
           });
         }
       }
@@ -693,138 +941,198 @@ export function BoardView() {
   const priorityOrder: Record<string, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
 
   const filteredAndSortedTasks = useMemo(() => {
-    let result = selectedEpicId
-      ? tasks.filter(t => selectedEpicId === 'no_epic' ? !t.epic_id : t.epic_id === selectedEpicId)
-      : tasks;
-
+    let result = tasks;
+    if (selectedEpicIds.length > 0) {
+      result = result.filter(t => {
+        if (selectedEpicIds.includes('no_epic') && !t.epic_id) return true;
+        return t.epic_id && selectedEpicIds.includes(t.epic_id);
+      });
+    }
+    if (selectedSprintIds.length > 0) {
+      result = result.filter(t => {
+        if (selectedSprintIds.includes('no_sprint') && !t.sprint_id) return true;
+        return t.sprint_id && selectedSprintIds.includes(t.sprint_id);
+      });
+    }
     return [...result].sort((a, b) => {
       const pA = priorityOrder[a.priority as string] || 0;
       const pB = priorityOrder[b.priority as string] || 0;
       return pB - pA;
     });
-  }, [tasks, selectedEpicId]);
+  }, [tasks, selectedEpicIds, selectedSprintIds]);
 
   return (
     <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
-      <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
-        <NeuralBackground />
-
-        <div className="relative z-10 h-screen flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0 relative">
+        <div className="flex-1 flex flex-col relative z-10">
           {/* Header */}
           <motion.div
-            className="p-6 border-b border-white/10 backdrop-blur-[30px] z-20"
+            className="p-6 border-b border-white/10 backdrop-blur-[30px] z-20 flex-shrink-0"
             style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)' }}
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
+            <div className="flex items-center justify-between gap-4 px-2">
+              {/* Left: Board Info */}
+              <div className="flex items-center gap-4 shrink-0">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => navigate(`/project/${projectId}`)}
-                  className="w-10 h-10 rounded-xl backdrop-blur-xl flex items-center justify-center transition-all"
+                  className="w-9 h-9 rounded-xl backdrop-blur-xl flex items-center justify-center transition-all group"
                   style={{
-                    background: 'rgba(255, 107, 53, 0.1)',
-                    border: '1px solid rgba(255, 107, 53, 0.3)',
+                    background: 'rgba(255, 107, 53, 0.05)',
+                    border: '1px solid rgba(255, 107, 53, 0.2)',
                   }}
                 >
-                  <ArrowLeft className="w-5 h-5 text-orange-500" />
+                  <ArrowLeft className="w-5 h-5 text-orange-500/70 group-hover:text-orange-500 transition-colors" />
                 </motion.button>
 
-                <div className="flex flex-col gap-0.5">
-                  <input
-                    type="text"
-                    value={boardName}
-                    onChange={(e) => setBoardName(e.target.value)}
-                    className="bg-transparent border-none text-2xl font-bold text-white focus:outline-none focus:ring-1 focus:ring-white/20 rounded px-2"
-                    placeholder="Board Name"
-                  />
-                  {project?.name && (
-                    <p className="text-xs text-gray-500 px-3 leading-none">{project.name}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4 h-10">
-                  <div className="flex items-center gap-2 relative h-full">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={boardCode}
-                      onChange={(e) => setBoardCode(e.target.value.toUpperCase().substring(0, 3))}
-                      className="bg-transparent border border-white/10 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-white/20 rounded-lg px-3 py-2 w-[80px] text-center uppercase h-full"
-                      placeholder="XXX"
-                      maxLength={3}
+                      value={boardName}
+                      onChange={(e) => setBoardName(e.target.value)}
+                      className="bg-transparent border-none text-xl font-black text-white focus:outline-none focus:ring-1 focus:ring-white/10 rounded px-1 w-auto min-w-[80px]"
+                      placeholder="Board Name"
                     />
-                    <button
-                      onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center justify-center gap-2 h-full w-[54px] flex-shrink-0"
-                    >
-                      <div
-                        className="w-8 h-4 rounded-md border border-white/20"
-                        style={{ backgroundColor: boardColor, boxShadow: `0 0 10px ${boardColor}` }}
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
+                      <input
+                        type="text"
+                        value={boardCode}
+                        onChange={(e) => setBoardCode(e.target.value.toUpperCase().substring(0, 3))}
+                        className="bg-transparent border-none text-[10px] font-black text-white/40 focus:outline-none w-7 text-center uppercase focus:text-white transition-colors"
+                        placeholder="XXX"
+                        maxLength={3}
                       />
-                      <Palette className="w-4 h-4 text-gray-400" />
-                    </button>
-
-                    <AnimatePresence>
-                      {isColorPickerOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl z-50 grid grid-cols-4 gap-3 min-w-[160px] w-max"
-                        >
-                          {BOARD_COLORS.map(color => (
-                            <button
-                              key={color}
-                              onClick={() => {
-                                setBoardColor(color);
-                                setIsColorPickerOpen(false);
-                              }}
-                              className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
-                              style={{
-                                backgroundColor: color,
-                                borderColor: boardColor === color ? 'white' : 'transparent'
-                              }}
-                            />
-                          ))}
-                        </motion.div>
+                      <button
+                        onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                        className="w-3 h-3 rounded-full relative transition-transform hover:scale-125"
+                        style={{ backgroundColor: boardColor, boxShadow: `0 0 12px ${boardColor}88` }}
+                      >
+                         <AnimatePresence>
+                          {isColorPickerOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                              className="absolute top-full left-0 mt-4 p-2 bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl z-[60] grid grid-cols-4 gap-2 min-w-[140px]"
+                            >
+                              {BOARD_COLORS.map(color => (
+                                <button
+                                  key={color}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBoardColor(color);
+                                    setIsColorPickerOpen(false);
+                                  }}
+                                  className="w-6 h-6 rounded-full border border-white/5 hover:border-white/30 transition-all"
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </button>
+                    </div>
+                  </div>
+                  {project?.name && (
+                    <div className="flex items-center gap-2 mt-0.5 ml-1">
+                      <p className="text-[9px] text-white/30 font-bold uppercase tracking-[0.2em]">{project.name}</p>
+                      {board?.board_type === 'support' && (
+                        <span className="text-[8px] font-black bg-red-500/10 text-red-500/80 px-1.5 py-0.5 rounded border border-red-500/20 uppercase tracking-widest">
+                          Support
+                        </span>
                       )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-
-                {/* Epic Filter */}
-                <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
-                  <div className="relative">
-                    <button
-                      onClick={() => setIsEpicModalOpen(true)}
-                      className="px-3 py-2 rounded-lg bg-transparent border border-white/10 hover:bg-white/5 transition-colors flex items-center gap-2 text-sm"
-                      style={{ color: 'var(--snaps-text-primary)' }}
-                    >
-                      <Settings className="w-4 h-4" />
-                      Manage Epics
-                    </button>
-                  </div>
-
-                  <select
-                    value={selectedEpicId || ''}
-                    onChange={(e) => setSelectedEpicId(e.target.value || null)}
-                    className="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
-                    style={{ color: 'var(--snaps-text-primary)' }}
-                  >
-                    <option value="">All Epics</option>
-                    <option value="no_epic">No Epic</option>
-                    {epics.map(epic => (
-                      <option key={epic.id} value={epic.id}>{epic.name}</option>
-                    ))}
-                  </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              {/* Middle: Unified Filter Section */}
+              <div className="flex items-center p-1 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-2xl shadow-2xl">
+                <FilterMultiSelect 
+                  label="EPICS"
+                  options={[
+                    { id: 'no_epic', name: 'NO EPIC' },
+                    ...epics.map(e => ({ id: e.id, name: e.name }))
+                  ]}
+                  selectedIds={selectedEpicIds}
+                  onChange={setSelectedEpicIds}
+                  icon={Settings}
+                  onManage={() => setIsEpicModalOpen(true)}
+                  manageTitle="Manage Epics"
+                />
+
+                <FilterMultiSelect 
+                  label="SPRINTS"
+                  options={[
+                    { id: 'no_sprint', name: 'NO SPRINT' },
+                    ...sprints.map(s => ({ id: s.id, name: `${s.name} ${s.status === 'active' ? '●' : ''}` }))
+                  ]}
+                  selectedIds={selectedSprintIds}
+                  onChange={setSelectedSprintIds}
+                  icon={Zap}
+                  onManage={() => setIsSprintModalOpen(true)}
+                  manageTitle="Manage Sprints"
+                />
+
+                <div className="relative group ml-3 mr-1">
+                  {(() => {
+                    const handleQuickExecute = async () => {
+                      if (selectedSprintIds.length === 0 || selectedSprintIds.includes('no_sprint')) return;
+                      try {
+                        const exec = await createAgentExecution({
+                          project_id: projectId!,
+                          phase: 'micro_planning',
+                          sprint_ids: selectedSprintIds,
+                          card_ids: []
+                        });
+                        navigate(`/project/${projectId}/execution/${exec.id}`);
+                      } catch (error) {
+                        console.error('Failed to start quick execution:', error);
+                      }
+                    };
+
+                    return (
+                      <motion.button
+                        whileHover={selectedSprintIds.length > 0 && !selectedSprintIds.includes('no_sprint') ? { scale: 1.02, x: 2 } : {}}
+                        whileTap={selectedSprintIds.length > 0 && !selectedSprintIds.includes('no_sprint') ? { scale: 0.98 } : {}}
+                        onClick={handleQuickExecute}
+                        disabled={selectedSprintIds.length === 0 || selectedSprintIds.includes('no_sprint')}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] transition-all disabled:opacity-10 disabled:grayscale"
+                        style={{
+                          background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
+                          boxShadow: selectedSprintIds.length > 0 && !selectedSprintIds.includes('no_sprint') ? '0 8px 20px rgba(168,85,247,0.3)' : 'none',
+                          color: 'white',
+                        }}
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        Execute {selectedSprintIds.length > 1 ? `(${selectedSprintIds.length})` : ''}
+                      </motion.button>
+                    );
+                  })()}
+                  {(selectedSprintIds.length === 0 || selectedSprintIds.includes('no_sprint')) && (
+                    <div className="absolute top-full mt-4 right-0 w-56 p-3 bg-[#0A0A0A] border border-white/10 rounded-2xl text-[9px] text-white/40 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-[70] shadow-2xl leading-relaxed backdrop-blur-xl">
+                      <p className="text-purple-400 font-bold mb-1 text-[10px]">AI EXECUTION READY</p>
+                      Select specific Sprints to unlock autonomous implementation.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Actions */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setIsSprintModalOpen(true)}
+                  className="p-2.5 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all text-white/20 hover:text-white"
+                  title="Sprint Management"
+                >
+                  <Zap className="w-4 h-4" />
+                </button>
+
                 {(isDirty || !boardId) && (
                   <div className="flex items-center gap-2">
                     <motion.button
@@ -832,14 +1140,14 @@ export function BoardView() {
                       whileTap={{ scale: 0.95 }}
                       onClick={handleSaveBoard}
                       disabled={isSaving}
-                      className="px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold transition-all"
+                      className="px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all"
                       style={{
-                        background: 'rgba(34, 197, 94, 0.2)',
-                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                        background: 'rgba(34, 197, 94, 0.05)',
+                        border: '1px solid rgba(34, 197, 94, 0.2)',
                         color: '#22C55E'
                       }}
                     >
-                      {isSaving ? <div className="w-4 h-4 border-2 border-green-500/30 border-t-green-500 rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                      {isSaving ? <Spinner size="sm" color="border-green-500" /> : <Check className="w-3 h-3" />}
                       Apply
                     </motion.button>
                     <motion.button
@@ -847,15 +1155,15 @@ export function BoardView() {
                       whileTap={{ scale: 0.95 }}
                       onClick={handleOpenBulkApply}
                       disabled={isSaving}
-                      className="px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold transition-all"
+                      className="px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all"
                       style={{
-                        background: 'rgba(0, 212, 255, 0.2)',
-                        border: '1px solid rgba(0, 212, 255, 0.4)',
+                        background: 'rgba(0, 212, 255, 0.05)',
+                        border: '1px solid rgba(0, 212, 255, 0.2)',
                         color: '#00D4FF'
                       }}
                     >
-                      <Layers className="w-4 h-4" />
-                      Bulk Apply
+                      <Layers className="w-3 h-3" />
+                      Bulk
                     </motion.button>
                   </div>
                 )}
@@ -1001,6 +1309,166 @@ export function BoardView() {
               </div>
             )}
           </AnimatePresence>
+
+          {/* Sprint Modal */}
+          <AnimatePresence>
+            {isSprintModalOpen && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[80vh] flex flex-col"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-purple-400" />
+                      Manage Sprints
+                    </h2>
+                    <button
+                      onClick={() => setIsSprintModalOpen(false)}
+                      className="p-1 rounded-lg hover:bg-white/10"
+                    >
+                      <X className="w-5 h-5 text-gray-400" />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2">
+                    {sprints.map(sprint => (
+                      <div key={sprint.id} className="group bg-white/5 border border-white/10 rounded-xl p-3">
+                        {editingSprintId === sprint.id ? (
+                          <div className="flex flex-col gap-3">
+                            <input
+                              type="text"
+                              value={sprintNameInput}
+                              onChange={(e) => setSprintNameInput(e.target.value)}
+                              className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white"
+                              placeholder="Sprint Name"
+                              autoFocus
+                            />
+                            <input
+                              type="text"
+                              value={sprintTagInput}
+                              onChange={(e) => setSprintTagInput(e.target.value)}
+                              className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white font-mono"
+                              placeholder="sprint-tag"
+                            />
+                            <textarea
+                              value={sprintObjectiveInput}
+                              onChange={(e) => setSprintObjectiveInput(e.target.value)}
+                              className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white min-h-[60px]"
+                              placeholder="Objective..."
+                            />
+                            <div className="flex items-center gap-2 justify-end">
+                              <button
+                                onClick={() => setEditingSprintId(null)}
+                                className="p-2 rounded hover:bg-white/10 text-xs text-white"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleUpdateSprint(sprint.id)}
+                                className="p-2 rounded bg-purple-500/20 text-purple-400 text-xs font-bold"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-white leading-none">{sprint.name}</span>
+                                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${
+                                  sprint.status === 'active' ? 'bg-green-500/20 text-green-400 border-green-500/50' :
+                                  sprint.status === 'done' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' :
+                                  'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+                                }`}>
+                                  {sprint.status}
+                                </span>
+                              </div>
+                              <span className="text-xs font-mono text-gray-500">{sprint.tag}</span>
+                              {sprint.objective && (
+                                <p className="text-xs text-gray-400 mt-1 line-clamp-2">{sprint.objective}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => startEditingSprint(sprint)}
+                                className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSprint(sprint.id)}
+                                className="p-1.5 rounded hover:bg-red-500/10 text-red-500 hover:text-red-400"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {isSprintFormOpen ? (
+                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
+                        <div className="flex flex-col gap-3">
+                          <input
+                            type="text"
+                            value={sprintNameInput}
+                            onChange={(e) => setSprintNameInput(e.target.value)}
+                            className="bg-black/20 border border-purple-500/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white"
+                            placeholder="Sprint Name (e.g. Sprint 1)"
+                            autoFocus
+                          />
+                          <input
+                            type="text"
+                            value={sprintTagInput}
+                            onChange={(e) => setSprintTagInput(e.target.value)}
+                            className="bg-black/20 border border-purple-500/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white font-mono"
+                            placeholder="Tag (e.g. sprint-1)"
+                          />
+                          <textarea
+                            value={sprintObjectiveInput}
+                            onChange={(e) => setSprintObjectiveInput(e.target.value)}
+                            className="bg-black/20 border border-purple-500/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white min-h-[60px]"
+                            placeholder="Sprint Objective..."
+                          />
+                          <div className="flex items-center gap-2 justify-end mt-2">
+                            <button
+                              onClick={() => setIsSprintFormOpen(false)}
+                              className="p-2 rounded hover:bg-white/10 text-xs text-white"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleCreateSprint}
+                              disabled={!sprintNameInput.trim() || !sprintTagInput.trim() || isSprintSaving}
+                              className="p-2 rounded bg-purple-500/20 text-purple-400 text-xs font-bold disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {isSprintSaving ? (
+                                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : 'Create'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setIsSprintFormOpen(true); setEditingSprintId(null); setSprintNameInput(''); setSprintTagInput(''); setSprintObjectiveInput(''); }}
+                        className="w-full py-3 rounded-xl border border-dashed border-white/10 hover:border-purple-500/30 hover:bg-purple-500/5 text-gray-400 hover:text-purple-400 transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                      >
+                        <Plus className="w-4 h-4" />
+                        New Sprint
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
           {/* Bulk Apply Modal */}
           <AnimatePresence>
             {isBulkApplyOpen && (
@@ -1165,21 +1633,83 @@ export function BoardView() {
                 <Bot className="w-7 h-7 relative z-10" style={{ color: 'var(--snaps-accent-orange)' }} />
               </motion.button>
 
-              {/* Settings Button - Purple */}
-              <motion.button
-                whileHover={{ scale: 1.1, rotate: 90 }}
-                whileTap={{ scale: 0.9 }}
-                className="w-14 h-14 rounded-full backdrop-blur-xl flex items-center justify-center transition-all"
-                style={{
-                  background: 'rgba(168, 85, 247, 0.1)',
-                  border: '2px solid rgba(168, 85, 247, 0.5)',
-                  boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)'
-                }}
-              >
-                <Settings className="w-6 h-6" style={{ color: 'var(--snaps-accent-purple)' }} />
-              </motion.button>
             </motion.div>
           )}
+
+          {/* Vaccination Modal */}
+          <AnimatePresence>
+            {isVaccinationModalOpen && vaccinationCard && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                  className="bg-[#0A0A0A] border border-red-500/30 rounded-2xl w-full max-w-xl p-8 shadow-[0_0_50px_rgba(239,68,68,0.2)] flex flex-col relative overflow-hidden"
+                >
+                  {/* Neon Glow effect */}
+                  <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-500/10 blur-[100px]" />
+                  
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center border border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                      <Zap className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-white tracking-tight uppercase">Vacinação de Bug</h2>
+                      <p className="text-zinc-500 text-sm font-medium">Converta esta resolução em memória agêntica</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 mb-8">
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Bug</p>
+                      <h3 className="text-white font-bold">{vaccinationCard.title}</h3>
+                      {vaccinationCard.code && <span className="text-[10px] font-mono text-red-400/70">{vaccinationCard.code}</span>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                        <Edit2 className="w-3 h-3" />
+                        Resolução Técnica (Lesson Learned)
+                      </label>
+                      <textarea
+                        autoFocus
+                        value={vaccinationContent}
+                        onChange={(e) => setVaccinationContent(e.target.value)}
+                        placeholder="Descreva como o bug foi resolvido e o que o agente deve saber para evitar que aconteça novamente..."
+                        className="w-full h-40 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-zinc-200 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 transition-all resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        setIsVaccinationModalOpen(false);
+                        setVaccinationCard(null);
+                      }}
+                      className="px-6 py-2.5 rounded-xl text-zinc-400 hover:text-white font-bold transition-colors"
+                    >
+                      Ignorar
+                    </button>
+                    <button
+                      onClick={handleVaccinate}
+                      disabled={!vaccinationContent.trim() || isVaccinating}
+                      className="px-8 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black shadow-[0_0_20px_rgba(239,68,68,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all transform hover:scale-105"
+                    >
+                      {isVaccinating ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="w-5 h-5" />
+                          VACINAR AGORA
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
 
           {/* Planner Agent Slide-over Panel */}
           <AnimatePresence>
@@ -1336,7 +1866,14 @@ export function BoardView() {
           {/* Board Columns */}
           <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
             <div className="flex gap-6 min-w-max h-full items-start">
-              {columns.map((col: any, index: number) => (
+              {isLoadingBoard ? (
+                <>
+                  <BoardColumnSkeleton />
+                  <BoardColumnSkeleton />
+                  <BoardColumnSkeleton />
+                </>
+              ) : null}
+              {!isLoadingBoard && columns.map((col: any, index: number) => (
                 <Column
                   key={col.id}
                   index={index}
@@ -1359,6 +1896,7 @@ export function BoardView() {
                   onMoveColumn={handleMoveColumn}
                   color={col.color || boardColor}
                   epics={epics}
+                  sprints={sprints}
                   boardColor={boardColor}
                 />
               ))}
@@ -1429,15 +1967,30 @@ export function BoardView() {
           </div>
         </div>
 
-        {/* Card Modal */}
         <CardModal
           isOpen={isCardModalOpen}
           onClose={() => setIsCardModalOpen(false)}
           onSave={handleSaveCard}
           initialData={selectedCard}
           epics={epics}
+          sprints={sprints}
           columns={board?.columns}
+          repoNames={repoNames}
         />
+
+        {selectedSprintIds.length > 0 && !selectedSprintIds.includes('no_sprint') && (
+          <ExecutionWizardModal
+            isOpen={isSprintWizardOpen}
+            onClose={() => setIsSprintWizardOpen(false)}
+            entityId={selectedSprintIds.join(',')}
+            entityType="sprint"
+            entityTitle={
+              selectedSprintIds.length > 1 
+                ? `${selectedSprintIds.length} Sprints Selected`
+                : sprints.find(s => s.id === selectedSprintIds[0])?.name || 'Sprint'
+            }
+          />
+        )}
       </div>
     </DndProvider>
   );
