@@ -239,6 +239,11 @@
     -webkit-user-select: auto;
     user-select: auto;
   }
+
+  .prose, .prose * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 /* Custom Scrollbar Styles */
@@ -261,7 +266,7 @@
 .overflow-y-auto::-webkit-scrollbar-thumb,
 .overflow-x-auto::-webkit-scrollbar-thumb,
 .overflow-auto::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
 
@@ -279,4 +284,19 @@
 .overflow-auto {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+}
+
+/* Custom Scrollbar Utility */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.1);
 }

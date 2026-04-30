@@ -1,5 +1,18 @@
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderArchive, Brain, Activity, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  FolderArchive, 
+  Brain, 
+  Activity, 
+  Calendar, 
+  ChevronLeft, 
+  ChevronRight, 
+  Shield, 
+  Bot 
+} from 'lucide-react';
+
+import { motion } from 'motion/react';
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -10,13 +23,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
     { label: 'Projects', icon: FolderArchive, path: '/projects' },
     { label: 'Memory', icon: Brain, path: '/memory' },
     { label: 'Board', icon: Activity, path: '/global-board' },
     { label: 'Calendar', icon: Calendar, path: '/calendar' },
+    { label: 'Governance', icon: Shield, path: '/governance' },
+    { label: 'AI Executions', icon: Bot, path: '/ai-executions' },
   ];
 
   return (
@@ -29,41 +43,47 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       }}
     >
       {/* Header / Logo */}
-      <div className="h-[100px] px-6 border-b border-white/10 flex items-center justify-between overflow-hidden">
-        <div
-          className="whitespace-nowrap"
-          style={{ opacity: isCollapsed ? 0 : 1, transition: 'opacity 0.2s' }}
-        >
-          <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{
-              background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              display: isCollapsed ? 'none' : 'block'
-            }}
+      <div className={`h-[100px] border-b border-white/10 flex items-center flex-shrink-0 transition-all ${
+        isCollapsed ? 'justify-center px-0' : 'justify-between px-6'
+      }`}>
+        {!isCollapsed && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="whitespace-nowrap"
           >
-            Snaps
-          </h1>
-        </div>
-        {isCollapsed && (
-          <div className="w-full flex justify-center">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#A855F7]" />
-          </div>
+            <h1
+              className="text-2xl font-bold tracking-tight"
+              style={{
+                background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              SNAPS
+            </h1>
+          </motion.div>
         )}
+        <button
+          onClick={onToggle}
+          className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all hover:bg-white/10"
+        >
+          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+        </button>
       </div>
 
-      {/* Navigation Items */}
-      <div className="flex-1 py-6 flex flex-col gap-2 px-3">
+      {/* Navigation Items - Scrollable area */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide py-4 flex flex-col gap-1 px-3">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
+
           return (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all relative group overflow-hidden ${isActive ? 'bg-white/10' : 'hover:bg-white/5'
-                }`}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all relative group overflow-hidden shrink-0 ${
+                isActive ? 'bg-white/10' : 'hover:bg-white/5'
+              }`}
             >
               {isActive && (
                 <div
@@ -88,14 +108,22 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         })}
       </div>
 
-      {/* Collapse Toggle Button */}
-      <button
-        onClick={onToggle}
-        className="absolute -right-3 top-[100px] -translate-y-1/2 w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors z-50"
-      >
-        {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-      </button>
-
+      {/* Footer / User Profile */}
+      <div className="p-4 border-t border-white/10 flex-shrink-0">
+        <div className="flex items-center gap-3 px-2">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#A855F7] p-[1px]">
+            <div className="w-full h-full rounded-full bg-[#0A0A0A] flex items-center justify-center text-[10px] font-bold text-white">
+              BB
+            </div>
+          </div>
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-white">Bruno Bogochvol</span>
+              <span className="text-[10px] text-zinc-500">Admin</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -78,6 +78,7 @@ export function GlobalCardModal({ isOpen, onClose, onCardCreated }: GlobalCardMo
                 boardId={selectedBoardId}
                 columns={selectedBoard?.columns}
                 epics={epics}
+                repoNames={[]} // Pass empty array or fetch if needed
             />
         );
     }

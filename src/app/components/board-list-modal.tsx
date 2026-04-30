@@ -96,6 +96,18 @@ export function BoardListModal({ isOpen, onClose, projectId, onSelectBoard, onAd
                                             <span className="font-medium text-white group-hover:text-purple-300 transition-colors">
                                                 {board.name}
                                             </span>
+                                            {board.board_type && board.board_type !== 'general' && (
+                                                <span 
+                                                    className="text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider"
+                                                    style={{
+                                                        backgroundColor: board.board_type === 'roadmap' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                                        borderColor: board.board_type === 'roadmap' ? 'rgba(59, 130, 246, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+                                                        color: board.board_type === 'roadmap' ? '#60a5fa' : '#f87171'
+                                                    }}
+                                                >
+                                                    {board.board_type}
+                                                </span>
+                                            )}
                                         </div>
                                         <Check className="w-4 h-4 text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </motion.button>

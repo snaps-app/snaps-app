@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
+import { Spinner } from './ui/spinner';
 
 const templates = [
   { id: 'free', name: 'Free Template', description: 'Start from scratch with no constraints' },
@@ -76,6 +77,18 @@ export function NewProject() {
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
+      <AnimatePresence>
+        {isCreating && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          >
+            <Spinner size="lg" label="Creating project..." color="blue" />
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Very Active Neural Network Background */}
       <div className="absolute inset-0">
         <NeuralBackground />

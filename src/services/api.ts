@@ -1,5 +1,6 @@
 
 import axios from 'axios';
+import { supabase } from '@/lib/supabaseClient';
 
 // --- Configuration ---
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -9,6 +10,15 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+});
+
+// Attach Supabase JWT to every request when available
+api.interceptors.request.use(async (config) => {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) {
+        config.headers.Authorization = `Bearer ${data.session.access_token}`;
+    }
+    return config;
 });
 
 // --- Interfaces ---
@@ -89,13 +99,21 @@ export interface Card {
     board_id: string;
     title: string;
     code?: string;
+    card_type?: 'feature' | 'bug' | 'support' | 'tech-debt';
     description: string;
     status: string;
     priority: 'Low' | 'Medium' | 'High';
     due_date?: string;
-    labels?: string[]; // Simplified to strings for now, backend expects UUIDs? Let's assume strings or IDs 
+    labels?: string[];
     epic_id?: string;
-    tasks?: Task[]; // Populated if backend returns them
+    sprint_id?: string;          // FK to sprints.id
+    github_issue_number?: number; // Phase 3 prep
+    github_issue_url?: string;    // Phase 3 prep
+    source?: string;              // manual | github | mcp
+    repo_name?: string;           // which repo this card belongs to
+    tasks?: Task[];
+    bdd_scenarios?: any[];
+    bdd_validated?: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -106,6 +124,138 @@ export interface CardWithProject extends Card {
     board_color?: string;
     epic_name?: string;
     epic_color?: string;
+    sprint_name?: string;
+    sprint_tag?: string;
+}
+
+// --- Sprint Interfaces ---
+export interface Sprint {
+    id: string;
+    project_id: string;
+    epic_id?: string;
+    name: string;
+    tag: string;
+    status: 'planning' | 'active' | 'review' | 'done';
+    objective?: string;
+    start_date?: string;
+    end_date?: string;
+    retrospective?: Record<string, any>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SprintCreate {
+    project_id: string;
+    name: string;
+    tag: string;
+    status?: string;
+    objective?: string;
+    epic_id?: string;
+    start_date?: string;
+    end_date?: string;
+}
+
+// --- Plan Interfaces ---
+export interface Plan {
+    id: string;
+    project_id: string;
+    sprint_id?: string;
+    title: string;
+    content?: string;
+    status: 'draft' | 'approved' | 'executed' | 'archived';
+    author?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PlanCreate {
+    project_id: string;
+    title: string;
+    content?: string;
+    status?: string;
+    author?: string;
+    sprint_id?: string;
+}
+
+// --- Decision Interfaces ---
+export interface Decision {
+    id: string;
+    project_id: string;
+    code: string;
+    title: string;
+    context?: string;
+    decision?: string;
+    consequences?: string;
+    status: 'proposed' | 'accepted' | 'deprecated';
+    created_at: string;
+    updated_at: string;
+}
+
+export interface DecisionCreate {
+    project_id: string;
+    code: string;
+    title: string;
+    context?: string;
+    decision?: string;
+    consequences?: string;
+    status?: string;
+    parent_id?: string;
+    root_id?: string;
+    branch_type?: string;
+}
+
+// --- Governance Interfaces ---
+export type AgentInstructionType = 'ide_persona' | 'fleet_agent' | 'security';
+export type AgentScope = 'global' | 'project';
+export type GovernanceDocType = 'playbook' | 'strategy' | 'prd' | 'context' | 'roadmap' | 'other';
+export type SkillScope = 'global' | 'project';
+export type ResourceType = 'api_proxy' | 'ui_component' | 'documentation' | 'other';
+
+export interface AgentInstruction {
+    id: string;
+    name: string;
+    type: AgentInstructionType;
+    instructions: string;
+    project_id?: string;
+    scope: AgentScope;
+    created_at: string;
+    updated_at: string;
+    skills?: Skill[];
+}
+
+export interface GovernanceDoc {
+    id: string;
+    name: string;
+    type: GovernanceDocType;
+    content: string;
+    project_id?: string;
+    scope?: AgentScope;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Skill {
+    id: string;
+    name: string;
+    content: string;
+    language: string;
+    params_schema?: Record<string, any>;
+    version?: string;
+    scope: SkillScope;
+    project_id?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Resource {
+    id: string;
+    name: string;
+    type: ResourceType;
+    content: string;
+    meta_data?: Record<string, any>;
+    project_id?: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface Board {
@@ -113,6 +263,7 @@ export interface Board {
     project_id: string;
     name: string;
     code?: string;
+    board_type?: 'roadmap' | 'support' | 'general';
     color?: string;
     columns?: { id: string; title: string; color?: string }[];
     cards?: Card[];
@@ -227,6 +378,114 @@ export const getProjects = async (skip = 0, limit = 100): Promise<Project[]> => 
     return response.data;
 };
 
+export const getProjectGovernanceDocs = async (projectId: string): Promise<GovernanceDoc[]> => {
+    const response = await api.get('/governance-docs/', { params: { project_id: projectId } });
+    // Note: backend might need to filter by project_id if it doesn't already
+    return response.data.filter((d: any) => d.project_id === projectId);
+};
+
+// --- TestPlan & QA Functions ---
+export interface TestPlan {
+    id: string;
+    project_id: string;
+    sprint_id?: string;
+    title: string;
+    content?: string;
+    status: 'draft' | 'active' | 'passed' | 'failed';
+    execution_log?: Record<string, any>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TestPlanCreate {
+    project_id: string;
+    sprint_id?: string;
+    title: string;
+    content?: string;
+    status?: string;
+    execution_log?: Record<string, any>;
+}
+
+export interface TroubleReport {
+    sprint_id: string;
+    sprint_name: string;
+    total_cards: number;
+    failed_bdd_cards: CardWithProject[];
+    markdown_report: string;
+}
+
+export const getTestPlans = async (projectId: string, sprintId?: string): Promise<TestPlan[]> => {
+    const response = await api.get(`/projects/${projectId}/test_plans/`, {
+        params: sprintId ? { sprint_id: sprintId } : {}
+    });
+    return response.data;
+};
+
+export const createTestPlan = async (projectId: string, data: Omit<TestPlanCreate, 'project_id'>): Promise<TestPlan> => {
+    const response = await api.post(`/projects/${projectId}/test_plans/`, { project_id: projectId, ...data });
+    return response.data;
+};
+
+export const updateTestPlan = async (testPlanId: string, data: Partial<TestPlanCreate>): Promise<TestPlan> => {
+    const response = await api.patch(`/test_plans/${testPlanId}`, data);
+    return response.data;
+};
+
+export const deleteTestPlan = async (testPlanId: string): Promise<void> => {
+    await api.delete(`/test_plans/${testPlanId}`);
+};
+
+export const getTroubleReport = async (projectId: string, sprintId: string): Promise<TroubleReport> => {
+    const response = await api.get(`/projects/${projectId}/sprints/${sprintId}/trouble-report`);
+    return response.data;
+};
+
+export const getCardExecutionPrompt = async (cardId: string): Promise<string> => {
+    const response = await api.get(`/api/cards/${cardId}/execution-prompt`);
+    return response.data.prompt;
+};
+
+export const getSprintExecutionPrompt = async (sprintId: string): Promise<string> => {
+    const response = await api.get(`/api/sprints/${sprintId}/execution-prompt`);
+    return response.data.prompt;
+};
+
+// --- GitHub Sync Functions ---
+export interface GithubConfig {
+    id: string;
+    project_id: string;
+    repo_owner: string;
+    repo_name: string;
+    github_pat: string;
+    last_sync_at?: string;
+    sync_status?: string;
+    sync_error?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface GithubConfigCreate {
+    repo_owner: string;
+    repo_name: string;
+    github_pat: string;
+}
+
+export const getGithubConfig = async (projectId: string): Promise<GithubConfig> => {
+    const response = await api.get(`/projects/${projectId}/github-config`);
+    return response.data;
+};
+
+export const upsertGithubConfig = async (projectId: string, data: GithubConfigCreate): Promise<GithubConfig> => {
+    const response = await api.post(`/projects/${projectId}/github-config`, data);
+    return response.data;
+};
+
+export const syncGithubProject = async (projectId: string): Promise<{ message: string }> => {
+    const response = await api.post(`/projects/${projectId}/github-config/sync`);
+    return response.data;
+};
+
+
 export const getProject = async (projectId: string): Promise<Project> => {
     const response = await api.get(`/projects/${projectId}`);
     return response.data;
@@ -322,12 +581,101 @@ export const updateCard = async (cardId: string, data: Partial<Card>): Promise<C
     return response.data;
 };
 
+export const getCard = async (cardId: string): Promise<Card> => {
+    const response = await api.get(`/cards/${cardId}`);
+    return response.data;
+};
+
 export const deleteCard = async (cardId: string): Promise<void> => {
     await api.delete(`/cards/${cardId}`);
 };
 
 export const updateCardStatus = async (cardId: string, status: string): Promise<Card> => {
     const response = await api.patch(`/cards/${cardId}/status`, null, { params: { status } });
+    return response.data;
+};
+
+// --- Sprint Functions ---
+export const getSprints = async (projectId: string): Promise<Sprint[]> => {
+    const response = await api.get(`/projects/${projectId}/sprints/`);
+    return response.data;
+};
+
+export const getCardsBySprint = async (sprintId: string): Promise<Card[]> => {
+    const response = await api.get(`/sprints/${sprintId}/cards`);
+    return response.data;
+};
+
+export const createSprint = async (projectId: string, data: Omit<SprintCreate, 'project_id'>): Promise<Sprint> => {
+    const response = await api.post(`/projects/${projectId}/sprints/`, { project_id: projectId, ...data });
+    return response.data;
+};
+
+export const updateSprint = async (sprintId: string, data: Partial<SprintCreate>): Promise<Sprint> => {
+    const response = await api.patch(`/sprints/${sprintId}`, data);
+    return response.data;
+};
+
+export const deleteSprint = async (sprintId: string): Promise<void> => {
+    await api.delete(`/sprints/${sprintId}`);
+};
+
+// --- Plan Functions ---
+export const getPlans = async (projectId: string, sprintId?: string): Promise<Plan[]> => {
+    const response = await api.get(`/projects/${projectId}/plans/`, {
+        params: sprintId ? { sprint_id: sprintId } : {}
+    });
+    return response.data;
+};
+
+export const createPlan = async (projectId: string, data: Omit<PlanCreate, 'project_id'>): Promise<Plan> => {
+    const response = await api.post(`/projects/${projectId}/plans/`, { project_id: projectId, ...data });
+    return response.data;
+};
+
+export const updatePlan = async (planId: string, data: Partial<PlanCreate>): Promise<Plan> => {
+    const response = await api.patch(`/plans/${planId}`, data);
+    return response.data;
+};
+
+export const deletePlan = async (planId: string): Promise<void> => {
+    await api.delete(`/plans/${planId}`);
+};
+
+// --- Decision Functions ---
+export const getDecisions = async (projectId: string): Promise<Decision[]> => {
+    const response = await api.get(`/projects/${projectId}/decisions/`);
+    return response.data;
+};
+
+export const createDecision = async (projectId: string, data: Omit<DecisionCreate, 'project_id'>): Promise<Decision> => {
+    const response = await api.post(`/projects/${projectId}/decisions/`, { project_id: projectId, ...data });
+    return response.data;
+};
+
+export const updateDecision = async (decisionId: string, data: Partial<DecisionCreate>): Promise<Decision> => {
+    const response = await api.patch(`/decisions/${decisionId}`, data);
+    return response.data;
+};
+
+export const deleteDecision = async (decisionId: string): Promise<void> => {
+    await api.delete(`/decisions/${decisionId}`);
+};
+
+// --- Snap Status ---
+export const updateSnapStatus = async (snapId: string, status: string): Promise<any> => {
+    const response = await api.patch(`/snaps/${snapId}/status`, { status });
+    return response.data;
+};
+
+// --- Migration Runner ---
+export const applyMigrations = async (): Promise<any> => {
+    const response = await api.post('/migrations/apply');
+    return response.data;
+};
+
+export const getMigrationStatus = async (): Promise<any> => {
+    const response = await api.get('/migrations/status');
     return response.data;
 };
 
@@ -452,7 +800,7 @@ export interface Chat {
     created_at: string;
 }
 
-const AGENT_URL = import.meta.env.VITE_AGENT_URL || 'http://localhost:8001';
+const AGENT_URL = import.meta.env.VITE_AGENT_URL || 'http://localhost:8000';
 
 // --- Chat Functions ---
 export const createChat = async (projectId: string, title: string): Promise<Chat> => {
@@ -513,11 +861,190 @@ export const streamChat = async (projectId: string, message: string, onEvent: (e
     }
 };
 
+// --- Governance CRUD ---
+export const getAgents = async (projectId?: string): Promise<AgentInstruction[]> => {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await api.get('/agents/', { params });
+    return response.data;
+};
+
+export const getAgent = async (agentId: string): Promise<AgentInstruction> => {
+    const response = await api.get(`/agents/${agentId}`);
+    return response.data;
+};
+
+export const createAgent = async (data: Partial<AgentInstruction>): Promise<AgentInstruction> => {
+    const response = await api.post('/agents/', data);
+    return response.data;
+};
+
+export const updateAgent = async (agentId: string, data: Partial<AgentInstruction>): Promise<AgentInstruction> => {
+    const response = await api.patch(`/agents/${agentId}`, data);
+    return response.data;
+};
+
+export const deleteAgent = async (agentId: string): Promise<void> => {
+    await api.delete(`/agents/${agentId}`);
+};
+
+export const bindSkillToAgent = async (agentId: string, skillId: string): Promise<AgentInstruction> => {
+    const response = await api.post(`/agents/${agentId}/skills/${skillId}`);
+    return response.data;
+};
+
+export const unbindSkillFromAgent = async (agentId: string, skillId: string): Promise<AgentInstruction> => {
+    const response = await api.delete(`/agents/${agentId}/skills/${skillId}`);
+    return response.data;
+};
+
+export const getGovernanceDocs = async (): Promise<GovernanceDoc[]> => {
+    const response = await api.get('/governance-docs/');
+    return response.data;
+};
+
+export const createGovernanceDoc = async (data: Partial<GovernanceDoc>): Promise<GovernanceDoc> => {
+    const response = await api.post('/governance-docs/', data);
+    return response.data;
+};
+
+export const updateGovernanceDoc = async (docId: string, data: Partial<GovernanceDoc>): Promise<GovernanceDoc> => {
+    const response = await api.patch(`/governance-docs/${docId}`, data);
+    return response.data;
+};
+
+export const deleteGovernanceDoc = async (docId: string): Promise<void> => {
+    await api.delete(`/governance-docs/${docId}`);
+};
+
+export interface BridgeProcessResult {
+    doc_id: string;
+    sprints_created: { id: string; name: string; tag: string; objective: string }[];
+    cards_created: { id: string; title: string }[];
+}
+
+export const processGovernanceDoc = async (docId: string): Promise<BridgeProcessResult> => {
+    const response = await api.post(`/governance-docs/${docId}/process`);
+    return response.data;
+};
+
+export const getSkills = async (projectId?: string): Promise<Skill[]> => {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await api.get('/skills/', { params });
+    return response.data;
+};
+
+export const createSkill = async (data: Partial<Skill>): Promise<Skill> => {
+    const response = await api.post('/skills/', data);
+    return response.data;
+};
+
+export const updateSkill = async (skillId: string, data: Partial<Skill>): Promise<Skill> => {
+    const response = await api.patch(`/skills/${skillId}`, data);
+    return response.data;
+};
+
+export const deleteSkill = async (skillId: string): Promise<void> => {
+    await api.delete(`/skills/${skillId}`);
+};
+
+export const getResources = async (projectId?: string): Promise<Resource[]> => {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await api.get('/resources/', { params });
+    return response.data;
+};
+
+export const createResource = async (data: Partial<Resource>): Promise<Resource> => {
+    const response = await api.post('/resources/', data);
+    return response.data;
+};
+
+export const updateResource = async (resourceId: string, data: Partial<Resource>): Promise<Resource> => {
+    const response = await api.patch(`/resources/${resourceId}`, data);
+    return response.data;
+};
+
+export const deleteResource = async (resourceId: string): Promise<void> => {
+    await api.delete(`/resources/${resourceId}`);
+};
+
+// --- Agent Execution Functions (Sprint 4.6) ---
+export interface AgentTaskExecution {
+    id: string;
+    project_id: string;
+    status: 'pending' | 'in_progress' | 'awaiting_advance' | 'done' | 'failed';
+    phase: 'micro_planning' | 'execution' | 'assurance' | 'retro';
+    sprint_ids: string[];
+    card_ids: string[];
+    agent_name: string;
+    prompt_snapshot: string;
+    context_data: any;
+    advance_conditions: any;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AgentTaskExecutionCreate {
+    project_id: string;
+    phase: 'macro_planning' | 'micro_planning' | 'execution' | 'assurance' | 'retro';
+    sprint_ids: string[];
+    card_ids: string[];
+    context_data?: any;
+}
+
+export const createAgentExecution = async (data: AgentTaskExecutionCreate): Promise<AgentTaskExecution> => {
+    const response = await api.post('/api/agent-executions/', data);
+    return response.data;
+};
+
+export const getAgentExecution = async (executionId: string): Promise<AgentTaskExecution> => {
+    const response = await api.get(`/api/agent-executions/${executionId}`);
+    return response.data;
+};
+
+export const getAgentExecutionTree = async (executionId: string): Promise<AgentTaskExecution[]> => {
+    const response = await api.get(`/api/agent-executions/${executionId}/tree`);
+    return response.data;
+};
+
+export const getActiveAgentExecutions = async (projectId: string): Promise<AgentTaskExecution[]> => {
+    const response = await api.get(`/api/projects/${projectId}/agent-executions/active`);
+    return response.data;
+};
+
+export const advanceAgentExecution = async (executionId: string, instructions?: string): Promise<AgentTaskExecution> => {
+    const response = await api.patch(`/api/agent-executions/${executionId}/advance`, { instructions });
+    return response.data;
+};
+
+export const updateAgentExecutionStatus = async (executionId: string, status: string): Promise<AgentTaskExecution> => {
+    const response = await api.patch(`/api/agent-executions/${executionId}/status`, { status });
+    return response.data;
+};
+
+export const rollbackAgentExecution = async (executionId: string, targetPhase: string): Promise<AgentTaskExecution> => {
+    const response = await api.patch(`/api/agent-executions/${executionId}/rollback?target_phase=${targetPhase}`);
+    return response.data;
+};
+
+export const syncAgentExecution = async (executionId: string, instructions?: string): Promise<AgentTaskExecution> => {
+    const response = await api.post(`/api/agent-executions/${executionId}/sync`, { instructions });
+    return response.data;
+};
+
+export const getAllAgentExecutions = async (skip = 0, limit = 100): Promise<AgentTaskExecution[]> => {
+    const response = await api.get('/api/agent-executions/', { params: { skip, limit } });
+    return response.data;
+};
+
 const apiService = {
     getProjects,
     getProject,
     createProject,
     updateProject,
+    getGithubConfig,
+    upsertGithubConfig,
+    syncGithubProject,
+    getTroubleReport,
 
     // Epic Functions
     getEpics,
@@ -573,6 +1100,55 @@ const apiService = {
     deleteRoutine,
     setRoutineCompletion,
 
+    // Sprint Engine
+    getSprints,
+    getCardsBySprint,
+    createSprint,
+    updateSprint,
+    deleteSprint,
+    getPlans,
+    createPlan,
+    updatePlan,
+    deletePlan,
+    getDecisions,
+    createDecision,
+    updateDecision,
+    deleteDecision,
+
+    // Governance
+    getAgents,
+    getAgent,
+    createAgent,
+    updateAgent,
+    deleteAgent,
+    bindSkillToAgent,
+    unbindSkillFromAgent,
+    getGovernanceDocs,
+    createGovernanceDoc,
+    updateGovernanceDoc,
+    deleteGovernanceDoc,
+    processGovernanceDoc,
+    getSkills,
+    createSkill,
+    updateSkill,
+    deleteSkill,
+    getResources,
+    createResource,
+    updateResource,
+    deleteResource,
+
+    // Snaps
+    updateSnapStatus,
+
+    // Migrations
+    applyMigrations,
+    getMigrationStatus,
+    getAgentExecution,
+    getActiveAgentExecutions,
+    getAllAgentExecutions,
+    rollbackAgentExecution,
+    syncAgentExecution,
+
     importDocument: async (projectId: string, fileName: string, fileContent: string, onEvent: (event: any) => void) => {
         const message = `IMPORT_FILE: ${fileName}\nContent:\n${fileContent}`;
         // Use the dedicated /import endpoint
@@ -616,3 +1192,5 @@ const apiService = {
 };
 
 export default apiService;
+
+

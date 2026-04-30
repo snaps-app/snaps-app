@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { X, Hash, Check, Plus, Trash2, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tag } from './tag';
-import { Card, Task, createTask, updateTask, deleteTask, Epic } from '@/services/api';
+import { Card, Task, createTask, updateTask, deleteTask, Epic, Sprint, getCard } from '@/services/api';
 import { formatToISODateOnly, parseDateForStorage } from '@/lib/date-utils';
+import { ExecutionWizardModal } from './execution-wizard-modal';
+import { Spinner } from './ui/spinner';
 
 interface CardModalProps {
     isOpen: boolean;
@@ -12,18 +14,38 @@ interface CardModalProps {
     initialData?: Card | null;
     boardId?: string; // Needed if creating mostly? Or handled by parent
     epics?: Epic[];
+    sprints?: Sprint[];
     columns?: { id: string; title: string }[];
+    repoNames?: string[];
 }
 
-export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], columns = [] }: CardModalProps) {
+export function CardModal({ 
+    isOpen, 
+    onClose, 
+    onSave, 
+    initialData, 
+    epics = [], 
+    sprints = [], 
+    columns, 
+    repoNames = [] 
+}: CardModalProps) {
+    const safeColumns = columns || [];
+
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [status, setStatus] = useState<string>('todo');
     const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
+    const [cardType, setCardType] = useState<'feature' | 'bug' | 'support' | 'tech-debt'>('feature');
     const [dueDate, setDueDate] = useState('');
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
     const [epicId, setEpicId] = useState<string>('');
+    const [sprintId, setSprintId] = useState<string>('');
+    const [repoName, setRepoName] = useState<string>('');
+    const [bddScenarios, setBddScenarios] = useState<any[]>([]);
+    const [bddValidated, setBddValidated] = useState<boolean>(false);
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink' | 'red' | 'yellow' | 'slate' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky' | 'fuchsia' | 'emerald' | 'amber'> =
         ['blue', 'orange', 'purple', 'green', 'pink', 'red', 'yellow', 'slate', 'teal', 'indigo', 'lime', 'rose', 'sky', 'fuchsia', 'emerald', 'amber'];
@@ -32,31 +54,82 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
     const [tasks, setTasks] = useState<Task[]>([]);
     const [newTaskTitle, setNewTaskTitle] = useState('');
 
+    const STATUS_ALIASES: Record<string, string[]> = {
+        'todo': ['todo'],
+        'backlog': ['backlog'],
+        'doing': ['doing', 'in_progress', 'inprogress'],
+        'assurance': ['assurance', 'review'],
+        'done': ['done', 'checked']
+    };
+
+    const getEffectiveStatus = (s: string) => {
+        const lower = s.toLowerCase();
+        for (const [key, aliases] of Object.entries(STATUS_ALIASES)) {
+            if (aliases.includes(lower)) return key;
+        }
+        return lower;
+    };
+
     // Reset or load data when opening
     useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                setTitle(initialData.title);
-                setDescription(initialData.description || '');
-                setStatus(initialData.status);
-                setPriority(initialData.priority || 'Medium');
-                setDueDate(formatToISODateOnly(initialData.due_date));
-                setTags(initialData.labels || []); // Assuming labels are strings for now
-                setTasks(initialData.tasks || []);
-                setEpicId(initialData.epic_id || '');
-            } else {
-                // Reset for new card
-                setTitle('');
-                setDescription('');
-                setStatus(columns.length > 0 ? columns[0].id : 'todo');
-                setPriority('Medium');
-                setDueDate('');
-                setTags([]);
-                setTasks([]);
-                setEpicId('');
+        const loadData = async () => {
+            if (isOpen) {
+                if (initialData?.id) {
+                    setIsLoading(true);
+                    try {
+                        const fullCard = await getCard(initialData.id);
+                        setTitle(fullCard.title);
+                        setDescription(fullCard.description || '');
+                        setStatus(getEffectiveStatus(fullCard.status));
+                        setPriority(fullCard.priority || 'Medium');
+                        setCardType(fullCard.card_type || 'feature');
+                        setDueDate(formatToISODateOnly(fullCard.due_date));
+                        setTags(fullCard.labels || []);
+                        setTasks(fullCard.tasks || []);
+                        setEpicId(fullCard.epic_id || '');
+                        setSprintId(fullCard.sprint_id || '');
+                        setRepoName(fullCard.repo_name || '');
+                        setBddScenarios(fullCard.bdd_scenarios || []);
+                        setBddValidated(fullCard.bdd_validated || false);
+                    } catch (error) {
+                        console.error('Failed to fetch card details:', error);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                } else if (initialData) {
+                    setTitle(initialData.title);
+                    setDescription(initialData.description || '');
+                    setStatus(getEffectiveStatus(initialData.status));
+                    setPriority(initialData.priority || 'Medium');
+                    setCardType(initialData.card_type || 'feature');
+                    setDueDate(formatToISODateOnly(initialData.due_date));
+                    setTags(initialData.labels || []);
+                    setTasks(initialData.tasks || []);
+                    setEpicId(initialData.epic_id || '');
+                    setSprintId(initialData.sprint_id || '');
+                    setRepoName(initialData.repo_name || '');
+                    setBddScenarios(initialData.bdd_scenarios || []);
+                    setBddValidated(initialData.bdd_validated || false);
+                } else {
+                    // Reset for new card
+                    setTitle('');
+                    setDescription('');
+                    setStatus(columns.length > 0 ? columns[0].id : 'todo');
+                    setPriority('Medium');
+                    setCardType('feature');
+                    setDueDate('');
+                    setTags([]);
+                    setTasks([]);
+                    setEpicId('');
+                    setSprintId('');
+                    setRepoName('');
+                    setBddScenarios([]);
+                    setBddValidated(false);
+                }
             }
-        }
-    }, [isOpen, initialData, columns]);
+        };
+        loadData();
+    }, [isOpen, initialData, safeColumns, repoNames]);
 
     const handleSave = () => {
         if (title.trim()) {
@@ -66,9 +139,14 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                 description,
                 status,
                 priority,
+                card_type: cardType,
                 due_date: parseDateForStorage(dueDate),
                 epic_id: epicId || undefined,
+                sprint_id: sprintId || undefined,
+                repo_name: repoName || undefined,
                 labels: tags,
+                bdd_scenarios: bddScenarios,
+                bdd_validated: bddValidated,
                 // Tasks are handled separately via API usually, but if creating new card, we might need to handle them after save?
                 // For MVP, tasks might only be editable on existing cards or we pass them to create endpoint if supported.
                 // Let's assume onSave handles the main card update/create.
@@ -117,8 +195,55 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
         setTags(tags.filter(t => t !== tag));
     };
 
+    const handleAddScenario = () => {
+        setBddScenarios([...bddScenarios, { 
+            id: crypto.randomUUID(), 
+            title: 'New Scenario', 
+            steps: [{ type: 'Given', content: '' }] 
+        }]);
+    };
+
+    const updateScenario = (id: string, updates: any) => {
+        setBddScenarios(bddScenarios.map(s => s.id === id ? { ...s, ...updates } : s));
+    };
+
+    const removeScenario = (id: string) => {
+        setBddScenarios(bddScenarios.filter(s => s.id !== id));
+    };
+
+    const addStep = (scenarioId: string) => {
+        setBddScenarios(bddScenarios.map(s => {
+            if (s.id === scenarioId) {
+                return { ...s, steps: [...s.steps, { type: 'And', content: '' }] };
+            }
+            return s;
+        }));
+    };
+
+    const updateStep = (scenarioId: string, stepIndex: number, updates: any) => {
+        setBddScenarios(bddScenarios.map(s => {
+            if (s.id === scenarioId) {
+                const newSteps = [...s.steps];
+                newSteps[stepIndex] = { ...newSteps[stepIndex], ...updates };
+                return { ...s, steps: newSteps };
+            }
+            return s;
+        }));
+    };
+
+    const removeStep = (scenarioId: string, stepIndex: number) => {
+        setBddScenarios(bddScenarios.map(s => {
+            if (s.id === scenarioId) {
+                const newSteps = s.steps.filter((_: any, i: number) => i !== stepIndex);
+                return { ...s, steps: newSteps };
+            }
+            return s;
+        }));
+    };
+
 
     return (
+    <>
         <AnimatePresence>
             {isOpen && (
                 <>
@@ -192,23 +317,16 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                                                 <option value="Medium">Medium</option>
                                                 <option value="High">High</option>
                                             </select>
-                                            <input
-                                                type="date"
-                                                value={dueDate}
-                                                onChange={(e) => setDueDate(e.target.value)}
-                                                className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none"
-                                                style={{ color: 'var(--snaps-text-secondary)', colorScheme: 'dark' }}
-                                            />
                                             <select
-                                                value={epicId}
-                                                onChange={(e) => setEpicId(e.target.value)}
-                                                className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none max-w-[150px]"
+                                                value={cardType}
+                                                onChange={(e) => setCardType(e.target.value as any)}
+                                                className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none"
                                                 style={{ color: 'var(--snaps-text-secondary)' }}
                                             >
-                                                <option value="">No Epic</option>
-                                                {epics.map(epic => (
-                                                    <option key={epic.id} value={epic.id}>{epic.name}</option>
-                                                ))}
+                                                <option value="feature">Feature</option>
+                                                <option value="bug">Bug</option>
+                                                <option value="support">Support</option>
+                                                <option value="tech-debt">Tech Debt</option>
                                             </select>
                                         </div>
                                     </div>
@@ -229,20 +347,26 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                                 </div>
 
                                 {/* Content */}
-                                <div className="flex-1 overflow-y-auto p-6 flex gap-8">
-                                    {/* Main Left Column */}
-                                    <div className="flex-1 space-y-6">
-                                        {/* Description */}
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2 text-white/50">Description</label>
-                                            <textarea
-                                                value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
-                                                placeholder="Add a more detailed description..."
-                                                className="w-full h-32 bg-white/5 rounded-xl p-4 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                                                style={{ color: 'var(--snaps-text-primary)' }}
-                                            />
+                                <div className="flex-1 overflow-y-auto p-6 flex gap-8 relative min-h-[400px]">
+                                    {isLoading ? (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-10">
+                                            <Spinner size="lg" />
                                         </div>
+                                    ) : (
+                                        <>
+                                            {/* Main Left Column */}
+                                            <div className="flex-1 space-y-6">
+                                                {/* Description */}
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2 text-white/50">Description</label>
+                                                    <textarea
+                                                        value={description}
+                                                        onChange={(e) => setDescription(e.target.value)}
+                                                        placeholder="Add a more detailed description..."
+                                                        className="w-full h-32 bg-white/5 rounded-xl p-4 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                                        style={{ color: 'var(--snaps-text-primary)' }}
+                                                    />
+                                                </div>
 
                                         {/* Tasks */}
                                         {initialData && (
@@ -323,6 +447,120 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                                                 Save the card to add tasks
                                             </div>
                                         )}
+
+                                        {/* BDD Criteria Section */}
+                                        {cardType === 'feature' && (
+                                            <div className="pt-6 border-t border-white/5 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Bot className="w-5 h-5 text-purple-400" />
+                                                        <label className="text-sm font-semibold text-white/70 uppercase tracking-wider">BDD Specifications</label>
+                                                        {bddValidated && (
+                                                            <motion.span
+                                                                initial={{ scale: 0 }}
+                                                                animate={{ scale: 1 }}
+                                                                className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px] font-black uppercase border border-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.3)]"
+                                                            >
+                                                                Validated
+                                                            </motion.span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {bddScenarios.length > 0 && (
+                                                            <button
+                                                                onClick={() => setBddValidated(!bddValidated)}
+                                                                className={`flex items-center gap-1 text-xs font-bold transition-all px-3 py-1 rounded-lg border ${
+                                                                    bddValidated 
+                                                                    ? 'bg-green-500/20 border-green-500/50 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' 
+                                                                    : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70'
+                                                                }`}
+                                                            >
+                                                                <Check className={`w-3.5 h-3.5 ${bddValidated ? 'text-green-400' : 'text-white/20'}`} />
+                                                                {bddValidated ? 'Validated' : 'Validate BDDs'}
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={handleAddScenario}
+                                                            className="flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded bg-blue-400/10"
+                                                        >
+                                                            <Plus className="w-3 h-3" />
+                                                            Add Scenario
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <AnimatePresence>
+                                                        {bddScenarios.map((scenario) => (
+                                                            <motion.div
+                                                                key={scenario.id}
+                                                                initial={{ opacity: 0, x: -20 }}
+                                                                animate={{ opacity: 1, x: 0 }}
+                                                                exit={{ opacity: 0, x: 20 }}
+                                                                className="p-4 rounded-xl bg-white/5 border border-white/10 relative group/scenario"
+                                                            >
+                                                                <button
+                                                                    onClick={() => removeScenario(scenario.id)}
+                                                                    className="absolute top-2 right-2 opacity-0 group-hover/scenario:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-500 rounded transition-all"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+
+                                                                <input
+                                                                    type="text"
+                                                                    value={scenario.title}
+                                                                    onChange={(e) => updateScenario(scenario.id, { title: e.target.value })}
+                                                                    placeholder="Scenario Title"
+                                                                    className="bg-transparent border-none text-md font-bold focus:outline-none mb-4 w-full text-white/90"
+                                                                />
+
+                                                                <div className="space-y-3">
+                                                                    {scenario.steps?.map((step: any, sIdx: number) => (
+                                                                        <div key={sIdx} className="flex gap-2 group/step">
+                                                                            <select
+                                                                                value={step.type}
+                                                                                onChange={(e) => updateStep(scenario.id, sIdx, { type: e.target.value })}
+                                                                                className="bg-transparent border border-white/10 rounded px-1.5 py-1 text-xs font-bold focus:outline-none shrink-0 text-purple-400 appearance-none text-center min-w-[70px]"
+                                                                            >
+                                                                                <option value="Given">GIVEN</option>
+                                                                                <option value="When">WHEN</option>
+                                                                                <option value="Then">THEN</option>
+                                                                                <option value="And">AND</option>
+                                                                                <option value="But">BUT</option>
+                                                                            </select>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={step.content}
+                                                                                onChange={(e) => updateStep(scenario.id, sIdx, { content: e.target.value })}
+                                                                                placeholder="..."
+                                                                                className="flex-1 bg-white/5 border border-white/5 rounded px-3 py-1 text-sm text-white/80 focus:outline-none focus:border-white/20 transition-all"
+                                                                            />
+                                                                            <button
+                                                                                onClick={() => removeStep(scenario.id, sIdx)}
+                                                                                className="opacity-0 group-hover/step:opacity-100 p-1 hover:bg-red-500/10 hover:text-red-500 rounded transition-all"
+                                                                            >
+                                                                                <Trash2 className="w-3 h-3" />
+                                                                            </button>
+                                                                        </div>
+                                                                    ))}
+                                                                    <button
+                                                                        onClick={() => addStep(scenario.id)}
+                                                                        className="w-full py-1 border border-dashed border-white/10 rounded-lg text-[10px] text-white/30 hover:border-white/20 hover:text-white/50 transition-all uppercase font-bold tracking-widest"
+                                                                    >
+                                                                        + Add Step
+                                                                    </button>
+                                                                </div>
+                                                            </motion.div>
+                                                        ))}
+                                                    </AnimatePresence>
+                                                    {bddScenarios.length === 0 && (
+                                                        <div className="text-center py-6 px-4 border border-dashed border-white/10 rounded-xl text-white/20 text-xs">
+                                                            No BDD scenarios defined yet. Use BDD to guide the agent's work.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Sidebar Right Column */}
@@ -331,7 +569,9 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                                         <div>
                                             <label className="block text-sm font-medium mb-2 text-white/50">AI Actions</label>
                                             <button
-                                                className="w-full py-2 px-4 rounded-xl flex items-center justify-center gap-2 font-medium transition-all group overflow-hidden relative"
+                                                onClick={() => initialData?.id && setIsWizardOpen(true)}
+                                                disabled={!initialData?.id}
+                                                className="w-full py-2 px-4 rounded-xl flex items-center justify-center gap-2 font-medium transition-all group overflow-hidden relative disabled:opacity-40 disabled:cursor-not-allowed"
                                                 style={{
                                                     background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                                                     boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)'
@@ -367,7 +607,71 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                                                 <button onClick={handleAddTag} className="p-1 bg-white/10 rounded hover:bg-white/20"><Plus className="w-4 h-4" /></button>
                                             </div>
                                         </div>
+
+                                        {/* Properties */}
+                                        <div className="space-y-4 pt-4 border-t border-white/10">
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Epic</label>
+                                                <select
+                                                    value={epicId}
+                                                    onChange={(e) => setEpicId(e.target.value)}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                                    style={{ color: 'var(--snaps-text-primary)' }}
+                                                >
+                                                    <option value="">No Epic</option>
+                                                    {epics.map(epic => (
+                                                        <option key={epic.id} value={epic.id}>{epic.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Sprint</label>
+                                                <select
+                                                    value={sprintId}
+                                                    onChange={(e) => setSprintId(e.target.value)}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                                    style={{ color: 'var(--snaps-text-primary)' }}
+                                                >
+                                                    <option value="">No Sprint</option>
+                                                    {sprints.map(sprint => (
+                                                        <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Repository</label>
+                                                <select
+                                                    value={repoName}
+                                                    onChange={(e) => setRepoName(e.target.value)}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                                    style={{ color: 'var(--snaps-text-primary)' }}
+                                                >
+                                                    <option value="">Default (First Repo)</option>
+                                                    {repoNames?.map(repo => (
+                                                        <option key={repo} value={repo}>{repo}</option>
+                                                    ))}
+                                                </select>
+                                                {repoNames?.length === 0 && (
+                                                    <div className="text-[10px] text-yellow-500/70 mt-1">Configure GitHub integration in project settings.</div>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Due Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={dueDate}
+                                                    onChange={(e) => setDueDate(e.target.value)}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                                    style={{ color: 'var(--snaps-text-secondary)', colorScheme: 'dark' }}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
+                                </>
+                                )}
                                 </div>
 
                                 {/* Footer */}
@@ -391,5 +695,16 @@ export function CardModal({ isOpen, onClose, onSave, initialData, epics = [], co
                 </>
             )}
         </AnimatePresence>
+
+        {initialData?.id && (
+            <ExecutionWizardModal
+                isOpen={isWizardOpen}
+                onClose={() => setIsWizardOpen(false)}
+                entityId={initialData.id}
+                entityType="card"
+                entityTitle={initialData.title}
+            />
+        )}
+    </>
     );
 }

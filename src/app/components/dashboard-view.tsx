@@ -7,6 +7,7 @@ import {
     CalendarPlus,
     FolderPlus,
     LayoutDashboard,
+    Database,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NeuralBackground } from './neural-background';
@@ -93,6 +94,17 @@ export function DashboardView() {
         setIsRoutineModalOpen(true);
     };
 
+    const handleRunMigrations = async () => {
+        if (!confirm('Are you sure you want to run database migrations?')) return;
+        try {
+            await api.applyMigrations();
+            alert('Migrations applied successfully!');
+        } catch (error) {
+            console.error('Migration failed:', error);
+            alert('Failed to apply migrations. Check console for details.');
+        }
+    };
+
     const statCards = [
         { title: 'Total Projects', value: stats?.total_projects || 0, icon: FolderArchive, color: '#00D4FF' },
         { title: 'Total Cards', value: stats?.total_cards || 0, icon: LayoutDashboard, color: '#A855F7' },
@@ -134,7 +146,9 @@ export function DashboardView() {
                                         <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
                                     </div>
                                     <div className="text-4xl font-bold text-white relative z-10">
-                                        {loading ? <div className="h-10 w-24 bg-white/10 animate-pulse rounded" /> : stat.value}
+                                        {loading ? (
+                                            <div className="h-10 w-24 bg-white/5 animate-pulse rounded-lg border border-white/5" />
+                                        ) : stat.value}
                                     </div>
                                 </div>
                             </motion.div>
@@ -172,6 +186,12 @@ export function DashboardView() {
                         >
                             <CalendarPlus className="w-4 h-4 text-[#22C55E]" /> Add Scheduling
                         </button>
+                        <button
+                            onClick={handleRunMigrations}
+                            className="px-5 py-3 rounded-xl bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/20 text-orange-400 font-medium flex items-center gap-2 transition-all shadow-lg text-sm"
+                        >
+                            <Database className="w-4 h-4 text-orange-400" /> Run Migrations
+                        </button>
                     </motion.div>
 
                     {/* Row 3: Grid */}
@@ -194,7 +214,17 @@ export function DashboardView() {
 
                             <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-2">
                                 {loading ? (
-                                    <div className="text-zinc-500 text-sm flex-1 flex items-center justify-center italic animate-pulse">Loading boards...</div>
+                                    <>
+                                        {[1, 2, 3, 4].map(i => (
+                                            <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center justify-between animate-pulse">
+                                                <div className="flex flex-col gap-2 flex-1">
+                                                    <div className="h-4 w-32 bg-white/10 rounded" />
+                                                    <div className="h-3 w-16 bg-white/5 rounded" />
+                                                </div>
+                                                <div className="w-8 h-8 rounded-full bg-white/5" />
+                                            </div>
+                                        ))}
+                                    </>
                                 ) : stats?.recent_boards && stats.recent_boards.length > 0 ? (
                                     stats.recent_boards.map(board => (
                                         <div

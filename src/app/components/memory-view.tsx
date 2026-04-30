@@ -106,6 +106,7 @@ function FolderTree({ nodes, level = 0 }: { nodes: FolderNode[]; level?: number 
 
 export function MemoryView() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [ruleFilter, setRuleFilter] = useState<'all' | 'staged' | 'active' | 'deprecated' | 'agent-memory'>('all');
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<MemoryCard | null>(null);
   const [memoryCards, setMemoryCards] = useState<MemoryCard[]>([]);
@@ -314,40 +315,55 @@ export function MemoryView() {
                 />
               </div>
 
-              {/* Type Filters */}
+              {/* Type Filters / Staged Rules Section */}
               <div className="flex items-center justify-center gap-3 mt-4">
                 <button
+                  onClick={() => setRuleFilter('all')}
                   className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
                   style={{
-                    background: 'rgba(0, 212, 255, 0.15)',
+                    background: ruleFilter === 'all' ? 'rgba(0, 212, 255, 0.2)' : 'rgba(0, 212, 255, 0.05)',
                     border: '1px solid rgba(0, 212, 255, 0.3)',
                     color: 'var(--snaps-accent-blue)'
                   }}
                 >
                   <FileText className="w-4 h-4" />
-                  Notes
+                  All Snaps
                 </button>
                 <button
-                  className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
+                  onClick={() => setRuleFilter('staged')}
+                  className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(255,107,53,0.2)]"
                   style={{
-                    background: 'rgba(168, 85, 247, 0.15)',
-                    border: '1px solid rgba(168, 85, 247, 0.3)',
-                    color: 'var(--snaps-accent-purple)'
-                  }}
-                >
-                  <ImageIcon className="w-4 h-4" />
-                  Files
-                </button>
-                <button
-                  className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
-                  style={{
-                    background: 'rgba(255, 107, 53, 0.15)',
-                    border: '1px solid rgba(255, 107, 53, 0.3)',
+                    background: ruleFilter === 'staged' ? 'rgba(255, 107, 53, 0.2)' : 'rgba(255, 107, 53, 0.05)',
+                    border: '1px solid rgba(255, 107, 53, 0.5)',
                     color: 'var(--snaps-accent-orange)'
                   }}
                 >
-                  <Code className="w-4 h-4" />
-                  Code
+                  <Folder className="w-4 h-4" />
+                  Staged Rules
+                </button>
+                <button
+                  onClick={() => setRuleFilter('active')}
+                  className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
+                  style={{
+                    background: ruleFilter === 'active' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.05)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    color: 'var(--snaps-accent-green)'
+                  }}
+                >
+                  <Brain className="w-4 h-4" />
+                  Active Rules
+                </button>
+                <button
+                  onClick={() => setRuleFilter('agent-memory')}
+                  className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
+                  style={{
+                    background: ruleFilter === 'agent-memory' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(168, 85, 247, 0.05)',
+                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                    color: '#A855F7'
+                  }}
+                >
+                  <Brain className="w-4 h-4" />
+                  Agent Memory
                 </button>
               </div>
             </div>
@@ -358,10 +374,19 @@ export function MemoryView() {
             <div className="max-w-7xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence>
-                  {memoryCards.filter(card =>
-                    card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    card.content.toLowerCase().includes(searchQuery.toLowerCase())
-                  ).map((card) => (
+                  {memoryCards.filter(card => {
+                    // Filter by rule status or agent-memory label
+                    if (ruleFilter === 'agent-memory') {
+                      const labels: string[] = card.snadds?.labels ?? [];
+                      if (!labels.includes('agent-memory')) return false;
+                    } else if (ruleFilter !== 'all') {
+                      const snapStatus = card.snadds?.status || card.status || '';
+                      if (snapStatus !== ruleFilter) return false;
+                    }
+                    // Filter by text
+                    return card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      card.content.toLowerCase().includes(searchQuery.toLowerCase());
+                  }).map((card) => (
                     <SnapCard
                       key={card.id}
                       snap={card}

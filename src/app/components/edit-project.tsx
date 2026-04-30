@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '@/services/api';
 
-import { Sparkles, ArrowLeft, Check } from 'lucide-react';
+import { Sparkles, ArrowLeft, Check, Github, RefreshCw, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Spinner } from './ui/spinner';
 
 const templates = [
   { id: 'free', name: 'Free Template', description: 'Start from scratch with no constraints' },
@@ -26,16 +27,47 @@ export function EditProject() {
   const [isImprovingInstructions, setIsImprovingInstructions] = useState(false);
   const [sparks, setSparks] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // GitHub Config State
+  const [repoOwner, setRepoOwner] = useState('');
+  const [repoNames, setRepoNames] = useState('');
+  const [githubPat, setGithubPat] = useState('');
+  const [lastSyncAt, setLastSyncAt] = useState('');
+  const [syncStatus, setSyncStatus] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
-    if (projectId) {
-      api.getProject(projectId).then(project => {
+    const loadData = async () => {
+      if (!projectId) return;
+      setIsLoading(true);
+      try {
+        const project = await api.getProject(projectId);
         setProjectName(project.name);
         setDescription(project.description);
         setInstructions(project.instructions);
         setSelectedTemplate(project.template);
-      });
-    }
+
+        try {
+          const config = await api.getGithubConfig(projectId);
+          setRepoOwner(config.repo_owner);
+          setRepoNames(config.repo_names);
+          setGithubPat(config.github_pat);
+          if (config.last_sync_at) {
+            setLastSyncAt(new Date(config.last_sync_at).toLocaleString());
+          }
+          setSyncStatus(config.sync_status || '');
+        } catch (err) {
+          console.log("GitHub config not found or error:", err);
+        }
+      } catch (error) {
+        console.error('Failed to load project:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
   }, [projectId]);
 
 
@@ -82,6 +114,16 @@ export function EditProject() {
           instructions,
           template: selectedTemplate
         });
+
+        // Upsert GitHub Config if partially/fully filled
+        if (repoOwner && repoNames && githubPat) {
+            await api.upsertGithubConfig(projectId, {
+                repo_owner: repoOwner,
+                repo_names: repoNames,
+                github_pat: githubPat
+            });
+        }
+
         navigate(`/project/${projectId}`);
       } catch (error) {
         console.error('Failed to update project:', error);
@@ -91,9 +133,44 @@ export function EditProject() {
     }
   };
 
+  const handleSync = async () => {
+    if (!projectId || !repoOwner || !repoNames || !githubPat) return;
+    
+    setIsSyncing(true);
+    try {
+        await api.upsertGithubConfig(projectId, {
+            repo_owner: repoOwner,
+            repo_names: repoNames,
+            github_pat: githubPat
+        });
+        await api.syncGithubProject(projectId);
+        setSyncStatus('success');
+        // Update local status representation immediately
+        setLastSyncAt(new Date().toLocaleString());
+    } catch (error) {
+        console.error("Sync trigger failed", error);
+        setSyncStatus('failed');
+    } finally {
+        setIsSyncing(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
+      <AnimatePresence>
+        {(isLoading || isUpdating) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          >
+            <Spinner size="lg" label={isUpdating ? "Updating project..." : "Loading project..."} color="orange" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Very Active Neural Network Background */}
       <div className="absolute inset-0">
         <NeuralBackground />
@@ -457,6 +534,114 @@ export function EditProject() {
                       </p>
                     </motion.button>
                   ))}
+                </div>
+              </motion.div>
+
+              {/* GitHub Integration Section */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.75 }}
+                className="mt-8 p-6 rounded-2xl relative overflow-hidden"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)'
+                }}
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 rounded-lg" style={{ background: 'rgba(255, 255, 255, 0.1)' }}>
+                    <Github className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">GitHub Integration</h3>
+                    <p className="text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
+                      Sync cards and issues bidirectionally.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--snaps-text-primary)' }}>Repository Owner</label>
+                      <input
+                        type="text"
+                        value={repoOwner}
+                        onChange={(e) => setRepoOwner(e.target.value)}
+                        placeholder="e.g. microsoft"
+                        className="w-full px-4 py-3 rounded-lg text-sm backdrop-blur-xl focus:outline-none transition-all"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: 'var(--snaps-text-primary)'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--snaps-text-primary)' }}>Repository Names</label>
+                      <input
+                        type="text"
+                        value={repoNames}
+                        onChange={(e) => setRepoNames(e.target.value)}
+                        placeholder="e.g. backend, frontend"
+                        className="w-full px-4 py-3 rounded-lg text-sm backdrop-blur-xl focus:outline-none transition-all"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: 'var(--snaps-text-primary)'
+                        }}
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Separate multiple repos with commas</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-semibold mb-1" style={{ color: 'var(--snaps-text-primary)' }}>
+                      Personal Access Token (PAT)
+                      <div className="relative group cursor-help flex items-center">
+                        <Info className="w-3.5 h-3.5 text-gray-400 hover:text-white transition-colors" />
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-gray-700">
+                          <p className="mb-1"><b>Classic PAT:</b> Check <code>repo</code> scope.</p>
+                          <p><b>Fine-grained PAT:</b> Under <i>Repository permissions</i>, set <b>Issues</b> to <b>Read and write</b>. Make sure to grant access to the chosen repositories.</p>
+                        </div>
+                      </div>
+                    </label>
+                    <input
+                      type="password"
+                      value={githubPat}
+                      onChange={(e) => setGithubPat(e.target.value)}
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                      className="w-full px-4 py-3 rounded-lg text-sm backdrop-blur-xl focus:outline-none transition-all"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: 'var(--snaps-text-primary)'
+                      }}
+                    />
+                  </div>
+                  
+                  {lastSyncAt && (
+                      <div className="text-xs mt-2" style={{ color: 'var(--snaps-text-secondary)' }}>
+                        Last Sync: {lastSyncAt} <span className={syncStatus === 'success' ? 'text-green-400' : 'text-red-400'}>({syncStatus})</span>
+                      </div>
+                  )}
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSync}
+                    disabled={!repoOwner || !repoNames || !githubPat || isSyncing}
+                    className="w-full mt-4 py-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2"
+                    style={{
+                      background: (repoOwner && repoNames && githubPat) ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                      color: (repoOwner && repoNames && githubPat) ? 'white' : 'var(--snaps-text-secondary)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      cursor: (repoOwner && repoNames && githubPat && !isSyncing) ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'Triggering Sync...' : 'Sync with GitHub Now'}
+                  </motion.button>
                 </div>
               </motion.div>
 
