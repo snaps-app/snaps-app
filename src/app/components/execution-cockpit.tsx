@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
     Bot, 
     ArrowRight, 
@@ -32,7 +34,10 @@ import apiService, {
     getAgentExecutionTree,
     Card,
     Epic,
-    Sprint
+    Sprint,
+    getSnaps,
+    updateSnap,
+    Snap
 } from '@/services/api';
 import { Tag } from '@/app/components/tag';
 import { BoardCard } from './board-card';
@@ -57,10 +62,20 @@ export const ExecutionCockpit: React.FC = () => {
     const [troubleReport, setTroubleReport] = useState<any>(null);
     const [copied, setCopied] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [entryReviewed, setEntryReviewed] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isAdvancing, setIsAdvancing] = useState(false);
     const [isRollingBack, setIsRollingBack] = useState(false);
     const [missionInstructions, setMissionInstructions] = useState('');
+    
+    // Walkthrough States
+    const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
+    const [walkthroughs, setWalkthroughs] = useState<Snap[]>([]);
+    const [isLoadingWalkthroughs, setIsLoadingWalkthroughs] = useState(false);
+    const [selectedWalkthrough, setSelectedWalkthrough] = useState<Snap | null>(null);
+    const [isEditingWalkthrough, setIsEditingWalkthrough] = useState(false);
+    const [walkthroughContent, setWalkthroughContent] = useState('');
+    const [isSavingWalkthrough, setIsSavingWalkthrough] = useState(false);
 
     const [sisterExecutions, setSisterExecutions] = useState<AgentTaskExecution[]>([]);
     const [isLoadingSisters, setIsLoadingSisters] = useState(false);
@@ -81,6 +96,84 @@ export const ExecutionCockpit: React.FC = () => {
         }
     };
 
+
+    const handleOpenWalkthroughs = async () => {
+        if (!projectId || !execution) return;
+        setIsWalkthroughModalOpen(true);
+        setIsLoadingWalkthroughs(true);
+        try {
+            // Fetch snaps related to this execution branch
+            const data = await getSnaps(projectId, 0, 50, undefined, execution.id);
+            
+            // Also fetch snaps for the sprints associated with this execution
+            let allSprintSnaps: Snap[] = [];
+            if (execution.sprint_ids && execution.sprint_ids.length > 0) {
+                for (const sId of execution.sprint_ids) {
+                    try {
+                        const sprintSnaps = await getSnaps(projectId, 0, 50, sId);
+                        allSprintSnaps.push(...(sprintSnaps || []));
+                    } catch (err) {
+                        console.error(`Failed to fetch snaps for sprint ${sId}:`, err);
+                    }
+                }
+            }
+            
+            // Merge and deduplicate
+            const allSnaps = [...data, ...allSprintSnaps];
+            const uniqueSnaps = Array.from(new Map(allSnaps.map(s => [s.id, s])).values());
+            
+            // Filter for walkthroughs
+            const walkthroughSnaps = uniqueSnaps.filter(s => 
+                s.name.toLowerCase().includes('walkthrough') || 
+                s.content?.toLowerCase().includes('walkthrough') ||
+                (s.snadds as any)?.artifact_type === 'walkthrough'
+            );
+            
+            setWalkthroughs(walkthroughSnaps);
+        } catch (err) {
+            console.error('Failed to fetch walkthroughs:', err);
+        } finally {
+            setIsLoadingWalkthroughs(false);
+        }
+    };
+
+    const handleSaveWalkthrough = async () => {
+        if (!selectedWalkthrough) return;
+        setIsSavingWalkthrough(true);
+        try {
+            await updateSnap(selectedWalkthrough.id, { content: walkthroughContent });
+            setIsEditingWalkthrough(false);
+            // Refresh list
+            const updated = await getSnaps(projectId!, 0, 50, undefined, execution?.id);
+            
+            let allSprintSnaps: Snap[] = [];
+            if (execution?.sprint_ids && execution.sprint_ids.length > 0) {
+                for (const sId of execution.sprint_ids) {
+                    try {
+                        const sprintSnaps = await getSnaps(projectId!, 0, 50, sId);
+                        allSprintSnaps.push(...(sprintSnaps || []));
+                    } catch (err) {
+                        console.error(`Failed to refresh snaps for sprint ${sId}:`, err);
+                    }
+                }
+            }
+            
+            const all = [...updated, ...allSprintSnaps];
+            const unique = Array.from(new Map(all.map(s => [s.id, s])).values());
+            const walkthroughSnaps = unique.filter(s => 
+                s.name.toLowerCase().includes('walkthrough') || 
+                (s.snadds as any)?.artifact_type === 'walkthrough'
+            );
+            setWalkthroughs(walkthroughSnaps);
+            
+            // Update selected walkthrough content in local state if still selected
+            setSelectedWalkthrough(prev => prev ? { ...prev, content: walkthroughContent } : null);
+        } catch (err) {
+            console.error('Failed to save walkthrough:', err);
+        } finally {
+            setIsSavingWalkthrough(false);
+        }
+    };
 
     const [executionTree, setExecutionTree] = useState<AgentTaskExecution[]>([]);
 
@@ -210,7 +303,10 @@ export const ExecutionCockpit: React.FC = () => {
 
     const handleCopyPrompt = () => {
         if (!execution?.prompt_snapshot) return;
-        navigator.clipboard.writeText(execution.prompt_snapshot);
+        const promptToCopy = typeof execution.prompt_snapshot === 'object' && execution.prompt_snapshot !== null
+            ? `${(execution.prompt_snapshot as any).entry}\n\n---\n\n${(execution.prompt_snapshot as any).exit || ''}`
+            : execution.prompt_snapshot as string;
+        navigator.clipboard.writeText(promptToCopy);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -251,11 +347,19 @@ export const ExecutionCockpit: React.FC = () => {
         setIsAdvancing(true);
         try {
             const updated = await advanceAgentExecution(executionId, missionInstructions);
+            console.log("[Cockpit] Advance response:", updated);
             setExecution(updated);
             setMissionInstructions(''); 
             fetchSisters(); // Refresh sisters on advance
+            
             if (updated.id !== executionId) {
+                console.log("[Cockpit] Branching to new execution:", updated.id);
                 navigate(`/project/${projectId}/execution/${updated.id}`);
+            } else if (updated.status === 'done') {
+                console.log("[Cockpit] Execution complete, navigating back to overview");
+                navigate(`/project/${projectId}/executions`);
+            } else {
+                console.log("[Cockpit] Phase advanced in same execution:", updated.phase, "Status:", updated.status);
             }
         } catch (error: any) {
             console.error('Failed to advance phase:', error);
@@ -328,13 +432,22 @@ export const ExecutionCockpit: React.FC = () => {
                 {/* Header */}
                 <div className="p-5 border-b border-white/5 bg-white/[0.02] shrink-0">
                     <div className="flex items-center justify-between mb-4">
-                        <button 
-                            onClick={() => navigate(`/project/${projectId}/board`)}
-                            className="flex items-center gap-2 text-white/40 hover:text-white text-[10px] transition-colors group"
-                        >
-                            <ArrowLeft className="w-3 h-3 group-hover:-translate-x-1 transition-transform" />
-                            Back to Board
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => navigate(`/project/${projectId}/board`)}
+                                className="flex items-center gap-2 text-white/40 hover:text-white text-[10px] transition-colors group"
+                            >
+                                <ArrowLeft className="w-3 h-3 group-hover:-translate-x-1 transition-transform" />
+                                Board
+                            </button>
+                            <div className="w-px h-2 bg-white/10" />
+                            <button 
+                                onClick={() => navigate(`/project/${projectId}/executions`)}
+                                className="flex items-center gap-2 text-white/40 hover:text-white text-[10px] transition-colors group"
+                            >
+                                Executions
+                            </button>
+                        </div>
                         <button
                             onClick={() => setViewMode(prev => prev === 'cockpit' ? 'branches' : 'cockpit')}
                             className={`px-2 py-1 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all flex items-center gap-1.5 border border-white/5 ${viewMode === 'branches' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-white/5'}`}
@@ -373,7 +486,13 @@ export const ExecutionCockpit: React.FC = () => {
                                 <div className="min-w-0">
                                     <p className="text-[10px] uppercase font-black text-white/30 tracking-[0.2em] mb-0.5">Active Mission Agent</p>
                                     <div className="flex items-center gap-2">
-                                        <h2 className="text-sm font-bold text-white truncate">{execution.agent_name}</h2>
+                                        <h2 
+                                            className="text-sm font-bold text-white truncate cursor-pointer hover:underline"
+                                            onClick={() => setIsAgentModalOpen(true)}
+                                            title="View agent instructions"
+                                        >
+                                            {execution.agent_name}
+                                        </h2>
                                         <div className="flex items-center gap-1.5">
                                             <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
                                             <span className="text-[8px] font-bold text-purple-400 uppercase tracking-tighter">Running</span>
@@ -399,25 +518,104 @@ export const ExecutionCockpit: React.FC = () => {
                         <div className="p-6 space-y-8">
                             {execution.prompt_snapshot ? (
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-xs font-bold text-white/60 uppercase tracking-widest">Next Prompt</p>
-                                        <button 
-                                            onClick={handleCopyPrompt}
-                                            className="flex items-center gap-2 text-[10px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-widest"
-                                        >
-                                            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                                            {copied ? 'Copied!' : 'Copy Prompt'}
-                                        </button>
-                                    </div>
-                                    
-                                    <div className="relative group">
-                                        <div className="absolute inset-0 bg-purple-500/5 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        <div className="relative p-5 rounded-2xl bg-[#050505] border border-white/10 overflow-hidden">
-                                            <pre className="text-xs text-white/70 whitespace-pre-wrap leading-relaxed font-mono max-h-[450px] overflow-y-auto custom-scrollbar">
-                                            {execution.prompt_snapshot}
-                                            </pre>
-                                        </div>
-                                    </div>
+                                    {typeof execution.prompt_snapshot === 'object' && execution.prompt_snapshot !== null ? (
+                                        <>
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-bold text-blue-400/80 uppercase tracking-widest">Entry Prompt</p>
+                                                <button 
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText((execution.prompt_snapshot as any).entry);
+                                                        setCopiedId('entry');
+                                                        setTimeout(() => setCopiedId(null), 2000);
+                                                    }}
+                                                    className="flex items-center gap-2 text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest"
+                                                >
+                                                    {copiedId === 'entry' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                    {copiedId === 'entry' ? 'Copied!' : 'Copy Entry'}
+                                                </button>
+                                            </div>
+                                            <div className="relative group">
+                                                <div className="absolute inset-0 bg-blue-500/5 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                <div className="relative p-5 rounded-2xl bg-[#050505] border border-blue-500/20 overflow-hidden">
+                                                    <pre className="text-xs text-white/70 whitespace-pre-wrap leading-relaxed font-mono max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                    {(execution.prompt_snapshot as any).entry}
+                                                    </pre>
+                                                </div>
+                                            </div>
+
+                                            {/* Mark as Reviewed Divider */}
+                                            <div className="px-6 py-4 flex items-center justify-center border-b border-white/5">
+                                                {entryReviewed ? (
+                                                    <div className="flex items-center gap-2 text-green-400">
+                                                        <Check className="w-4 h-4" />
+                                                        <span className="text-xs font-bold uppercase tracking-wider">Entry Reviewed — Exit Unlocked</span>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => setEntryReviewed(true)}
+                                                        className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                        style={{
+                                                            background: 'linear-gradient(135deg, rgba(234,179,8,0.15) 0%, rgba(251,146,60,0.15) 100%)',
+                                                            border: '1px solid rgba(234,179,8,0.4)',
+                                                            color: '#FACC15',
+                                                        }}
+                                                    >
+                                                        <Check className="w-4 h-4" />
+                                                        Mark Entry as Executed
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {(execution.prompt_snapshot as any).exit && (
+                                                <div style={{ opacity: entryReviewed ? 1 : 0.35, pointerEvents: entryReviewed ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}>
+                                                    <div className="flex items-center justify-between pt-4">
+                                                        <p className="text-xs font-bold text-amber-400/80 uppercase tracking-widest">Exit Prompt</p>
+                                                        <button 
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText((execution.prompt_snapshot as any).exit);
+                                                                setCopiedId('exit');
+                                                                setTimeout(() => setCopiedId(null), 2000);
+                                                            }}
+                                                            className="flex items-center gap-2 text-[10px] font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-widest"
+                                                        >
+                                                            {copiedId === 'exit' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                            {copiedId === 'exit' ? 'Copied!' : 'Copy Exit'}
+                                                        </button>
+                                                    </div>
+                                                    <div className="relative group mt-4">
+                                                        <div className="absolute inset-0 bg-amber-500/5 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        <div className="relative p-5 rounded-2xl bg-[#050505] border border-amber-500/20 overflow-hidden">
+                                                            <pre className="text-xs text-white/70 whitespace-pre-wrap leading-relaxed font-mono max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                            {(execution.prompt_snapshot as any).exit}
+                                                            </pre>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-bold text-white/60 uppercase tracking-widest">Next Prompt</p>
+                                                <button 
+                                                    onClick={handleCopyPrompt}
+                                                    className="flex items-center gap-2 text-[10px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-widest"
+                                                >
+                                                    {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                    {copied ? 'Copied!' : 'Copy Prompt'}
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="relative group">
+                                                <div className="absolute inset-0 bg-purple-500/5 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                <div className="relative p-5 rounded-2xl bg-[#050505] border border-white/10 overflow-hidden">
+                                                    <pre className="text-xs text-white/70 whitespace-pre-wrap leading-relaxed font-mono max-h-[450px] overflow-y-auto custom-scrollbar">
+                                                    {execution.prompt_snapshot as string}
+                                                    </pre>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="p-6 rounded-2xl border border-dashed border-white/10 bg-white/[0.01] flex flex-col items-center justify-center text-center gap-3">
@@ -584,6 +782,15 @@ export const ExecutionCockpit: React.FC = () => {
                             <span className="text-[10px] font-bold uppercase tracking-wider">Sync State</span>
                         </button>
 
+                        <button
+                            onClick={handleOpenWalkthroughs}
+                            className="flex-1 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-bold hover:bg-purple-500/20 transition-all flex items-center justify-center gap-2"
+                            title="Manage Walkthrough Artifacts"
+                        >
+                            <FileText className="w-4 h-4" />
+                            <span className="uppercase tracking-wider">Walkthroughs</span>
+                        </button>
+
                         {(execution.phase === 'assurance' || execution.phase === 'retro' || (troubleReport && execution.phase === 'execution')) && (
                             <button
                                 onClick={() => handleRollback('micro_planning')}
@@ -604,13 +811,16 @@ export const ExecutionCockpit: React.FC = () => {
                         </div>
                     )}
                     <button
-                        onClick={handleAdvance}
+                        onClick={execution.status === 'done' ? () => navigate(`/project/${projectId}/executions`) : handleAdvance}
                         disabled={isAdvancing}
-                        className="w-full h-12 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 group transition-all active:scale-95"
+                        className={`w-full h-12 ${execution.status === 'done' ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20'} text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50`}
                     >
                         {isAdvancing ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                             <>
-                                Advance to Next Phase
+                                {execution.status === 'done' 
+                                    ? 'Execution Complete — Exit' 
+                                    : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase')
+                                }
                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                             </>
                         )}
@@ -724,14 +934,24 @@ export const ExecutionCockpit: React.FC = () => {
                         ))}
                     </div>
 
-                    <button 
-                        onClick={handleRefresh}
-                        disabled={isRefreshing}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 hover:text-white hover:bg-white/10 transition-all mb-4 group"
-                    >
-                        <RefreshCcw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-                        {isRefreshing ? 'Refreshing...' : 'Refresh Context'}
-                    </button>
+                    <div className="flex items-center gap-2 mb-4">
+                        <button 
+                            onClick={handleOpenWalkthroughs}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-[10px] font-bold text-purple-400 hover:text-white hover:bg-purple-500/20 transition-all group"
+                        >
+                            <Bot className="w-3.5 h-3.5" />
+                            Walkthroughs
+                        </button>
+
+                        <button 
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 hover:text-white hover:bg-white/10 transition-all group"
+                        >
+                            <RefreshCcw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                            {isRefreshing ? 'Refreshing...' : 'Refresh Context'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -1230,6 +1450,139 @@ export const ExecutionCockpit: React.FC = () => {
                 columns={columns}
                 repoNames={repoNames}
             />
+
+            {/* Walkthroughs Modal */}
+            {isWalkthroughModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                    <div 
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+                        onClick={() => {
+                            setIsWalkthroughModalOpen(false);
+                            setSelectedWalkthrough(null);
+                        }}
+                    />
+                    <div className="relative w-full max-w-4xl bg-[#0d0d0f] border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col h-[80vh]">
+                        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+                                    <Bot className="w-5 h-5 text-purple-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-white leading-tight">Agent Walkthroughs</h2>
+                                    <p className="text-xs text-white/40">Contextual Memory & Decision Logs</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setIsWalkthroughModalOpen(false);
+                                    setSelectedWalkthrough(null);
+                                }}
+                                className="p-2 hover:bg-white/5 rounded-xl text-white/20 hover:text-white transition-all"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 flex overflow-hidden">
+                            {/* List of Walkthroughs */}
+                            <div className="w-72 border-r border-white/5 overflow-y-auto bg-white/[0.01]">
+                                {isLoadingWalkthroughs ? (
+                                    <div className="p-8 flex justify-center">
+                                        <Loader2 className="w-6 h-6 text-purple-500 animate-spin" />
+                                    </div>
+                                ) : walkthroughs.length > 0 ? (
+                                    <div className="p-2 space-y-1">
+                                        {walkthroughs.map(w => (
+                                            <button
+                                                key={w.id}
+                                                onClick={() => {
+                                                    setSelectedWalkthrough(w);
+                                                    setWalkthroughContent(w.content || '');
+                                                    setIsEditingWalkthrough(false);
+                                                }}
+                                                className={`w-full text-left px-4 py-3 rounded-xl transition-all border ${
+                                                    selectedWalkthrough?.id === w.id 
+                                                        ? 'bg-purple-500/20 border-purple-500/30 text-purple-300' 
+                                                        : 'hover:bg-white/5 text-white/50 hover:text-white/80 border-transparent'
+                                                }`}
+                                            >
+                                                <p className="text-xs font-bold truncate">{w.name}</p>
+                                                <p className="text-[10px] opacity-50 mt-1">{new Date(w.created_at).toLocaleDateString()} · {w.status}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-8 text-center">
+                                        <p className="text-[10px] text-white/20 italic">No walkthroughs found.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Walkthrough Content */}
+                            <div className="flex-1 overflow-y-auto p-8 bg-black/20">
+                                {selectedWalkthrough ? (
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-xl font-bold text-white">{selectedWalkthrough.name}</h3>
+                                                <p className="text-xs text-white/40 mt-1">ID: {selectedWalkthrough.id}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => setIsEditingWalkthrough(!isEditingWalkthrough)}
+                                                className={`px-4 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
+                                                    isEditingWalkthrough 
+                                                        ? 'bg-white/10 border-white/20 text-white' 
+                                                        : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                                                }`}
+                                            >
+                                                {isEditingWalkthrough ? 'Cancel' : 'Edit content'}
+                                            </button>
+                                        </div>
+
+                                        {isEditingWalkthrough ? (
+                                            <div className="space-y-4">
+                                                <textarea
+                                                    value={walkthroughContent}
+                                                    onChange={(e) => setWalkthroughContent(e.target.value)}
+                                                    className="w-full h-[450px] bg-black/40 border border-white/10 rounded-2xl p-6 text-sm text-white/80 font-mono focus:outline-none focus:border-purple-500/50 transition-all resize-none"
+                                                    placeholder="Enter walkthrough content (Markdown supported)..."
+                                                />
+                                                <div className="flex justify-end">
+                                                    <button 
+                                                        onClick={handleSaveWalkthrough}
+                                                        disabled={isSavingWalkthrough}
+                                                        className="flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-purple-500/20"
+                                                    >
+                                                        {isSavingWalkthrough ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Check className="w-4 h-4" />
+                                                        )}
+                                                        Save Changes
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-8 overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                                                <div className="prose prose-invert prose-sm max-w-none prose-headings:text-purple-400 prose-a:text-purple-400 prose-strong:text-white/90 prose-code:text-purple-300 prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/5">
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                        {selectedWalkthrough.content || "_This walkthrough has no content._"}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center opacity-20">
+                                        <Bot className="w-16 h-16 mb-4" />
+                                        <p className="text-sm font-medium">Select a walkthrough to view its details</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

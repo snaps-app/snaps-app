@@ -485,6 +485,39 @@ export const syncGithubProject = async (projectId: string): Promise<{ message: s
     return response.data;
 };
 
+// --- Project API Key Functions ---
+export interface ProjectApiKeyCreate {
+    name: string;
+    allowed_origins?: string[];
+}
+
+export interface ProjectApiKeyPublic {
+    id: string;
+    project_id: string;
+    name: string;
+    is_active: boolean;
+    allowed_origins: string[];
+    created_at: string;
+    last_used_at?: string;
+}
+
+export interface ProjectApiKeyCreated extends ProjectApiKeyPublic {
+    key: string;
+}
+
+export const getProjectApiKeys = async (projectId: string): Promise<ProjectApiKeyPublic[]> => {
+    const response = await api.get(`/projects/${projectId}/api-keys`);
+    return response.data;
+};
+
+export const createProjectApiKey = async (projectId: string, data: ProjectApiKeyCreate): Promise<ProjectApiKeyCreated> => {
+    const response = await api.post(`/projects/${projectId}/api-keys`, data);
+    return response.data;
+};
+
+export const revokeProjectApiKey = async (projectId: string, keyId: string): Promise<void> => {
+    await api.delete(`/projects/${projectId}/api-keys/${keyId}`);
+};
 
 export const getProject = async (projectId: string): Promise<Project> => {
     const response = await api.get(`/projects/${projectId}`);
@@ -523,13 +556,25 @@ export const deleteEpic = async (epicId: string): Promise<void> => {
 
 
 // --- Snap Functions ---
-export const getSnaps = async (projectId: string, skip = 0, limit = 100): Promise<Snap[]> => {
-    const response = await api.get(`/projects/${projectId}/snaps/`, { params: { skip, limit } });
+export const getSnaps = async (projectId: string, skip: number = 0, limit: number = 100, sprintId?: string, agentExecutionId?: string): Promise<Snap[]> => {
+    const params = new URLSearchParams({
+        skip: skip.toString(),
+        limit: limit.toString(),
+    });
+    if (sprintId) params.append('sprint_id', sprintId);
+    if (agentExecutionId) params.append('agent_execution_id', agentExecutionId);
+    
+    const response = await api.get(`/projects/${projectId}/snaps/`, { params });
     return response.data;
 };
 
 export const createSnap = async (data: SnapCreate): Promise<Snap> => {
     const response = await api.post('/snaps/', data);
+    return response.data;
+};
+
+export const updateSnap = async (snapId: string, data: Partial<SnapCreate>): Promise<Snap> => {
+    const response = await api.patch(`/snaps/${snapId}`, data);
     return response.data;
 };
 
@@ -976,7 +1021,7 @@ export interface AgentTaskExecution {
     sprint_ids: string[];
     card_ids: string[];
     agent_name: string;
-    prompt_snapshot: string;
+    prompt_snapshot: string | { entry: string; exit?: string };
     context_data: any;
     advance_conditions: any;
     created_at: string;

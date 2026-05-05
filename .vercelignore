@@ -1,0 +1,7 @@
+android/
+ios/
+node_modules/
+dist/
+build/
+.git/
+repomix-output.xml

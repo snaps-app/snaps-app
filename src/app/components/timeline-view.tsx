@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { NeuralBackground } from './neural-background';
 import { ArrowLeft, GitBranch, ChevronLeft, ChevronRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import api, { Sprint, Epic } from '@/services/api';
 import { Spinner } from './ui/spinner';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameMonth, isWithinInterval, parseISO, startOfDay, differenceInDays, addDays } from 'date-fns';

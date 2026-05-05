@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Bot,
     ChevronRight,
+    ChevronDown,
     Clock,
     Zap,
     CheckCircle2,
@@ -10,10 +11,11 @@ import {
     History,
     Search,
     X,
-    Filter,
     Calendar,
     Layout as LayoutIcon,
-    Target
+    Target,
+    GitBranch,
+    ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -38,6 +40,7 @@ export const AIExecutions = () => {
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -153,6 +156,28 @@ export const AIExecutions = () => {
         getProjectName(exec.project_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
         (exec.agent_name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Group into branches: root executions + their children
+    const rootExecs = filtered.filter(e => !e.parent_id);
+    // For executions that have no root_id recorded as a separate root, also include them
+    const getBranchChildren = (rootId: string) =>
+        filtered.filter(e => e.root_id === rootId || (e.parent_id === rootId && !e.root_id));
+
+    const branchPhaseOrder = ['macro_planning', 'micro_planning', 'execution', 'assurance', 'retro'];
+    const getLatestPhase = (execs: AgentTaskExecution[]) => {
+        let maxIdx = -1;
+        execs.forEach(e => {
+            const idx = branchPhaseOrder.indexOf(e.phase);
+            if (idx > maxIdx) maxIdx = idx;
+        });
+        return maxIdx >= 0 ? branchPhaseOrder[maxIdx] : 'macro_planning';
+    };
+    const getBranchStatus = (execs: AgentTaskExecution[]) => {
+        if (execs.some(e => e.status === 'failed')) return 'failed';
+        if (execs.every(e => e.status === 'done')) return 'done';
+        if (execs.some(e => e.status === 'in_progress' || e.status === 'awaiting_advance')) return 'in_progress';
+        return 'pending';
+    };
 
     return (
         <div className="min-h-screen" style={{ backgroundColor: 'var(--snaps-bg)' }}>
@@ -371,49 +396,132 @@ export const AIExecutions = () => {
                     </div>
                 )}
 
-                {/* List */}
-                {filtered.length > 0 ? (
+                {/* Branch List */}
+                {rootExecs.length > 0 ? (
                     <div className="space-y-3">
-                        {filtered.map((exec) => {
-                            const sc = statusConfig[exec.status] || statusConfig['pending'];
+                        {rootExecs.map((root) => {
+                            const children = getBranchChildren(root.id);
+                            const allInBranch = [root, ...children];
+                            const latestPhase = getLatestPhase(allInBranch);
+                            const branchStatus = getBranchStatus(allInBranch);
+                            const sc = statusConfig[branchStatus] || statusConfig['pending'];
+                            const isExpanded = expandedBranch === root.id;
+                            const branchLabel = root.branch_type === 'hotfix' ? 'Hotfix' : root.branch_type === 'parallel' ? 'Parallel' : 'Main';
+                            const branchColor = root.branch_type === 'hotfix' ? 'text-red-400 bg-red-500/10 border-red-500/20' : root.branch_type === 'parallel' ? 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' : 'text-purple-400 bg-purple-500/10 border-purple-500/20';
+
                             return (
-                                <div
-                                    key={exec.id}
-                                    onClick={() => navigate(`/project/${exec.project_id}/execution/${exec.id}`)}
-                                    className="group p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-purple-500/20 hover:bg-white/[0.04] transition-all cursor-pointer flex items-center justify-between gap-4"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center border shrink-0 ${sc.bg} ${sc.color}`}>
-                                            {sc.icon}
+                                <div key={root.id} className="rounded-2xl border border-white/5 overflow-hidden">
+                                    {/* Branch Header */}
+                                    <div
+                                        onClick={() => setExpandedBranch(isExpanded ? null : root.id)}
+                                        className={`group p-5 flex items-center justify-between gap-4 cursor-pointer transition-all ${
+                                            isExpanded ? 'bg-white/[0.04] border-b border-white/5' : 'bg-white/[0.02] hover:bg-white/[0.04]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center border shrink-0 ${sc.bg} ${sc.color}`}>
+                                                <GitBranch className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="font-bold text-white group-hover:text-purple-300 transition-colors">
+                                                        {getProjectName(root.project_id)}
+                                                    </h3>
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${branchColor}`}>
+                                                        {branchLabel}
+                                                    </span>
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${phaseColors[latestPhase] || 'text-white/30 bg-white/5 border-white/10'}`}>
+                                                        {phaseLabels[latestPhase]}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-xs text-white/25">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <History className="w-3 h-3" />
+                                                        {new Date(root.created_at).toLocaleString()}
+                                                    </span>
+                                                    <span className="font-mono text-white/20">{allInBranch.length} executions</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="font-bold text-white group-hover:text-purple-300 transition-colors">
-                                                    {getProjectName(exec.project_id)}
-                                                </h3>
-                                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${phaseColors[exec.phase] || 'text-white/30 bg-white/5 border-white/10'}`}>
-                                                    {phaseLabels[exec.phase] || exec.phase}
-                                                </span>
+                                        <div className="flex items-center gap-4 shrink-0">
+                                            {/* Phase Pipeline */}
+                                            <div className="hidden md:flex items-center gap-1">
+                                                {branchPhaseOrder.map((ph, i) => {
+                                                    const phExec = allInBranch.find(e => e.phase === ph);
+                                                    if (!phExec) return (
+                                                        <div key={ph} className="flex items-center gap-1">
+                                                            {i > 0 && <div className="w-3 h-px bg-white/10" />}
+                                                            <div className="w-2 h-2 rounded-full bg-white/5 border border-white/10" title={phaseLabels[ph]} />
+                                                        </div>
+                                                    );
+                                                    const phSc = statusConfig[phExec.status] || statusConfig['pending'];
+                                                    return (
+                                                        <div key={ph} className="flex items-center gap-1">
+                                                            {i > 0 && <div className="w-3 h-px bg-white/20" />}
+                                                            <div className={`w-2 h-2 rounded-full border ${phSc.bg} ${phSc.color}`} title={`${phaseLabels[ph]}: ${phExec.status}`} />
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
-                                            <div className="flex items-center gap-4 text-xs text-white/25">
-                                                <span className="flex items-center gap-1.5 font-mono">
-                                                    <Bot className="w-3 h-3" />
-                                                    {exec.agent_name || 'Unknown agent'}
-                                                </span>
-                                                <span className="flex items-center gap-1.5">
-                                                    <History className="w-3 h-3" />
-                                                    {new Date(exec.created_at).toLocaleString()}
-                                                </span>
-                                            </div>
+                                            <span className={`text-xs font-bold uppercase tracking-wider ${sc.color}`}>
+                                                {branchStatus.replace(/_/g, ' ')}
+                                            </span>
+                                            {isExpanded
+                                                ? <ChevronDown className="w-4 h-4 text-purple-400" />
+                                                : <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
+                                            }
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-6 shrink-0">
-                                        <span className={`text-xs font-bold uppercase tracking-wider ${sc.color}`}>
-                                            {exec.status.replace(/_/g, ' ')}
-                                        </span>
-                                        <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
-                                    </div>
+                                    {/* Expanded: individual executions */}
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.2 }}
+                                                className="overflow-hidden bg-black/20"
+                                            >
+                                                <div className="p-3 space-y-1">
+                                                    {allInBranch
+                                                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                                        .map((exec, idx) => {
+                                                            const esc = statusConfig[exec.status] || statusConfig['pending'];
+                                                            return (
+                                                                <div
+                                                                    key={exec.id}
+                                                                    onClick={() => navigate(`/project/${exec.project_id}/execution/${exec.id}`)}
+                                                                    className="group flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 cursor-pointer transition-all"
+                                                                >
+                                                                    {/* Indent guide */}
+                                                                    <div className="flex items-center gap-2 shrink-0">
+                                                                        <div className="w-px h-4 bg-white/10" />
+                                                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center border text-[10px] ${esc.bg} ${esc.color}`}>
+                                                                            {idx + 1}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${phaseColors[exec.phase] || 'text-white/30 bg-white/5 border-white/10'}`}>
+                                                                                {phaseLabels[exec.phase]}
+                                                                            </span>
+                                                                            <span className="text-xs text-white/40 font-mono truncate">{exec.agent_name}</span>
+                                                                        </div>
+                                                                        <p className="text-[10px] text-white/20 mt-0.5">{new Date(exec.created_at).toLocaleString()}</p>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 shrink-0">
+                                                                        <span className={`text-[10px] font-bold uppercase ${esc.color}`}>{exec.status.replace(/_/g, ' ')}</span>
+                                                                        <ArrowRight className="w-3.5 h-3.5 text-white/10 group-hover:text-purple-400 transition-colors" />
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    }
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             );
                         })}

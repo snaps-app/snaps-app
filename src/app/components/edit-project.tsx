@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner } from './ui/spinner';
+import { ProjectApiKeysPanel } from './project-api-keys-panel';
 
 const templates = [
   { id: 'free', name: 'Free Template', description: 'Start from scratch with no constraints' },
@@ -643,6 +644,15 @@ export function EditProject() {
                     {isSyncing ? 'Triggering Sync...' : 'Sync with GitHub Now'}
                   </motion.button>
                 </div>
+              </motion.div>
+
+              {/* API Keys Panel */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.78 }}
+              >
+                {projectId && <ProjectApiKeysPanel projectId={projectId} />}
               </motion.div>
 
               {/* Update Button */}

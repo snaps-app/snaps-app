@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
-import { X, Copy, Check, Bot, Loader2 } from 'lucide-react';
+import { X, Copy, Check, Bot, Loader2, Lock, Unlock, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCardExecutionPrompt, getSprintExecutionPrompt } from '@/services/api';
+
+type DualPrompt = { entry: string; exit?: string };
+
+function isDualPrompt(prompt: string | DualPrompt): prompt is DualPrompt {
+    return typeof prompt === 'object' && prompt !== null && 'entry' in prompt;
+}
 
 interface ExecutionWizardModalProps {
     isOpen: boolean;
@@ -18,10 +24,11 @@ export function ExecutionWizardModal({
     entityType,
     entityTitle,
 }: ExecutionWizardModalProps) {
-    const [prompt, setPrompt] = useState<string>('');
+    const [prompt, setPrompt] = useState<string | DualPrompt>('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
+    const [copied, setCopied] = useState<'entry' | 'exit' | 'single' | false>(false);
+    const [entryReviewed, setEntryReviewed] = useState(false);
 
     useEffect(() => {
         if (!isOpen || !entityId) return;
@@ -29,20 +36,34 @@ export function ExecutionWizardModal({
         setIsLoading(true);
         setError(null);
         setPrompt('');
+        setEntryReviewed(false);
 
-        const fetch = entityType === 'card'
+        const fetchPrompt = entityType === 'card'
             ? getCardExecutionPrompt(entityId)
             : getSprintExecutionPrompt(entityId);
 
-        fetch
-            .then(setPrompt)
+        fetchPrompt
+            .then((data) => {
+                // Support both string and dual-prompt object from API
+                if (typeof data === 'object' && data !== null && 'entry' in data) {
+                    setPrompt(data as DualPrompt);
+                } else {
+                    setPrompt(data);
+                }
+            })
             .catch((err) => setError(err?.message || 'Failed to load execution prompt.'))
             .finally(() => setIsLoading(false));
     }, [isOpen, entityId, entityType]);
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(prompt).then(() => {
-            setCopied(true);
+    const handleCopy = (type: 'entry' | 'exit' | 'single') => {
+        let text = '';
+        if (isDualPrompt(prompt)) {
+            text = type === 'exit' ? (prompt.exit || '') : prompt.entry;
+        } else {
+            text = prompt;
+        }
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(type);
             setTimeout(() => setCopied(false), 2000);
         });
     };
@@ -91,19 +112,19 @@ export function ExecutionWizardModal({
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {prompt && (
+                                    {prompt && !isDualPrompt(prompt) && (
                                         <motion.button
                                             whileTap={{ scale: 0.95 }}
-                                            onClick={handleCopy}
+                                            onClick={() => handleCopy('single')}
                                             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
                                             style={{
-                                                background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.07)',
-                                                border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`,
-                                                color: copied ? '#22C55E' : 'rgba(255,255,255,0.6)',
+                                                background: copied === 'single' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.07)',
+                                                border: `1px solid ${copied === 'single' ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                                                color: copied === 'single' ? '#22C55E' : 'rgba(255,255,255,0.6)',
                                             }}
                                         >
-                                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                            {copied ? 'Copied!' : 'Copy Prompt'}
+                                            {copied === 'single' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                            {copied === 'single' ? 'Copied!' : 'Copy Prompt'}
                                         </motion.button>
                                     )}
                                     <button
@@ -144,7 +165,11 @@ export function ExecutionWizardModal({
                                         {/* Dashboard Header Summary */}
                                         <div className="p-6 bg-white/[0.02] border-b border-white/5">
                                             <div className="flex flex-wrap gap-2">
-                                                {entityTitle.includes('Selected') ? (
+                                                {isDualPrompt(prompt) ? (
+                                                    <div className="px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
+                                                        Dual-Prompt Protocol
+                                                    </div>
+                                                ) : entityTitle.includes('Selected') ? (
                                                     <div className="px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] font-bold text-purple-400 uppercase tracking-wider">
                                                         Multi-Sprint Batch
                                                     </div>
@@ -154,24 +179,123 @@ export function ExecutionWizardModal({
                                                     </div>
                                                 )}
                                                 <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-white/40 uppercase tracking-wider">
-                                                    Status: Ready
+                                                    Status: {isDualPrompt(prompt) ? (entryReviewed ? 'Exit Ready' : 'Entry Ready') : 'Ready'}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="p-8">
-                                            <div className="prose prose-invert max-w-none">
-                                                <div 
-                                                    className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-mono selection:bg-purple-500/30"
-                                                    style={{ 
-                                                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                                                        textShadow: '0 0 20px rgba(168,85,247,0.1)'
-                                                    }}
-                                                >
-                                                    {prompt}
+                                        {isDualPrompt(prompt) ? (
+                                            <div className="flex flex-col">
+                                                {/* Entry Prompt Slot */}
+                                                <div className="p-6 border-b border-white/5">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                                                            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Entry Prompt</span>
+                                                            <Unlock className="w-3.5 h-3.5 text-blue-400/60" />
+                                                        </div>
+                                                        <motion.button
+                                                            whileTap={{ scale: 0.95 }}
+                                                            onClick={() => handleCopy('entry')}
+                                                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                                                            style={{
+                                                                background: copied === 'entry' ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.1)',
+                                                                border: `1px solid ${copied === 'entry' ? 'rgba(34,197,94,0.4)' : 'rgba(59,130,246,0.3)'}`,
+                                                                color: copied === 'entry' ? '#22C55E' : '#60A5FA',
+                                                            }}
+                                                        >
+                                                            {copied === 'entry' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                                            {copied === 'entry' ? 'Copied!' : 'Copy Entry Prompt'}
+                                                        </motion.button>
+                                                    </div>
+                                                    <div
+                                                        className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-mono selection:bg-blue-500/30 p-4 rounded-xl"
+                                                        style={{
+                                                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                                            background: 'rgba(59,130,246,0.05)',
+                                                            border: '1px solid rgba(59,130,246,0.15)',
+                                                        }}
+                                                    >
+                                                        {prompt.entry}
+                                                    </div>
+                                                </div>
+
+                                                {/* Mark as Reviewed Divider */}
+                                                <div className="px-6 py-4 flex items-center justify-center border-b border-white/5">
+                                                    {entryReviewed ? (
+                                                        <div className="flex items-center gap-2 text-green-400">
+                                                            <CheckCircle2 className="w-4 h-4" />
+                                                            <span className="text-xs font-bold uppercase tracking-wider">Entry Reviewed — Exit Unlocked</span>
+                                                        </div>
+                                                    ) : (
+                                                        <motion.button
+                                                            whileTap={{ scale: 0.95 }}
+                                                            whileHover={{ scale: 1.02 }}
+                                                            onClick={() => setEntryReviewed(true)}
+                                                            className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all"
+                                                            style={{
+                                                                background: 'linear-gradient(135deg, rgba(234,179,8,0.15) 0%, rgba(251,146,60,0.15) 100%)',
+                                                                border: '1px solid rgba(234,179,8,0.4)',
+                                                                color: '#FACC15',
+                                                            }}
+                                                        >
+                                                            <CheckCircle2 className="w-4 h-4" />
+                                                            Mark Entry as Executed
+                                                        </motion.button>
+                                                    )}
+                                                </div>
+
+                                                {/* Exit Prompt Slot */}
+                                                {prompt.exit && (
+                                                    <div className="p-6" style={{ opacity: entryReviewed ? 1 : 0.35, pointerEvents: entryReviewed ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}>
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-2.5 h-2.5 rounded-full" style={{ background: entryReviewed ? '#FACC15' : '#6B7280' }} />
+                                                                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: entryReviewed ? '#FACC15' : '#6B7280' }}>Exit Prompt</span>
+                                                                {entryReviewed ? <Unlock className="w-3.5 h-3.5 text-yellow-400/60" /> : <Lock className="w-3.5 h-3.5 text-white/20" />}
+                                                            </div>
+                                                            <motion.button
+                                                                whileTap={{ scale: 0.95 }}
+                                                                onClick={() => handleCopy('exit')}
+                                                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                                                                style={{
+                                                                    background: copied === 'exit' ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.1)',
+                                                                    border: `1px solid ${copied === 'exit' ? 'rgba(34,197,94,0.4)' : 'rgba(234,179,8,0.3)'}`,
+                                                                    color: copied === 'exit' ? '#22C55E' : '#FACC15',
+                                                                }}
+                                                            >
+                                                                {copied === 'exit' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                                                {copied === 'exit' ? 'Copied!' : 'Copy Exit Prompt'}
+                                                            </motion.button>
+                                                        </div>
+                                                        <div
+                                                            className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-mono selection:bg-yellow-500/30 p-4 rounded-xl"
+                                                            style={{
+                                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                                                background: entryReviewed ? 'rgba(234,179,8,0.05)' : 'rgba(255,255,255,0.02)',
+                                                                border: `1px solid ${entryReviewed ? 'rgba(234,179,8,0.15)' : 'rgba(255,255,255,0.05)'}`,
+                                                            }}
+                                                        >
+                                                            {prompt.exit}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="p-8">
+                                                <div className="prose prose-invert max-w-none">
+                                                    <div
+                                                        className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-mono selection:bg-purple-500/30"
+                                                        style={{
+                                                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                                            textShadow: '0 0 20px rgba(168,85,247,0.1)'
+                                                        }}
+                                                    >
+                                                        {prompt as string}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

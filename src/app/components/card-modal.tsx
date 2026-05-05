@@ -55,9 +55,10 @@ export function CardModal({
     const [newTaskTitle, setNewTaskTitle] = useState('');
 
     const STATUS_ALIASES: Record<string, string[]> = {
-        'todo': ['todo'],
         'backlog': ['backlog'],
-        'doing': ['doing', 'in_progress', 'inprogress'],
+        'planning': ['planning'],
+        'todo': ['todo'],
+        'in_progress': ['doing', 'in_progress', 'inprogress'],
         'assurance': ['assurance', 'review'],
         'done': ['done', 'checked']
     };
