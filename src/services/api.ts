@@ -21,6 +21,21 @@ api.interceptors.request.use(async (config) => {
     return config;
 });
 
+// Catch cases where API returns HTML (e.g. port conflict with another app)
+api.interceptors.response.use(
+    (response) => {
+        const contentType = response.headers['content-type'];
+        if (contentType && contentType.includes('text/html')) {
+            console.error("[API] Received HTML instead of JSON. Check for port conflicts (localhost:8000).", response.config.url);
+            return Promise.reject(new Error("API returned HTML instead of JSON. Check if another app is running on port 8000."));
+        }
+        return response;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
 // --- Interfaces ---
 
 export interface Project {

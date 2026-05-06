@@ -45,12 +45,16 @@ export function DashboardView() {
 
             setStats(statsData);
 
-            const todayExecs = executionsData
+            if (!Array.isArray(executionsData)) {
+                console.warn("executionsData is not an array:", executionsData);
+            }
+
+            const todayExecs = (Array.isArray(executionsData) ? executionsData : [])
                 .filter(e => e.date === todayStr)
                 .sort((a, b) => a.start_hour.localeCompare(b.start_hour));
 
             setDailyExecutions(todayExecs);
-            setRoutines(routinesData);
+            setRoutines(Array.isArray(routinesData) ? routinesData : []);
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
         } finally {

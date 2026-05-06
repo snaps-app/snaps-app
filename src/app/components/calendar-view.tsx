@@ -43,12 +43,21 @@ export function CalendarView() {
       ]);
 
       // Deduplicate by ID to prevent overlap glitches and React key collisions
-      const uniqueScheds = Array.from(new Map(schedData.map(s => [s.id, s])).values());
-      const uniqueExecs = Array.from(new Map(execData.map(de => [de.id, de])).values());
+      const uniqueScheds = Array.isArray(schedData) 
+        ? Array.from(new Map(schedData.map(s => [s.id, s])).values())
+        : [];
+        
+      const uniqueExecs = Array.isArray(execData)
+        ? Array.from(new Map(execData.map(de => [de.id, de])).values())
+        : [];
+        
+      if (!Array.isArray(schedData) || !Array.isArray(execData)) {
+          console.warn("Calendar data mismatch:", { schedData, execData });
+      }
 
       setSchedulings(uniqueScheds);
       setDailyExecutions(uniqueExecs);
-      setCards(cardData);
+      setCards(Array.isArray(cardData) ? cardData : []);
     } catch (error) {
       console.error("Error fetching calendar data:", error);
     } finally {
