@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
     FolderArchive,
     CheckSquare,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NeuralBackground } from './neural-background';
+import { Spinner } from './ui/spinner';
 import api from '@/services/api';
 import type { DashboardStats, DailyExecutionWithProject, RoutineWithStatus, Routine } from '@/services/api';
 import { format } from 'date-fns';
@@ -39,7 +40,7 @@ export function DashboardView() {
             const todayStr = format(new Date(), 'yyyy-MM-dd');
             const [statsData, executionsData, routinesData] = await Promise.all([
                 api.getDashboardStats(),
-                api.getAllDailyExecutions(),
+                api.getAllDailyExecutions(0, 100, todayStr),
                 api.getRoutinesForDate(todayStr)
             ]);
 
@@ -50,7 +51,6 @@ export function DashboardView() {
             }
 
             const todayExecs = (Array.isArray(executionsData) ? executionsData : [])
-                .filter(e => e.date === todayStr)
                 .sort((a, b) => a.start_hour.localeCompare(b.start_hour));
 
             setDailyExecutions(todayExecs);
@@ -120,8 +120,40 @@ export function DashboardView() {
         <div className="min-h-screen relative overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--snaps-bg)' }}>
             <NeuralBackground />
 
+            {/* Global Premium Loading State */}
+            <AnimatePresence>
+                {loading && !stats && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050505]/80 backdrop-blur-md"
+                    >
+                        <div className="relative">
+                            <div className="w-24 h-24 rounded-full border-2 border-white/5 flex items-center justify-center">
+                                <Spinner size="lg" color="#A855F7" />
+                            </div>
+                            <motion.div 
+                                animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                                className="absolute inset-0 rounded-full bg-purple-500/20 blur-2xl"
+                            />
+                        </div>
+                        <motion.p 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="mt-6 text-zinc-400 font-medium tracking-widest uppercase text-xs"
+                        >
+                            Inicializando Dashboard...
+                        </motion.p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="relative z-10 flex flex-col h-screen p-6 overflow-y-auto">
                 <div className="flex items-center justify-between mb-8 backdrop-blur-xl bg-white/5 border border-white/10 p-4 rounded-2xl w-full max-w-[1400px] mx-auto">
+
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#00D4FF] to-[#A855F7] flex items-center justify-center shadow-lg shadow-purple-500/20">
                             <LayoutDashboard className="w-6 h-6 text-white" />

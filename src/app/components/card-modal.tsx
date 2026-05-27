@@ -349,11 +349,27 @@ export function CardModal({
 
                                 {/* Content */}
                                 <div className="flex-1 overflow-y-auto p-6 flex gap-8 relative min-h-[400px]">
-                                    {isLoading ? (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-10">
-                                            <Spinner size="lg" />
-                                        </div>
-                                    ) : (
+                                    <AnimatePresence mode="wait">
+                                        {isLoading && (
+                                            <motion.div 
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md z-[60]"
+                                            >
+                                                <Spinner size="lg" color="#00D4FF" />
+                                                <motion.p 
+                                                    initial={{ opacity: 0, y: 5 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    className="mt-4 text-[10px] font-black tracking-[0.2em] uppercase text-blue-400/60"
+                                                >
+                                                    Carregando Dados
+                                                </motion.p>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {!isLoading && (
                                         <>
                                             {/* Main Left Column */}
                                             <div className="flex-1 space-y-6">

@@ -15,7 +15,7 @@ interface BoardCardProps {
 }
 
 export function BoardCard({ card, onClick, projectName, boardColor = 'rgba(168, 85, 247, 0.5)', epic, sprint }: BoardCardProps) {
-    const taskCount = card.tasks?.length || 0;
+    const taskCount = card.task_count || card.tasks?.length || 0;
 
     const getPriorityIcon = () => {
         switch (card.priority) {

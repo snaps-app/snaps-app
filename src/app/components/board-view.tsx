@@ -19,6 +19,7 @@ import { VaccinationModal } from './board/VaccinationModal';
 import { PlannerPanel } from './board/PlannerPanel';
 import { useBoardData } from './board/useBoardData';
 import { useBoardModals } from './board/useBoardModals';
+import { StrategyConfiguratorModal } from './strategy-configurator-modal';
 
 /**
  * BoardView Component
@@ -73,6 +74,7 @@ export function BoardView() {
   const [plannerInput, setPlannerInput] = useState('');
   const [isBulkApplyOpen, setIsBulkApplyOpen] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
   const [allBoards, setAllBoards] = useState<any[]>([]);
   const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
@@ -188,7 +190,7 @@ export function BoardView() {
   return (
     <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
       <div className="flex-1 flex flex-col min-h-0 relative">
-        <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) { const exec = await createAgentExecution({ project_id: projectId!, phase: 'macro_planning', sprint_ids: selectedSprintIds, card_ids: [] }); navigate(`/project/${projectId}/execution/${exec.id}`); } }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
+        <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) setIsStrategyModalOpen(true); }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
         <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
           <div className="flex gap-6 min-w-max h-full items-start">
             {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns.map((col: any, index: number) => (
@@ -235,6 +237,14 @@ export function BoardView() {
             }} 
           />
         )}
+        <StrategyConfiguratorModal
+          isOpen={isStrategyModalOpen}
+          onClose={() => setIsStrategyModalOpen(false)}
+          projectId={projectId!}
+          initialSprintId={selectedSprintIds.filter(id => id !== 'no_sprint')[0] || null}
+          initialCardIds={filteredAndSortedTasks.map(t => t.id)}
+          cards={filteredAndSortedTasks}
+        />
       </div>
     </DndProvider>
   );

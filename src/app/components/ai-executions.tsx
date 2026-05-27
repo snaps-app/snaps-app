@@ -15,21 +15,28 @@ import {
     Layout as LayoutIcon,
     Target,
     GitBranch,
-    ArrowRight
+    ArrowRight,
+    Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
     getAllAgentExecutions,
+    getProjectAgentExecutions,
     AgentTaskExecution,
     Project,
     createAgentExecution,
     getSprints,
     getProjectBoard,
     Sprint,
-    Card
+    Card,
+    WorkflowTemplate,
+    getWorkflowTemplates,
+    deleteAgentExecution
 } from '@/services/api';
 import api from '@/services/api';
+import { WorkflowFlowPreview } from './workflow-flow-preview';
 import { Spinner } from './ui/spinner';
+import { StrategyConfiguratorModal } from './strategy-configurator-modal';
 
 export const AIExecutions = () => {
     const navigate = useNavigate();
@@ -49,21 +56,25 @@ export const AIExecutions = () => {
     const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
     const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
     const [customContext, setCustomContext] = useState('');
-    const [selectedPhase, setSelectedPhase] = useState<'macro_planning' | 'micro_planning'>('macro_planning');
+    
+    // Workflow Templates State
+    const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
     const fetchData = async () => {
         try {
-            const [execsData, projsData] = await Promise.all([
-                getAllAgentExecutions(),
-                api.getProjects()
+            const [execsData, projsData, templatesData] = await Promise.all([
+                projectId ? getProjectAgentExecutions(projectId) : getAllAgentExecutions(),
+                api.getProjects(),
+                api.getWorkflowTemplates()
             ]);
 
-            const filteredExecs = projectId
-                ? execsData.filter(e => e.project_id === projectId)
-                : execsData;
-
-            setExecutions(filteredExecs);
+            setExecutions(execsData);
             setProjects(projsData);
+            setTemplates(templatesData);
+            if (templatesData.length > 0) {
+                setSelectedTemplateId(templatesData[0].id);
+            }
 
             if (projectId) {
                 const [sprintsData, boardData] = await Promise.all([
@@ -95,16 +106,20 @@ export const AIExecutions = () => {
 
     const handleConfirmExecution = async () => {
         if (!projectId) return;
+        const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+        const firstPhaseKey = selectedTemplate?.phases?.[0]?.key || 'macro_planning';
+
         setIsCreating(true);
         try {
             const execution = await createAgentExecution({
                 project_id: projectId,
-                phase: selectedPhase,
+                phase: firstPhaseKey,
+                workflow_template_id: selectedTemplateId || undefined,
                 sprint_ids: selectedSprintId ? [selectedSprintId] : [],
                 card_ids: selectedCardIds,
                 context_data: {
                     user_instruction: customContext,
-                    strategy_focus: selectedPhase === 'macro_planning' ? 'strategic' : 'technical'
+                    strategy_focus: firstPhaseKey === 'macro_planning' ? 'strategic' : 'technical'
                 }
             });
             navigate(`/project/${projectId}/execution/${execution.id}`);
@@ -114,6 +129,21 @@ export const AIExecutions = () => {
         } finally {
             setIsCreating(false);
             setIsModalOpen(false);
+        }
+    };
+
+    const handleDeleteExecution = async (executionId: string) => {
+        if (window.confirm("Tem certeza que deseja excluir esta execução agêntica? Esta ação apagará permanentemente todos os itens filhos e sub-execuções relacionados.")) {
+            setIsLoading(true);
+            try {
+                await deleteAgentExecution(executionId);
+                await fetchData();
+            } catch (err: any) {
+                console.error('Failed to delete execution:', err);
+                setError(err?.message || 'Falha ao excluir execução');
+            } finally {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -133,6 +163,7 @@ export const AIExecutions = () => {
         in_progress: { icon: <Zap className="w-5 h-5" />, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
         awaiting_advance: { icon: <Zap className="w-5 h-5" />, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
         done: { icon: <CheckCircle2 className="w-5 h-5" />, color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+        completed: { icon: <CheckCircle2 className="w-5 h-5" />, color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
         failed: { icon: <AlertCircle className="w-5 h-5" />, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
     };
 
@@ -166,17 +197,36 @@ export const AIExecutions = () => {
     const branchPhaseOrder = ['macro_planning', 'micro_planning', 'execution', 'assurance', 'retro'];
     const getLatestPhase = (execs: AgentTaskExecution[]) => {
         let maxIdx = -1;
+        let lastPhase = '';
         execs.forEach(e => {
             const idx = branchPhaseOrder.indexOf(e.phase);
-            if (idx > maxIdx) maxIdx = idx;
+            if (idx > maxIdx) {
+                maxIdx = idx;
+                lastPhase = e.phase;
+            }
         });
+        // Se a fase não for legacy, retorna a própria fase da última execução
+        if (maxIdx === -1 && execs.length > 0) {
+            return execs[execs.length - 1].phase;
+        }
         return maxIdx >= 0 ? branchPhaseOrder[maxIdx] : 'macro_planning';
     };
+
+    const getDynamicPhaseLabel = (phaseKey: string, templateId?: string | null) => {
+        if (templateId) {
+            const tmpl = templates.find(t => t.id === templateId);
+            if (tmpl && tmpl.phases) {
+                const phaseConfig = tmpl.phases.find(p => p.key === phaseKey);
+                if (phaseConfig && phaseConfig.label) return phaseConfig.label;
+            }
+        }
+        return phaseLabels[phaseKey] || phaseKey.replace(/_/g, ' ').toUpperCase();
+    };
     const getBranchStatus = (execs: AgentTaskExecution[]) => {
-        if (execs.some(e => e.status === 'failed')) return 'failed';
-        if (execs.every(e => e.status === 'done')) return 'done';
-        if (execs.some(e => e.status === 'in_progress' || e.status === 'awaiting_advance')) return 'in_progress';
-        return 'pending';
+        if (!execs || execs.length === 0) return 'pending';
+        const sorted = [...execs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        const lastExec = sorted[sorted.length - 1];
+        return lastExec.status;
     };
 
     return (
@@ -237,137 +287,11 @@ export const AIExecutions = () => {
                     </div>
                 </div>
 
-                {/* Modal: Strategy Configurator */}
-                <AnimatePresence>
-                    {isModalOpen && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="w-full max-w-2xl bg-[#0D0D0D] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
-                            >
-                                {/* Modal Header */}
-                                <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
-                                            <Target className="w-5 h-5 text-purple-400" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-xl font-black text-white tracking-tight">Strategy Configurator</h2>
-                                            <p className="text-[10px] text-white/30 uppercase tracking-[0.2em]">Agentic Scoping & Context</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => setIsModalOpen(false)}
-                                        className="w-10 h-10 rounded-xl hover:bg-white/5 flex items-center justify-center transition-colors text-white/40 hover:text-white"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-
-                                    {/* Phase Toggle */}
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            <Zap className="w-3 h-3" /> Execution Phase
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <button
-                                                onClick={() => setSelectedPhase('macro_planning')}
-                                                className={`p-4 rounded-2xl border transition-all text-left group ${selectedPhase === 'macro_planning' ? 'bg-purple-500/10 border-purple-500/40' : 'bg-white/[0.02] border-white/5 hover:border-white/10'}`}
-                                            >
-                                                <h4 className={`font-bold text-sm mb-1 ${selectedPhase === 'macro_planning' ? 'text-purple-400' : 'text-white/60'}`}>Macro-Planning</h4>
-                                                <p className="text-[10px] text-white/30 leading-relaxed">Strategic audit, goal definition and roadmap generation.</p>
-                                            </button>
-                                            <button
-                                                onClick={() => setSelectedPhase('micro_planning')}
-                                                className={`p-4 rounded-2xl border transition-all text-left group ${selectedPhase === 'micro_planning' ? 'bg-cyan-500/10 border-cyan-500/40' : 'bg-white/[0.02] border-white/5 hover:border-white/10'}`}
-                                            >
-                                                <h4 className={`font-bold text-sm mb-1 ${selectedPhase === 'micro_planning' ? 'text-cyan-400' : 'text-white/60'}`}>Micro-Planning</h4>
-                                                <p className="text-[10px] text-white/30 leading-relaxed">BDD generation, technical tasking and implementation specs.</p>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Mission Context */}
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            <Target className="w-3 h-3" /> Mission Context (Optional)
-                                        </label>
-                                        <textarea
-                                            value={customContext}
-                                            onChange={(e) => setCustomContext(e.target.value)}
-                                            placeholder="Ex: Focus on the technical debt of the sidebar, or prioritize the GitHub sync logic..."
-                                            className="w-full h-24 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500/50 resize-none placeholder:text-white/10 transition-all"
-                                        />
-                                    </div>
-
-                                    {/* Sprint Picker */}
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            <Calendar className="w-3 h-3" /> Link to Sprint
-                                        </label>
-                                        <select
-                                            value={selectedSprintId || ''}
-                                            onChange={(e) => setSelectedSprintId(e.target.value || null)}
-                                            className="w-full p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500/50 transition-all appearance-none cursor-pointer"
-                                        >
-                                            <option value="" className="bg-[#0D0D0D]">Global Context (No Sprint)</option>
-                                            {availableSprints.map(s => (
-                                                <option key={s.id} value={s.id} className="bg-[#0D0D0D]">{s.tag} - {s.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Card Picker */}
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            <LayoutIcon className="w-3 h-3" /> Priority Cards ({selectedCardIds.length})
-                                        </label>
-                                        <div className="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                            {availableCards.length > 0 ? availableCards.map(card => (
-                                                <div
-                                                    key={card.id}
-                                                    onClick={() => toggleCard(card.id)}
-                                                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${selectedCardIds.includes(card.id) ? 'bg-white/10 border-white/20' : 'bg-white/[0.02] border-white/5 hover:border-white/10'}`}
-                                                >
-                                                    <span className={`text-xs font-medium ${selectedCardIds.includes(card.id) ? 'text-white' : 'text-white/40'}`}>
-                                                        {card.title}
-                                                    </span>
-                                                    {selectedCardIds.includes(card.id) && (
-                                                        <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                                                    )}
-                                                </div>
-                                            )) : (
-                                                <p className="text-[10px] text-white/20 italic p-4 text-center">No cards available for selection.</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Modal Footer */}
-                                <div className="p-6 border-t border-white/5 bg-white/[0.02] flex items-center justify-end gap-3">
-                                    <button
-                                        onClick={() => setIsModalOpen(false)}
-                                        className="px-6 py-2.5 rounded-xl text-white/60 text-sm font-bold hover:bg-white/5 transition-all"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleConfirmExecution}
-                                        disabled={isCreating}
-                                        className="flex items-center gap-2 px-8 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-sm hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50"
-                                    >
-                                        {isCreating ? 'Initializing...' : 'Launch Agent Session'}
-                                        <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
+                <StrategyConfiguratorModal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    projectId={projectId!}
+                />
 
                 {/* Stats */}
                 {!isLoading && executions.length > 0 && (
@@ -431,7 +355,7 @@ export const AIExecutions = () => {
                                                         {branchLabel}
                                                     </span>
                                                     <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${phaseColors[latestPhase] || 'text-white/30 bg-white/5 border-white/10'}`}>
-                                                        {phaseLabels[latestPhase]}
+                                                        {getDynamicPhaseLabel(latestPhase, root.workflow_template_id)}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-4 text-xs text-white/25">
@@ -447,7 +371,9 @@ export const AIExecutions = () => {
                                             {/* Phase Pipeline */}
                                             <div className="hidden md:flex items-center gap-1">
                                                 {branchPhaseOrder.map((ph, i) => {
-                                                    const phExec = allInBranch.find(e => e.phase === ph);
+                                                    const sortedForPh = [...allInBranch].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                                                    const phExecs = sortedForPh.filter(e => e.phase === ph);
+                                                    const phExec = phExecs[phExecs.length - 1];
                                                     if (!phExec) return (
                                                         <div key={ph} className="flex items-center gap-1">
                                                             {i > 0 && <div className="w-3 h-px bg-white/10" />}
@@ -466,6 +392,16 @@ export const AIExecutions = () => {
                                             <span className={`text-xs font-bold uppercase tracking-wider ${sc.color}`}>
                                                 {branchStatus.replace(/_/g, ' ')}
                                             </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteExecution(root.id);
+                                                }}
+                                                className="p-2 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 shrink-0"
+                                                title="Excluir Execução"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                             {isExpanded
                                                 ? <ChevronDown className="w-4 h-4 text-purple-400" />
                                                 : <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-purple-400 transition-colors" />
@@ -475,15 +411,39 @@ export const AIExecutions = () => {
 
                                     {/* Expanded: individual executions */}
                                     <AnimatePresence>
-                                        {isExpanded && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.2 }}
-                                                className="overflow-hidden bg-black/20"
-                                            >
-                                                <div className="p-3 space-y-1">
+                                        {isExpanded && (() => {
+                                            const branchTemplate = templates.find(t => t.id === root.workflow_template_id) || templates[0];
+                                            const activeExec = allInBranch.find(e => ['in_progress', 'awaiting_advance', 'pending'].includes(e.status));
+                                            const activePhaseKey = activeExec ? activeExec.phase : (allInBranch[allInBranch.length - 1]?.phase);
+                                            const completedPhaseKeys = allInBranch.filter(e => ['done', 'completed'].includes(e.status)).map(e => e.phase);
+
+                                            return (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.2 }}
+                                                    className="overflow-hidden bg-black/20"
+                                                >
+                                                    {branchTemplate && (
+                                                        <div className="px-5 py-4 border-b border-white/5 space-y-3 bg-white/[0.01]">
+                                                            <div className="flex items-center justify-between">
+                                                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                                                                    <LayoutIcon className="w-3.5 h-3.5 text-purple-400" />
+                                                                    Workflow Progress Pipeline
+                                                                </p>
+                                                                <span className="text-[9px] text-white/40 font-mono">Template: {branchTemplate.name}</span>
+                                                            </div>
+                                                            <div className="h-40 w-full">
+                                                                <WorkflowFlowPreview 
+                                                                    phases={branchTemplate.phases} 
+                                                                    activePhaseKey={activePhaseKey}
+                                                                    completedPhaseKeys={completedPhaseKeys}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <div className="p-3 space-y-1">
                                                     {allInBranch
                                                         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
                                                         .map((exec, idx) => {
@@ -504,7 +464,7 @@ export const AIExecutions = () => {
                                                                     <div className="flex-1 min-w-0">
                                                                         <div className="flex items-center gap-2">
                                                                             <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${phaseColors[exec.phase] || 'text-white/30 bg-white/5 border-white/10'}`}>
-                                                                                {phaseLabels[exec.phase]}
+                                                                                {getDynamicPhaseLabel(exec.phase, root.workflow_template_id)}
                                                                             </span>
                                                                             <span className="text-xs text-white/40 font-mono truncate">{exec.agent_name}</span>
                                                                         </div>
@@ -520,7 +480,8 @@ export const AIExecutions = () => {
                                                     }
                                                 </div>
                                             </motion.div>
-                                        )}
+                                        );
+                                        })()}
                                     </AnimatePresence>
                                 </div>
                             );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, FileText, Download, Trash2, Eye, File, FileSpreadsheet, Image as ImageIcon, Clock, HardDrive, Plus, Edit2, X, Upload, Map, Copy, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, FileText, Download, Trash2, Eye, File, FileSpreadsheet, Image as ImageIcon, Clock, HardDrive, Plus, Edit2, X, Upload, Map, Copy, ClipboardCheck, Zap } from 'lucide-react';
+
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from './neural-background';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -110,34 +111,57 @@ export function DocumentsView() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Bridge Ingest state
+  const [ingestingId, setIngestingId] = useState<string | null>(null);
+  const [ingestResult, setIngestResult] = useState<{ docId: string; sprints: number; cards: number } | null>(null);
+
+  const handleIngest = async (doc: GovernanceDoc, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (ingestingId) return;
+    if (!confirm(`Ingerir "${doc.name}" como Roadmap? Isso criará Sprints e Cards automaticamente.`)) return;
+    setIngestingId(doc.id);
+    setIngestResult(null);
+    try {
+      const result = await api.processGovernanceDoc(doc.id);
+      setIngestResult({ docId: doc.id, sprints: result.sprints_created.length, cards: result.cards_created.length });
+      setTimeout(() => setIngestResult(null), 6000);
+    } catch (err) {
+      console.error('Ingest failed:', err);
+      alert('Falha ao ingerir o roadmap. Verifique se o documento está no formato correto.');
+    } finally {
+      setIngestingId(null);
+    }
+  };
+
   const downloadTemplate = (type: 'prd' | 'roadmap') => {
     const templates = {
       prd: {
         filename: 'prd-template.md',
-        content: `# PRD — [Nome do Produto]
+        content: `# PRD — [Nome do Produto] (Agent-Centric SSoT)
 
-## 1. Visão do Produto
-Descreva a proposta de valor e o problema que o produto resolve.
+## 1. Visão Geral (Overview)
+Descreva a proposta de valor, persona e o problema central que o produto resolve.
 
-## 2. Objetivos
-- Objetivo 1
-- Objetivo 2
+## 2. Arquitetura Técnica e Stack (Source of Truth)
+Liste as tecnologias base (Ex: Next.js 16, Tailwind, Supabase) e padrões de projeto essenciais exigidos para os agentes de desenvolvimento.
 
-## 3. Requisitos Funcionais
-### 3.1 [Módulo]
-- RF-01: Descrição do requisito
-- RF-02: Descrição do requisito
+## 3. Estrutura de Navegação (Navigation Topology)
+Mapeie a topologia geral: Layouts principais, barras de navegação (Top Bar, Bottom Nav) e hierarquia de rotas.
 
-## 4. Requisitos Não Funcionais
-- RNF-01: Performance — tempo de resposta < 2s
-- RNF-02: Segurança — autenticação JWT
+## 4. Detalhamento das Páginas e Rotas
+Liste as páginas/rotas de forma exaustiva. Para cada página, defina os componentes React (ex: \`HomeClient.tsx\`, \`HeroSearch.tsx\`) que a compõem e a lógica de UI correspondente.
 
-## 5. Fora de Escopo
-- Item fora de escopo 1
+## 5. System Intents e Inteligência
+Como a IA/Agente se comporta neste sistema? Quais metadados e "intents" o sistema deve emitir para suportar uma interação autônoma?
 
-## 6. Critérios de Sucesso
-- Métrica 1
-- Métrica 2
+## 6. Modelagem e Glossário de Dados
+Liste as principais tabelas, views e RPCs (PostgreSQL) que compõem a base de dados desta aplicação.
+
+## 7. Requisitos de Segurança e Autenticação
+Descreva regras de RLS (Row Level Security), métodos de login (Ex: Magic Link, OTP) e controle de acesso.
+
+## 8. Gaps Conhecidos e Fora de Escopo
+O que explicitamente NÃO será construído nesta iteração.
 `,
       },
       roadmap: {
@@ -491,6 +515,26 @@ Descreva a proposta de valor e o problema que o produto resolve.
                         <motion.button onClick={(e) => { e.stopPropagation(); setViewDoc(doc); setViewModalOpen(true); }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex-1 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all" style={{ background: 'rgba(0, 212, 255, 0.1)', border: '1px solid rgba(0, 212, 255, 0.3)', color: 'var(--snaps-accent-blue)' }}>
                           <Eye className="w-3 h-3" /> View
                         </motion.button>
+                        {doc.type === 'roadmap' && (
+                          <motion.button
+                            onClick={(e) => handleIngest(doc, e)}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            disabled={ingestingId === doc.id}
+                            className="p-2 rounded-lg text-xs font-medium transition-all relative"
+                            style={{ background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.3)', color: '#A855F7', opacity: ingestingId === doc.id ? 0.6 : 1 }}
+                            title="Ingerir Roadmap (Gerar Sprints e Cards)"
+                          >
+                            {ingestingId === doc.id
+                              ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                              : <Zap className="w-3 h-3" />}
+                            {ingestResult?.docId === doc.id && (
+                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-violet-900 border border-violet-500/40 text-violet-200 text-xs px-2 py-1 rounded-lg pointer-events-none">
+                                ✓ {ingestResult.sprints}s · {ingestResult.cards}c
+                              </span>
+                            )}
+                          </motion.button>
+                        )}
                         <motion.button onClick={(e) => { e.stopPropagation(); openEdit(doc); }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="p-2 rounded-lg text-xs font-medium transition-all" style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', color: 'var(--snaps-accent-green)' }}>
                           <Edit2 className="w-3 h-3" />
                         </motion.button>
@@ -705,6 +749,50 @@ Descreva a proposta de valor e o problema que o produto resolve.
                 <button onClick={() => setViewModalOpen(false)} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
               </div>
               <div className="p-8 overflow-y-auto flex-1 bg-black/40">
+                <div className="sticky top-6 float-right z-10 flex flex-col gap-2 ml-4">
+                  <motion.button
+                    onClick={() => {
+                      setViewModalOpen(false);
+                      openEdit(viewDoc);
+                    }}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-3 rounded-full transition-all"
+                    style={{
+                      background: 'rgba(34, 197, 94, 0.15)',
+                      border: '1px solid rgba(34, 197, 94, 0.4)',
+                      color: 'var(--snaps-accent-green)',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+                    }}
+                    title="Editar"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </motion.button>
+                  <motion.button
+                    onClick={() => {
+                      const blob = new Blob([viewDoc.content], { type: 'text/markdown;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.setAttribute('download', `${viewDoc.name}.md`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-3 rounded-full transition-all"
+                    style={{
+                      background: 'rgba(34, 197, 94, 0.15)',
+                      border: '1px solid rgba(34, 197, 94, 0.4)',
+                      color: 'var(--snaps-accent-green)',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+                    }}
+                    title="Download"
+                  >
+                    <Download className="w-5 h-5" />
+                  </motion.button>
+                </div>
                 <div className="prose prose-invert prose-green max-w-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                     blockquote: ({ children }) => {

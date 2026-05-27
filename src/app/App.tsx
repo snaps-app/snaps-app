@@ -21,10 +21,12 @@ import { UserManagement } from '@/app/components/user-management';
 import { ProtectedRoute } from '@/app/components/protected-route';
 import { GovernanceView } from '@/app/components/governance-view';
 import { AIExecutions } from '@/app/components/ai-executions';
+import { WorkflowEditorCanvas } from '@/app/components/workflow-editor';
 import { QAView } from '@/app/components/qa-view';
 import { RetroView } from '@/app/components/retro-view';
 import { TimelineView } from '@/app/components/timeline-view';
 import { ExecutionCockpit } from '@/app/components/execution-cockpit';
+import { ScratchView } from '@/app/components/scratch-view';
 
 export default function App() {
     return (
@@ -52,6 +54,8 @@ export default function App() {
                         <Route path="/global-board" element={<GlobalBoard />} />
                         <Route path="/calendar" element={<CalendarView />} />
                         <Route path="/governance" element={<GovernanceView />} />
+                        <Route path="/workflow-editor/:templateId" element={<WorkflowEditorCanvas />} />
+                        <Route path="/workflow-editor/new" element={<WorkflowEditorCanvas />} />
                         <Route path="/admin/users" element={<UserManagement />} />
 
                         {/* Project Routes */}
@@ -116,6 +120,11 @@ export default function App() {
                     <Route
                         path="/project/:projectId/execution/:executionId"
                         element={<ExecutionCockpit />}
+                    />
+                    {/* Scratchpad — standalone fullscreen, no sidebar */}
+                    <Route
+                        path="/project/:projectId/execution/:executionId/scratch"
+                        element={<ScratchView />}
                     />
 
                     {/* Fallback */}

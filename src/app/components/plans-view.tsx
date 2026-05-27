@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import api, { Plan } from '@/services/api';
 import { PlanToCardsWizard } from './plan-to-cards-wizard';
 import { Spinner } from './ui/spinner';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const INPUT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-green-500 text-white placeholder:text-gray-600';
 const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-green-500 text-white';
@@ -161,7 +163,11 @@ export function PlansView() {
                       </span>
                     </h3>
                     {plan.content && (
-                      <p className="text-gray-400 text-sm whitespace-pre-wrap">{plan.content}</p>
+                      <div className="prose prose-invert max-w-none text-gray-400 text-sm mt-2 select-text cursor-text">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {plan.content}
+                        </ReactMarkdown>
+                      </div>
                     )}
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

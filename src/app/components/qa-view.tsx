@@ -132,6 +132,7 @@ export function QAView() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<'plans' | 'reports'>('plans');
+  const [copied, setCopied] = useState(false);
   const [sprints, setSprints] = useState<api.Sprint[]>([]);
   const [selectedSprintId, setSelectedSprintId] = useState<string>('');
   const [sprintCards, setSprintCards] = useState<api.Card[]>([]);
@@ -403,9 +404,23 @@ export function QAView() {
                            <FileText className="w-4 h-4" />
                            Aggregated Trouble Report
                          </span>
-                         <button className="text-xs text-cyan-400 hover:underline">Copy Markdown</button>
+                         <button 
+                           onClick={() => {
+                             if (troubleReport?.markdown_report) {
+                               navigator.clipboard.writeText(troubleReport.markdown_report);
+                               setCopied(true);
+                               setTimeout(() => setCopied(false), 2000);
+                             }
+                           }}
+                           className="text-xs text-cyan-400 hover:underline flex items-center gap-1"
+                         >
+                           {copied ? 'Copied!' : 'Copy Markdown'}
+                         </button>
                        </div>
-                       <div className="flex-1 overflow-y-auto p-6 prose prose-invert prose-cyan max-w-none prose-sm custom-scrollbar">
+                       <div 
+                         className="flex-1 overflow-y-auto p-6 prose prose-invert prose-cyan max-w-none prose-sm custom-scrollbar select-text cursor-text"
+                         style={{ userSelect: 'text', cursor: 'text' }}
+                       >
                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
                            {troubleReport.markdown_report}
                          </ReactMarkdown>

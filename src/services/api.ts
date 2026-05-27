@@ -13,13 +13,40 @@ const api = axios.create({
 });
 
 // Attach Supabase JWT to every request when available
+// Simple session caching to avoid redundant getSession calls (which can be slow)
+let cachedSession: any = null;
+let lastSessionFetch = 0;
+const SESSION_TTL = 5000; // 5 seconds
+
 api.interceptors.request.use(async (config) => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.access_token) {
-        config.headers.Authorization = `Bearer ${data.session.access_token}`;
+    const now = Date.now();
+    if (!cachedSession || (now - lastSessionFetch > SESSION_TTL)) {
+        const { data } = await supabase.auth.getSession();
+        cachedSession = data.session;
+        lastSessionFetch = now;
+    }
+    
+    if (cachedSession?.access_token) {
+        config.headers.Authorization = `Bearer ${cachedSession.access_token}`;
     }
     return config;
 });
+
+// --- Data Caching ---
+const dataCache: Record<string, { data: any; timestamp: number }> = {};
+const CACHE_TTL = 30000; // 30 seconds for project data
+
+const getCachedData = (key: string) => {
+    const entry = dataCache[key];
+    if (entry && (Date.now() - entry.timestamp < CACHE_TTL)) {
+        return entry.data;
+    }
+    return null;
+};
+
+const setCachedData = (key: string, data: any) => {
+    dataCache[key] = { data, timestamp: Date.now() };
+};
 
 // Catch cases where API returns HTML (e.g. port conflict with another app)
 api.interceptors.response.use(
@@ -47,6 +74,12 @@ export interface Project {
     settings?: Record<string, any>;
     created_at: string;
     updated_at: string;
+}
+
+export interface ProjectDetail extends Project {
+    boards: Board[];
+    labels: any[];
+    source_documents: any[];
 }
 
 export interface ProjectCreate {
@@ -127,6 +160,7 @@ export interface Card {
     source?: string;              // manual | github | mcp
     repo_name?: string;           // which repo this card belongs to
     tasks?: Task[];
+    task_count?: number;
     bdd_scenarios?: any[];
     bdd_validated?: boolean;
     created_at: string;
@@ -534,8 +568,13 @@ export const revokeProjectApiKey = async (projectId: string, keyId: string): Pro
     await api.delete(`/projects/${projectId}/api-keys/${keyId}`);
 };
 
-export const getProject = async (projectId: string): Promise<Project> => {
+export const getProject = async (projectId: string): Promise<ProjectDetail> => {
+    const cacheKey = `project_${projectId}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get(`/projects/${projectId}`);
+    setCachedData(cacheKey, response.data);
     return response.data;
 };
 
@@ -572,6 +611,10 @@ export const deleteEpic = async (epicId: string): Promise<void> => {
 
 // --- Snap Functions ---
 export const getSnaps = async (projectId: string, skip: number = 0, limit: number = 100, sprintId?: string, agentExecutionId?: string): Promise<Snap[]> => {
+    const cacheKey = `project_snaps_${projectId}_${skip}_${limit}_${sprintId || 'none'}_${agentExecutionId || 'none'}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     const params = new URLSearchParams({
         skip: skip.toString(),
         limit: limit.toString(),
@@ -580,6 +623,7 @@ export const getSnaps = async (projectId: string, skip: number = 0, limit: numbe
     if (agentExecutionId) params.append('agent_execution_id', agentExecutionId);
     
     const response = await api.get(`/projects/${projectId}/snaps/`, { params });
+    setCachedData(cacheKey, response.data);
     return response.data;
 };
 
@@ -591,6 +635,10 @@ export const createSnap = async (data: SnapCreate): Promise<Snap> => {
 export const updateSnap = async (snapId: string, data: Partial<SnapCreate>): Promise<Snap> => {
     const response = await api.patch(`/snaps/${snapId}`, data);
     return response.data;
+};
+
+export const deleteSnap = async (snapId: string): Promise<void> => {
+    await api.delete(`/snaps/${snapId}`);
 };
 
 export const getAllSnaps = async (): Promise<{ snaps: Snap[], projects: Project[] }> => {
@@ -607,12 +655,22 @@ export const getAllCards = async (skip = 0, limit = 100): Promise<CardWithProjec
 };
 
 export const getProjectBoard = async (projectId: string): Promise<Board> => {
+    const cacheKey = `project_board_${projectId}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get(`/projects/${projectId}/board`);
+    setCachedData(cacheKey, response.data);
     return response.data;
 };
 
 export const getProjectBoards = async (projectId: string): Promise<Board[]> => {
+    const cacheKey = `project_boards_${projectId}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get(`/projects/${projectId}/boards`);
+    setCachedData(cacheKey, response.data);
     return response.data;
 };
 
@@ -800,8 +858,8 @@ export const getAllSchedulings = async (skip = 0, limit = 500): Promise<Scheduli
     return response.data;
 };
 
-export const getAllDailyExecutions = async (skip = 0, limit = 500): Promise<DailyExecutionWithProject[]> => {
-    const response = await api.get('/daily_executions/', { params: { skip, limit } });
+export const getAllDailyExecutions = async (skip = 0, limit = 500, date?: string): Promise<DailyExecutionWithProject[]> => {
+    const response = await api.get('/daily_executions/', { params: { skip, limit, date } });
     return response.data;
 };
 
@@ -957,8 +1015,9 @@ export const unbindSkillFromAgent = async (agentId: string, skillId: string): Pr
     return response.data;
 };
 
-export const getGovernanceDocs = async (): Promise<GovernanceDoc[]> => {
-    const response = await api.get('/governance-docs/');
+export const getGovernanceDocs = async (projectId?: string): Promise<GovernanceDoc[]> => {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await api.get('/governance-docs/', { params });
     return response.data;
 };
 
@@ -1027,28 +1086,101 @@ export const deleteResource = async (resourceId: string): Promise<void> => {
     await api.delete(`/resources/${resourceId}`);
 };
 
-// --- Agent Execution Functions (Sprint 4.6) ---
+// --- Workflow Template Functions (Sprint 9.1) ---
+export interface PhaseConfigItem {
+    key: string;
+    label: string;
+    agent: string;
+    tools: string[];
+    skills: string[];
+    entry_prompt?: string | null;
+    exit_prompt?: string | null;
+    branching_strategy?: string | null;
+    join_strategy?: string | null;
+    on_failure?: string | null;
+    on_success?: string | null;
+    advance_conditions?: Record<string, any> | null;
+    max_retries?: number | null;
+    allowed_commands?: string[];
+    auto_advance?: boolean;
+}
+
+export interface WorkflowTemplate {
+    id: string;
+    name: string;
+    phases: PhaseConfigItem[];
+    default_agents: string[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface WorkflowTemplateCreate {
+    name: string;
+    phases: PhaseConfigItem[];
+    default_agents: string[];
+}
+
+export const getWorkflowTemplates = async (): Promise<WorkflowTemplate[]> => {
+    const response = await api.get('/workflow-templates/');
+    return response.data;
+};
+
+export const getWorkflowTemplate = async (templateId: string): Promise<WorkflowTemplate> => {
+    const response = await api.get(`/workflow-templates/${templateId}`);
+    return response.data;
+};
+
+export const createWorkflowTemplate = async (data: WorkflowTemplateCreate): Promise<WorkflowTemplate> => {
+    const response = await api.post('/workflow-templates/', data);
+    return response.data;
+};
+
+export const updateWorkflowTemplate = async (templateId: string, data: Partial<WorkflowTemplateCreate>): Promise<WorkflowTemplate> => {
+    const response = await api.patch(`/workflow-templates/${templateId}`, data);
+    return response.data;
+};
+
+export const deleteWorkflowTemplate = async (templateId: string): Promise<void> => {
+    await api.delete(`/workflow-templates/${templateId}`);
+};
+
+export const getWorkflowTemplatesMetadata = async (): Promise<{
+    available_tools: string[];
+    available_skills: string[];
+    available_agents: string[];
+}> => {
+    const response = await api.get('/workflow-templates/metadata');
+    return response.data;
+};
+
+// --- Agent Execution Functions (Sprint 4.6 / 9.1) ---
 export interface AgentTaskExecution {
     id: string;
     project_id: string;
     status: 'pending' | 'in_progress' | 'awaiting_advance' | 'done' | 'failed';
-    phase: 'micro_planning' | 'execution' | 'assurance' | 'retro';
+    phase: string;
     sprint_ids: string[];
     card_ids: string[];
     agent_name: string;
-    prompt_snapshot: string | { entry: string; exit?: string };
-    context_data: any;
+    prompt_snapshot?: string | { entry: string; exit?: string };
+    context_data?: any;
     advance_conditions: any;
+    plan_id?: string;
+    parent_id?: string;
+    root_id?: string;
+    branch_type?: string;
+    workflow_template_id?: string;
     created_at: string;
     updated_at: string;
 }
 
 export interface AgentTaskExecutionCreate {
     project_id: string;
-    phase: 'macro_planning' | 'micro_planning' | 'execution' | 'assurance' | 'retro';
+    phase: string;
     sprint_ids: string[];
     card_ids: string[];
     context_data?: any;
+    workflow_template_id?: string;
 }
 
 export const createAgentExecution = async (data: AgentTaskExecutionCreate): Promise<AgentTaskExecution> => {
@@ -1071,8 +1203,13 @@ export const getActiveAgentExecutions = async (projectId: string): Promise<Agent
     return response.data;
 };
 
-export const advanceAgentExecution = async (executionId: string, instructions?: string): Promise<AgentTaskExecution> => {
-    const response = await api.patch(`/api/agent-executions/${executionId}/advance`, { instructions });
+export const getProjectAgentExecutions = async (projectId: string, skip = 0, limit = 100): Promise<AgentTaskExecution[]> => {
+    const response = await api.get(`/api/projects/${projectId}/agent-executions`, { params: { skip, limit } });
+    return response.data;
+};
+
+export const advanceAgentExecution = async (executionId: string, instructions?: string, docIds?: string[], decisionIds?: string[]): Promise<AgentTaskExecution> => {
+    const response = await api.patch(`/api/agent-executions/${executionId}/advance`, { instructions, doc_ids: docIds, decision_ids: decisionIds });
     return response.data;
 };
 
@@ -1086,14 +1223,18 @@ export const rollbackAgentExecution = async (executionId: string, targetPhase: s
     return response.data;
 };
 
-export const syncAgentExecution = async (executionId: string, instructions?: string): Promise<AgentTaskExecution> => {
-    const response = await api.post(`/api/agent-executions/${executionId}/sync`, { instructions });
+export const syncAgentExecution = async (executionId: string, instructions?: string, docIds?: string[], decisionIds?: string[]): Promise<AgentTaskExecution> => {
+    const response = await api.post(`/api/agent-executions/${executionId}/sync`, { instructions, doc_ids: docIds, decision_ids: decisionIds });
     return response.data;
 };
 
 export const getAllAgentExecutions = async (skip = 0, limit = 100): Promise<AgentTaskExecution[]> => {
     const response = await api.get('/api/agent-executions/', { params: { skip, limit } });
     return response.data;
+};
+
+export const deleteAgentExecution = async (executionId: string): Promise<void> => {
+    await api.delete(`/api/agent-executions/${executionId}`);
 };
 
 const apiService = {
@@ -1114,6 +1255,8 @@ const apiService = {
 
     getSnaps,
     createSnap,
+    updateSnap,
+    deleteSnap,
     getAllSnaps,
     getProjectBoard,
     getProjectBoards,
@@ -1208,6 +1351,15 @@ const apiService = {
     getAllAgentExecutions,
     rollbackAgentExecution,
     syncAgentExecution,
+    deleteAgentExecution,
+
+    // Workflow Template exports
+    getWorkflowTemplates,
+    getWorkflowTemplate,
+    createWorkflowTemplate,
+    updateWorkflowTemplate,
+    deleteWorkflowTemplate,
+    getWorkflowTemplatesMetadata,
 
     importDocument: async (projectId: string, fileName: string, fileContent: string, onEvent: (event: any) => void) => {
         const message = `IMPORT_FILE: ${fileName}\nContent:\n${fileContent}`;

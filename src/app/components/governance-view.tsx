@@ -1,25 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, FileText, Wrench, Database, Plus, Edit2, Trash2, X, Shield, Link, Unlink, Eye, Upload, Copy, ClipboardCheck } from 'lucide-react';
+import { Bot, FileText, Wrench, Database, Plus, Edit2, Trash2, X, Shield, Link, Unlink, Eye, Upload, Copy, ClipboardCheck, GitBranch, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'motion/react';
 import api, { AgentInstruction, GovernanceDoc, Skill, Resource } from '@/services/api';
 import { PrdImportModal } from './prd-import-modal';
+import { WorkflowEditorCanvas } from './workflow-editor';
+import { DocumentViewModal } from './document-view-modal';
 
-type Tab = 'agents' | 'docs' | 'skills' | 'resources';
+type Tab = 'agents' | 'docs' | 'skills' | 'resources' | 'workflows';
 
 const TAB_CONFIG = {
   agents:    { label: 'Agents',    icon: Bot,      accent: 'purple' },
   docs:      { label: 'Docs',      icon: FileText,  accent: 'blue' },
   skills:    { label: 'Skills',    icon: Wrench,    accent: 'green' },
   resources: { label: 'Resources', icon: Database,   accent: 'amber' },
+  workflows: { label: 'Workflows', icon: GitBranch,  accent: 'purple' },
 } as const;
 
 const INPUT = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder:text-gray-600 focus:outline-none';
 const SELECT = `${INPUT}`;
 
 export function GovernanceView() {
-  const [tab, setTab] = useState<Tab>('agents');
+  const [tab, setTab] = useState<Tab>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab') as Tab;
+    return (tabParam && ['agents', 'docs', 'skills', 'resources', 'workflows'].includes(tabParam)) ? tabParam : 'agents';
+  });
   const [agents, setAgents] = useState<AgentInstruction[]>([]);
   const [docs, setDocs] = useState<GovernanceDoc[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -72,15 +79,16 @@ export function GovernanceView() {
 
   // Import modal
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [templatesCount, setTemplatesCount] = useState(0);
 
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     try {
-      const [a, d, s, r, p] = await Promise.all([
-        api.getAgents(), api.getGovernanceDocs(), api.getSkills(), api.getResources(), api.getProjects()
+      const [a, d, s, r, p, w] = await Promise.all([
+        api.getAgents(), api.getGovernanceDocs(), api.getSkills(), api.getResources(), api.getProjects(), api.getWorkflowTemplates()
       ]);
-      setAgents(a); setDocs(d); setSkills(s); setResources(r); setProjects(p);
+      setAgents(a); setDocs(d); setSkills(s); setResources(r); setProjects(p); setTemplatesCount(w.length);
     } catch (e) { console.error('Fetch error:', e); }
   };
 
@@ -174,8 +182,13 @@ export function GovernanceView() {
     try { await api.unbindSkillFromAgent(agentId, skillId); fetchAll(); } catch (e) { console.error(e); }
   };
 
-  const currentItems = (tab === 'agents' ? agents : tab === 'docs' ? docs : tab === 'skills' ? skills : resources)
-    .filter((item: any) => {
+  const currentItems = (
+    tab === 'agents' ? agents :
+    tab === 'docs' ? docs :
+    tab === 'skills' ? skills :
+    tab === 'workflows' ? [] :
+    resources
+  ).filter((item: any) => {
       const scope = item.scope || (item.project_id ? 'project' : 'global');
       if (scopeFilter === 'global') return scope === 'global';
       if (scopeFilter === 'project') {
@@ -428,46 +441,48 @@ export function GovernanceView() {
             </div>
             Governance Center
           </h1>
-          <div className="flex items-center gap-3">
-            {/* Scope Filters */}
-            <div className="flex p-1 bg-white/5 rounded-xl border border-white/10">
-              {(['all', 'global', 'project'] as const).map(s => (
-                <button
-                  key={s}
-                  onClick={() => setScopeFilter(s)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-                    scopeFilter === s ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-400'
-                  }`}
+          {tab !== 'workflows' && (
+            <div className="flex items-center gap-3">
+              {/* Scope Filters */}
+              <div className="flex p-1 bg-white/5 rounded-xl border border-white/10">
+                {(['all', 'global', 'project'] as const).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setScopeFilter(s)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                      scopeFilter === s ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-400'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {scopeFilter === 'project' && (
+                <select
+                  value={selectedProjectId}
+                  onChange={e => setSelectedProjectId(e.target.value)}
+                  className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                 >
-                  {s}
+                  <option value="">All Projects</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
+
+              <div className="h-8 w-[1px] bg-white/10 mx-1" />
+
+              {tab === 'docs' && (
+                <button onClick={() => setImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-300 font-bold hover:bg-violet-500/20 transition-all text-sm">
+                  <Upload className="w-4 h-4" />
+                  Importar
                 </button>
-              ))}
-            </div>
-
-            {scopeFilter === 'project' && (
-              <select
-                value={selectedProjectId}
-                onChange={e => setSelectedProjectId(e.target.value)}
-                className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="">All Projects</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            )}
-
-            <div className="h-8 w-[1px] bg-white/10 mx-1" />
-
-            {tab === 'docs' && (
-              <button onClick={() => setImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-300 font-bold hover:bg-violet-500/20 transition-all text-sm">
-                <Upload className="w-4 h-4" />
-                Importar
+              )}
+              <button onClick={openCreate} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 text-purple-300 font-bold hover:from-purple-500/30 hover:to-blue-500/30 transition-all text-sm">
+                <Plus className="w-5 h-5" />
+                New {cfg.label.slice(0, -1)}
               </button>
-            )}
-            <button onClick={openCreate} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 text-purple-300 font-bold hover:from-purple-500/30 hover:to-blue-500/30 transition-all text-sm">
-              <Plus className="w-5 h-5" />
-              New {cfg.label.slice(0, -1)}
-            </button>
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10">
@@ -475,7 +490,13 @@ export function GovernanceView() {
             const c = TAB_CONFIG[t];
             const Icon = c.icon;
             const isActive = tab === t;
-            const count = (t === 'agents' ? agents : t === 'docs' ? docs : t === 'skills' ? skills : resources).length;
+            const count = (
+              t === 'agents' ? agents.length :
+              t === 'docs' ? docs.length :
+              t === 'skills' ? skills.length :
+              t === 'workflows' ? templatesCount :
+              resources.length
+            );
             return (
               <button
                 key={t}
@@ -499,15 +520,28 @@ export function GovernanceView() {
 
       <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-hide">
         <AnimatePresence mode="wait">
-          <motion.div key={tab + scopeFilter + selectedProjectId} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-3">
-            {currentItems.length === 0 ? (
-              <div className="text-center py-16 text-gray-500 border border-dashed border-white/10 rounded-2xl">
-                <cfg.icon className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium">No items found with current filters</p>
-                <p className="text-sm mt-1">Try changing the scope or project filter</p>
-              </div>
-            ) : currentItems.map(renderCard)}
-          </motion.div>
+          {tab === 'workflows' ? (
+            <motion.div
+              key="workflows"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              <WorkflowEditorCanvas />
+            </motion.div>
+          ) : (
+            <motion.div key={tab + scopeFilter + selectedProjectId} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-3">
+              {currentItems.length === 0 ? (
+                <div className="text-center py-16 text-gray-500 border border-dashed border-white/10 rounded-2xl">
+                  <cfg.icon className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-medium">No items found with current filters</p>
+                  <p className="text-sm mt-1">Try changing the scope or project filter</p>
+                </div>
+              ) : currentItems.map(renderCard)}
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
@@ -579,85 +613,15 @@ export function GovernanceView() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {viewModalOpen && viewDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl shadow-blue-500/10">
-              <div className="p-6 border-b border-white/10 flex items-center justify-between bg-black/50">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">{viewDoc.name}</h2>
-                  <div className="flex gap-2 mt-2">
-                    <span className="text-xs px-2.5 py-1 rounded-full border uppercase tracking-wider font-bold bg-blue-500/10 border-blue-500/20 text-blue-400">{viewDoc.type}</span>
-                    <span className="text-xs px-2.5 py-1 rounded-full border uppercase tracking-wider bg-white/5 border-white/10 text-gray-400">{viewDoc.scope || 'global'}</span>
-                  </div>
-                </div>
-                <button onClick={() => setViewModalOpen(false)} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
-              </div>
-              <div className="p-8 overflow-y-auto flex-1 bg-black/40">
-                <div className="prose prose-invert prose-blue max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-                    blockquote: ({ children }) => {
-                      const textContent = React.Children.toArray(children)
-                        .map((child: any) => {
-                          if (typeof child === 'string') return child;
-                          if (child?.props?.children) {
-                            const nested = React.Children.toArray(child.props.children);
-                            return nested.map((n: any) => (typeof n === 'string' ? n : n?.props?.children || '')).join('');
-                          }
-                          return '';
-                        })
-                        .join('')
-                        .trim();
-                      const [copied, setCopied] = React.useState(false);
-                      return (
-                        <blockquote className="relative group">
-                          {children}
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(textContent);
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 2000);
-                            }}
-                            className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/15 hover:border-white/20"
-                            title="Copiar texto"
-                          >
-                            {copied ? <ClipboardCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
-                          </button>
-                        </blockquote>
-                      );
-                    },
-                    code: ({ className, children, ...props }) => {
-                      const isBlock = className?.includes('language-');
-                      if (!isBlock) return <code className={className} {...props}>{children}</code>;
-                      const textContent = String(children).replace(/\n$/, '');
-                      const [copied, setCopied] = React.useState(false);
-                      return (
-                        <div className="relative group">
-                          <code className={className} {...props}>{children}</code>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(textContent);
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 2000);
-                            }}
-                            className="absolute top-2 right-2 p-1.5 rounded-md bg-white/10 border border-white/10 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/20"
-                            title="Copiar código"
-                          >
-                            {copied ? <ClipboardCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
-                          </button>
-                        </div>
-                      );
-                    }
-                  }}>
-                    {viewDoc.content}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <DocumentViewModal
+        isOpen={viewModalOpen}
+        doc={viewDoc}
+        onClose={() => setViewModalOpen(false)}
+        onCustomEdit={() => {
+            setViewModalOpen(false);
+            openEdit(viewDoc);
+        }}
+      />
     </div>
   );
 }
