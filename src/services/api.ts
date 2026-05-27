@@ -213,6 +213,7 @@ export interface Plan {
     content?: string;
     status: 'draft' | 'approved' | 'executed' | 'archived';
     author?: string;
+    execution_order?: number;
     created_at: string;
     updated_at: string;
 }
@@ -224,6 +225,7 @@ export interface PlanCreate {
     status?: string;
     author?: string;
     sprint_id?: string;
+    execution_order?: number;
 }
 
 // --- Decision Interfaces ---

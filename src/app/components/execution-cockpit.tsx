@@ -135,6 +135,19 @@ export const ExecutionCockpit: React.FC = () => {
     // Workflow templates
     const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
 
+    const activeTemplate = templates.find(t => t.id === execution?.workflow_template_id);
+    const isSequential = activeTemplate?.phases?.find(p => p.key === 'execution')?.execution_mode === 'sequential';
+    const currentPlan = execution ? (execution.context_data?.plans || []).find((p: any) => p.id === execution.plan_id) : null;
+
+    const isPlanWaiting = (plan: any) => {
+        if (!isSequential || !currentPlan) return false;
+        const planOrder = plan.execution_order;
+        const currentOrder = currentPlan?.execution_order;
+        if (planOrder === undefined || planOrder === null) return false;
+        if (currentOrder === undefined || currentOrder === null) return false;
+        return planOrder > currentOrder && ['selected', 'approved', 'draft'].includes(plan.status);
+    };
+
     // Plan Editing States
     const [isEditingPlan, setIsEditingPlan] = useState(false);
     const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
@@ -1449,14 +1462,18 @@ export const ExecutionCockpit: React.FC = () => {
                                 </div>
                             )}
                             {(execution.context_data?.plans || []).length > 0 ? (
-                                (execution.context_data?.plans || []).map((plan: any) => (
-                                    <div
-                                        key={plan.id}
-                                        className={`p-8 rounded-3xl border relative overflow-hidden group/plan transition-all ${plan.id === execution.plan_id
-                                            ? 'bg-blue-500/[0.05] border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.05)]'
-                                            : 'bg-white/[0.03] border-white/10'
-                                            } hover:border-blue-500/40`}
-                                    >
+                                (execution.context_data?.plans || []).map((plan: any) => {
+                                    const isWaiting = isPlanWaiting(plan);
+                                    return (
+                                        <div
+                                            key={plan.id}
+                                            className={`p-8 rounded-3xl border relative overflow-hidden group/plan transition-all ${plan.id === execution.plan_id
+                                                ? 'bg-blue-500/[0.05] border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.05)]'
+                                                : isWaiting
+                                                    ? 'bg-white/[0.01] border-white/5 opacity-60'
+                                                    : 'bg-white/[0.03] border-white/10'
+                                                } hover:border-blue-500/40`}
+                                        >
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl -mr-16 -mt-16 group-hover/plan:bg-blue-500/10 transition-colors" />
 
                                         <div className="flex items-center gap-3 mb-6 relative z-10">
@@ -1473,7 +1490,14 @@ export const ExecutionCockpit: React.FC = () => {
                                                         placeholder="Plan Title..."
                                                     />
                                                 ) : (
-                                                    <h2 className="text-xl font-bold text-white leading-tight truncate">{plan.title}</h2>
+                                                    <h2 className="text-xl font-bold text-white leading-tight truncate flex items-center gap-2">
+                                                        {plan.title}
+                                                        {plan.execution_order !== undefined && plan.execution_order !== null && (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                                                #{plan.execution_order}
+                                                            </span>
+                                                        )}
+                                                    </h2>
                                                 )}
                                                 {plan.sprint_id && (
                                                     <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest mt-1">
@@ -1505,6 +1529,11 @@ export const ExecutionCockpit: React.FC = () => {
                                                     <div className="flex items-center gap-4">
                                                         {/* Status & Transitions */}
                                                         <div className="flex items-center gap-2">
+                                                            {isWaiting && (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-[10px] font-bold uppercase tracking-wider mr-2">
+                                                                    ⏳ Aguardando plano anterior
+                                                                </span>
+                                                            )}
                                                             {plan.status === 'draft' && (
                                                                 <>
                                                                     <Tag variant="orange" className="px-2 py-0.5 text-[9px] uppercase font-bold tracking-wider">Draft</Tag>
@@ -1647,7 +1676,8 @@ export const ExecutionCockpit: React.FC = () => {
                                             )}
                                         </div>
                                     </div>
-                                ))
+                                    );
+                                })
                             ) : (
                                 <div className="p-8 rounded-3xl bg-white/[0.03] border border-white/10">
                                     <div className="flex items-center gap-3 mb-6">
