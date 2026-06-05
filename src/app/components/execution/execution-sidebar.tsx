@@ -6,7 +6,9 @@ import {
     Clock,
     Network,
     RefreshCcw,
-    Loader2
+    Loader2,
+    GitBranch,
+    ExternalLink
 } from 'lucide-react';
 import { Tag } from '@/app/components/shared/tag';
 import type { AgentTaskExecution, Card, ProjectDetail, Sprint, WorkflowTemplate } from '@/services/types';
@@ -141,6 +143,41 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                     <h1 className="text-lg font-bold text-white tracking-tight">Execution Cockpit</h1>
                     <span className="text-[9px] font-mono text-white/20 uppercase tracking-widest select-all">ID: {execution.id}</span>
                 </div>
+                {(() => {
+                    const ctx = execution.context_data || {};
+                    const gitBranch = ctx.git_branch;
+                    const prUrl = ctx.pr_url;
+                    const ciStatus = ctx.ci_status;
+                    const retryCount = ctx.retry_count;
+                    if (!gitBranch && !prUrl && !ciStatus) return null;
+                    const ciBadge = ciStatus === 'success'
+                        ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">CI: passed</span>
+                        : ciStatus === 'failed'
+                        ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 border border-red-500/30 text-red-300">CI: failed</span>
+                        : ciStatus
+                        ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300">CI: {ciStatus}</span>
+                        : null;
+                    return (
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] text-white/40">
+                            {gitBranch && (
+                                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                    <GitBranch className="w-3 h-3 text-blue-400/60" />
+                                    <span className="font-mono text-blue-300/70">{gitBranch}</span>
+                                </div>
+                            )}
+                            {prUrl && (
+                                <a href={prUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-purple-300 transition-colors whitespace-nowrap">
+                                    <ExternalLink className="w-3 h-3 text-purple-400/60" />
+                                    <span>PR Link</span>
+                                </a>
+                            )}
+                            {ciBadge}
+                            {retryCount !== undefined && retryCount > 0 && (
+                                <span className="text-[9px] text-white/30">Retries: {retryCount}</span>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Left Panel Content */}

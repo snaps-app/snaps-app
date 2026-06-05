@@ -117,7 +117,10 @@ export const ExecutionCockpit: React.FC = () => {
         updatePlanStatus,
         deletePlanFn,
         handleApproveBDD,
-        handleToggleScenario
+        handleToggleScenario,
+        selectedTestPlanIds,
+        isSavingTestPlanContext,
+        handleSaveTestPlanContext,
     } = useExecutionCockpit();
 
     if (isLoading) {
@@ -325,6 +328,9 @@ export const ExecutionCockpit: React.FC = () => {
                             troubleReport={troubleReport}
                             copiedId={copiedId}
                             handleCopy={handleCopy}
+                            selectedTestPlanIds={selectedTestPlanIds}
+                            isSavingTestPlanContext={isSavingTestPlanContext}
+                            onSaveTestPlanContext={handleSaveTestPlanContext}
                         />
                     )}
 
@@ -351,9 +357,10 @@ export const ExecutionCockpit: React.FC = () => {
                 onClose={() => setSelectedCard(null)}
                 onSave={async (cardData) => {
                     if (selectedCard) {
+                        const cardId = selectedCard.id;
                         try {
-                            await updateCard(selectedCard.id, cardData);
-                            setCards(prev => prev.map(c => c.id === selectedCard.id ? { ...c, ...cardData } : c));
+                            const updatedCard = await updateCard(cardId, cardData);
+                            setCards(prev => prev.map(c => c.id === cardId ? updatedCard : c));
                         } catch (err) {
                             console.error('Failed to update card:', err);
                         }

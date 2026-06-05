@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Home } from '@/app/components/layout/home';
 import { ProjectWorkspace } from '@/app/components/project/project-workspace';
 import { ActiveChat } from '@/app/components/chat/active-chat';
@@ -18,6 +19,7 @@ import { DecisionsView } from '@/app/components/views/decisions-view';
 import { SupportView } from '@/app/components/views/support-view';
 import { Login } from '@/app/components/views/login';
 import { UserManagement } from '@/app/components/views/user-management';
+import { UpdatePassword } from '@/app/components/views/update-password';
 import { ProtectedRoute } from '@/app/components/layout/protected-route';
 import { GovernanceView } from '@/app/components/views/governance-view';
 import { AIExecutions } from '@/app/components/views/ai-executions';
@@ -27,14 +29,43 @@ import { RetroView } from '@/app/components/views/retro-view';
 import { TimelineView } from '@/app/components/views/timeline-view';
 import { ExecutionCockpit } from '@/app/components/execution/execution-cockpit';
 import { ScratchView } from '@/app/components/views/scratch-view';
+import { supabase } from '@/lib/supabaseClient';
+
+function AuthRedirector() {
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const hash = window.location.hash;
+        // Only navigate if we are NOT already on /update-password
+        // This prevents stripping the hash before Supabase can parse it
+        if (hash && (hash.includes('type=invite') || hash.includes('type=recovery'))) {
+            if (window.location.pathname !== '/update-password') {
+                navigate('/update-password' + hash);
+            }
+        }
+
+        const { data } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                if (window.location.pathname !== '/update-password') {
+                    navigate('/update-password');
+                }
+            }
+        });
+        return () => data.subscription.unsubscribe();
+    }, [navigate]);
+
+    return null;
+}
 
 export default function App() {
     return (
         <BrowserRouter>
             <div className="min-h-screen" style={{ backgroundColor: 'var(--snaps-bg)' }}>
+                <AuthRedirector />
                 <Routes>
                     {/* Public */}
                     <Route path="/login" element={<Login />} />
+                    <Route path="/update-password" element={<UpdatePassword />} />
 
                     {/* Protected: main layout including project routes */}
                     <Route
@@ -56,7 +87,7 @@ export default function App() {
                         <Route path="/governance" element={<GovernanceView />} />
                         <Route path="/workflow-editor/:templateId" element={<WorkflowEditorCanvas />} />
                         <Route path="/workflow-editor/new" element={<WorkflowEditorCanvas />} />
-                        <Route path="/admin/users" element={<UserManagement />} />
+                        <Route path="/users" element={<UserManagement />} />
 
                         {/* Project Routes */}
                         <Route

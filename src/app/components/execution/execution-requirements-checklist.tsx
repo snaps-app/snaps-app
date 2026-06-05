@@ -160,6 +160,41 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
                     </span>
                 </div>
             )}
+
+            {activeRules.ci_passed && (
+                <div className="flex items-center gap-3">
+                    {execution.context_data?.ci_status === 'success' ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                            <Check className="w-2.5 h-2.5 text-green-400" />
+                        </div>
+                    ) : (
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                    )}
+                    <span className={`text-[11px] ${execution.context_data?.ci_status === 'success' ? 'text-white/60' : 'text-white/30'}`}>
+                        CI Passed
+                        {execution.context_data?.ci_status && execution.context_data.ci_status !== 'success' && (
+                            <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300">
+                                {execution.context_data.ci_status}
+                            </span>
+                        )}
+                    </span>
+                </div>
+            )}
+
+            {activeRules.pr_merged && (
+                <div className="flex items-center gap-3">
+                    {execution.context_data?.pr_merged ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                            <Check className="w-2.5 h-2.5 text-green-400" />
+                        </div>
+                    ) : (
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                    )}
+                    <span className={`text-[11px] ${execution.context_data?.pr_merged ? 'text-white/60' : 'text-white/30'}`}>
+                        PR Merged
+                    </span>
+                </div>
+            )}
         </div>
     );
 };

@@ -9,7 +9,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Shield, 
-  Bot 
+  Bot,
+  Users
 } from 'lucide-react';
 
 import { motion } from 'motion/react';
@@ -23,6 +24,44 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [userEmail, setUserEmail] = React.useState<string | null>(null);
+  const [globalRole, setGlobalRole] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    import('@/lib/supabaseClient').then(({ supabase }) => {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.user?.email) {
+          setUserEmail(data.session.user.email);
+          fetchGlobalRole(data.session.access_token);
+        }
+      });
+      supabase.auth.onAuthStateChange((_event, session) => {
+        setUserEmail(session?.user?.email ?? null);
+        if (session) {
+          fetchGlobalRole(session.access_token);
+        } else {
+          setGlobalRole(null);
+        }
+      });
+    });
+  }, []);
+
+  const fetchGlobalRole = async (token: string) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setGlobalRole(data.global_role);
+      }
+    } catch (e) {
+      console.error('Failed to fetch global role:', e);
+    }
+  };
+
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
     { label: 'Projects', icon: FolderArchive, path: '/projects' },
@@ -32,6 +71,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { label: 'Governance', icon: Shield, path: '/governance' },
     { label: 'AI Executions', icon: Bot, path: '/ai-executions' },
   ];
+
+  if (globalRole === 'super_admin') {
+    navItems.push({ label: 'Users', icon: Users, path: '/users' });
+  }
 
   return (
     <div
@@ -112,13 +155,13 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       <div className="p-4 border-t border-white/10 flex-shrink-0">
         <div className="flex items-center gap-3 px-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#A855F7] p-[1px]">
-            <div className="w-full h-full rounded-full bg-[#0A0A0A] flex items-center justify-center text-[10px] font-bold text-white">
-              BB
+            <div className="w-full h-full rounded-full bg-[#0A0A0A] flex items-center justify-center text-[10px] font-bold text-white uppercase">
+              {userEmail ? userEmail.substring(0, 2) : 'BB'}
             </div>
           </div>
           {!isCollapsed && (
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-white">Bruno Bogochvol</span>
+            <div className="flex flex-col overflow-hidden text-ellipsis whitespace-nowrap max-w-[180px]">
+              <span className="text-xs font-bold text-white truncate" title={userEmail || 'Bruno Bogochvol'}>{userEmail || 'Bruno Bogochvol'}</span>
               <span className="text-[10px] text-zinc-500">Admin</span>
             </div>
           )}

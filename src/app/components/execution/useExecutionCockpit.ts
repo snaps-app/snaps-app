@@ -33,6 +33,8 @@ export const useExecutionCockpit = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'plan' | 'cards' | 'bdd' | 'trouble' | 'retro'>('plan');
     const [troubleReport, setTroubleReport] = useState<any>(null);
+    const [selectedTestPlanIds, setSelectedTestPlanIds] = useState<string[]>([]);
+    const [isSavingTestPlanContext, setIsSavingTestPlanContext] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [entryReviewed, setEntryReviewed] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -258,6 +260,9 @@ export const useExecutionCockpit = () => {
                     fetchTroubleReport(data.sprint_ids);
                 }
 
+                const savedIds = data.context_data?.selected_test_plan_ids;
+                if (Array.isArray(savedIds)) setSelectedTestPlanIds(savedIds);
+
             } catch (error) {
                 console.error('Failed to fetch execution:', error);
             } finally {
@@ -267,6 +272,20 @@ export const useExecutionCockpit = () => {
 
         fetchExecution();
     }, [executionId, projectId]);
+
+    const handleSaveTestPlanContext = async (ids: string[]) => {
+        if (!executionId) return;
+        setIsSavingTestPlanContext(true);
+        try {
+            const updated = await syncAgentExecution(executionId, undefined, undefined, undefined, ids);
+            setExecution(updated);
+            setSelectedTestPlanIds(ids);
+        } catch (err) {
+            console.error('Failed to save test plan context:', err);
+        } finally {
+            setIsSavingTestPlanContext(false);
+        }
+    };
 
     const handleRefresh = async () => {
         if (!executionId) return;
@@ -474,6 +493,10 @@ export const useExecutionCockpit = () => {
         handleSaveWalkthrough,
         handleEditPlan,
         handleSavePlan,
+        selectedTestPlanIds,
+        setSelectedTestPlanIds,
+        isSavingTestPlanContext,
+        handleSaveTestPlanContext,
         handleRefresh,
         handleAdvance,
         handleRollback,
