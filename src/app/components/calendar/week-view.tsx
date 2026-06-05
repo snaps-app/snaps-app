@@ -1,11 +1,11 @@
+import type { CardWithProject, DailyExecutionWithProject, SchedulingWithProject } from '@/services/types';
 import { useMemo } from 'react';
 import {
     startOfWeek, endOfWeek, eachDayOfInterval, format, isToday
 } from 'date-fns';
 import { Repeat, Check, Ban } from 'lucide-react';
-import type { SchedulingWithProject, DailyExecutionWithProject, CardWithProject } from '@/services/api';
-import type { ExecuteTodayData } from './execute-today-modal';
-import { ScrollArea } from '../ui/scroll-area';
+import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
+import { ScrollArea } from '@/app/components/ui/scroll-area';
 
 interface WeekViewProps {
     currentDate: Date;

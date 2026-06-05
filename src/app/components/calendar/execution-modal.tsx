@@ -1,8 +1,11 @@
+import { createDailyExecution, deleteDailyExecution, updateDailyExecution } from '@/services/dailyExecutions';
+import { getEpics } from '@/services/epics';
+import { getProjects } from '@/services/projects';
+import type { DailyExecution, Epic, Project } from '@/services/types';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Clock, Loader2, Calendar, Type, AlignLeft, Target, Rocket, Check, Ban, Circle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import apiService, { DailyExecution, Project, Epic } from '@/services/api';
 
 interface ExecutionModalProps {
     isOpen: boolean;
@@ -72,7 +75,7 @@ export function ExecutionModal({ isOpen, onClose, execution, currentDate, defaul
     const fetchInitialData = async () => {
         setFetchingProjects(true);
         try {
-            const data = await apiService.getProjects();
+            const data = await getProjects();
             setProjects(data);
             if (data.length > 0 && !projectId && !execution) {
                 setProjectId(data[0].id);
@@ -86,7 +89,7 @@ export function ExecutionModal({ isOpen, onClose, execution, currentDate, defaul
 
     const fetchEpics = async (pid: string) => {
         try {
-            const data = await apiService.getEpics(pid);
+            const data = await getEpics(pid);
             setEpics(data);
         } catch (error) {
             console.error("Error fetching epics:", error);
@@ -112,9 +115,9 @@ export function ExecutionModal({ isOpen, onClose, execution, currentDate, defaul
             };
 
             if (execution) {
-                await apiService.updateDailyExecution(execution.id, payload);
+                await updateDailyExecution(execution.id, payload);
             } else {
-                await apiService.createDailyExecution(projectId, payload);
+                await createDailyExecution(projectId, payload);
             }
             onSuccess();
             onClose();
@@ -131,7 +134,7 @@ export function ExecutionModal({ isOpen, onClose, execution, currentDate, defaul
         if (!confirm('Are you sure you want to delete this execution?')) return;
         setDeleting(true);
         try {
-            await apiService.deleteDailyExecution(execution.id);
+            await deleteDailyExecution(execution.id);
             onSuccess();
             onClose();
         } catch (error) {

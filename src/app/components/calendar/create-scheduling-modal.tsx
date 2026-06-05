@@ -1,8 +1,11 @@
+import { getEpics } from '@/services/epics';
+import { getProjects } from '@/services/projects';
+import { createScheduling } from '@/services/schedulings';
+import type { Epic, Project, SchedulingCreate } from '@/services/types';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, Type, AlignLeft, Loader2, Target, Repeat, Clock } from 'lucide-react';
 import { format } from 'date-fns';
-import apiService, { Project, Epic, SchedulingCreate } from '@/services/api';
 
 interface CreateSchedulingModalProps {
     isOpen: boolean;
@@ -57,7 +60,7 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
     const fetchInitialData = async () => {
         setFetchingProjects(true);
         try {
-            const data = await apiService.getProjects();
+            const data = await getProjects();
             setProjects(data);
             if (data.length > 0) {
                 setProjectId(data[0].id);
@@ -71,7 +74,7 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
 
     const fetchEpics = async (pid: string) => {
         try {
-            const data = await apiService.getEpics(pid);
+            const data = await getEpics(pid);
             setEpics(data);
         } catch (error) {
             console.error("Error fetching epics:", error);
@@ -97,7 +100,7 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
                 recurrence: recurrence === 'none' ? undefined : recurrence,
                 status: 'scheduled'
             };
-            await apiService.createScheduling(projectId, payload);
+            await createScheduling(projectId, payload);
             onSuccess();
             onClose();
             // Reset form

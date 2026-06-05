@@ -1,13 +1,13 @@
+import type { CardWithProject, SchedulingWithProject } from '@/services/types';
 import { useMemo } from 'react';
 import {
     startOfMonth, endOfMonth, startOfWeek, endOfWeek,
     eachDayOfInterval, format, isSameMonth, isToday, isWeekend
 } from 'date-fns';
 import Holidays from 'date-holidays';
-import type { SchedulingWithProject, CardWithProject } from '@/services/api';
-import type { ExecuteTodayData } from './execute-today-modal';
+import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
 import { Loader2, Repeat } from 'lucide-react';
-import { ScrollArea } from '../ui/scroll-area';
+import { ScrollArea } from '@/app/components/ui/scroll-area';
 
 interface MonthViewProps {
     currentDate: Date;

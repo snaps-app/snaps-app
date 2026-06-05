@@ -1,6 +1,10 @@
+import { getBoard, getProjectBoard } from '@/services/boards';
+import { getEpics } from '@/services/epics';
+import { getProject } from '@/services/projects';
+import { getSprints } from '@/services/sprints';
+import type { Board, Card, Epic, Sprint } from '@/services/types';
 import { useState, useEffect, useCallback } from 'react';
-import api, { Card, Board, Epic, Sprint } from '@/services/api';
-import { BOARD_COLORS } from '../board-constants';
+import { BOARD_COLORS } from '@/app/components/board/board-constants';
 
 export function useBoardData(projectId: string | undefined, boardId: string | undefined) {
   const [board, setBoard] = useState<Board | null>(null);
@@ -14,7 +18,7 @@ export function useBoardData(projectId: string | undefined, boardId: string | un
 
   const fetchBoard = useCallback(async (id: string) => {
     try {
-      const data = await api.getBoard(id);
+      const data = await getBoard(id);
       const columnsWithDefaults = (data.columns || []).map(col => {
         const s = col.id.toLowerCase();
         if (s === 'todo' || s === 'backlog' || col.title.toLowerCase() === 'to do' || col.title.toLowerCase() === 'backlog') return { ...col, color: BOARD_COLORS[0] };
@@ -43,8 +47,8 @@ export function useBoardData(projectId: string | undefined, boardId: string | un
       setIsLoadingBoard(true);
       try {
         const [proj, boardData] = await Promise.all([
-          api.getProject(projectId),
-          boardId ? api.getBoard(boardId) : api.getProjectBoard(projectId)
+          getProject(projectId),
+          boardId ? getBoard(boardId) : getProjectBoard(projectId)
         ]);
 
         if (ignore) return;
@@ -73,8 +77,8 @@ export function useBoardData(projectId: string | undefined, boardId: string | un
         if (!ignore) setIsLoadingBoard(false); 
       }
       if (!ignore) {
-        api.getEpics(projectId).then(setEpics);
-        api.getSprints(projectId).then(setSprints);
+        getEpics(projectId).then(setEpics);
+        getSprints(projectId).then(setSprints);
       }
     };
     initBoard();

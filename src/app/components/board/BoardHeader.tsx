@@ -1,9 +1,9 @@
+import type { Epic, Sprint } from '@/services/types';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Zap, Play, Settings, Check, Layers } from 'lucide-react';
-import { FilterMultiSelect } from '../FilterMultiSelect';
-import { BOARD_COLORS } from '../board-constants';
-import { Epic, Sprint } from '@/services/api';
+import { FilterMultiSelect } from '@/app/components/shared/FilterMultiSelect';
+import { BOARD_COLORS } from '@/app/components/board/board-constants';
 
 interface BoardHeaderProps {
   projectId?: string;

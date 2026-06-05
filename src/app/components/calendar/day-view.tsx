@@ -1,10 +1,10 @@
+import type { CardWithProject, DailyExecutionWithProject, RoutineWithStatus, SchedulingWithProject } from '@/services/types';
 import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { CheckCircle2, Clock, CalendarDays, Repeat } from 'lucide-react';
-import type { SchedulingWithProject, DailyExecutionWithProject, CardWithProject, RoutineWithStatus } from '@/services/api';
-import type { ExecuteTodayData } from './execute-today-modal';
-import { ScrollArea } from '../ui/scroll-area';
-import { DailyExecutionTimeline } from '../daily-execution-timeline';
+import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
+import { ScrollArea } from '@/app/components/ui/scroll-area';
+import { DailyExecutionTimeline } from '@/app/components/execution/daily-execution-timeline';
 
 interface DayViewProps {
     currentDate: Date;

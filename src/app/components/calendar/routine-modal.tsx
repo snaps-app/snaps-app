@@ -1,8 +1,8 @@
+import { createRoutine, deleteRoutine, updateRoutine } from '@/services/routines';
+import type { Routine, RoutineCreate } from '@/services/types';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Loader2, Type, AlignLeft, Clock, Repeat, Trash2 } from 'lucide-react';
-import type { Routine, RoutineCreate } from '@/services/api';
-import { createRoutine, updateRoutine, deleteRoutine } from '@/services/api';
 
 interface RoutineModalProps {
     isOpen: boolean;
