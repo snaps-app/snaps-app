@@ -1,6 +1,7 @@
 import type { Card, Epic, Sprint } from '@/services/types';
 import { useDrag } from 'react-dnd';
 import { BoardCard } from '@/app/components/shared/board-card';
+import { SprintMacroCard } from '@/app/components/shared/SprintMacroCard';
 
 interface KanbanCardProps {
   task: Card;
@@ -8,9 +9,10 @@ interface KanbanCardProps {
   boardColor: string;
   epic?: Epic;
   sprint?: Sprint;
+  onStartExecution?: (sprintId: string) => void;
 }
 
-export function KanbanCard({ task, onCardClick, boardColor, epic, sprint }: KanbanCardProps) {
+export function KanbanCard({ task, onCardClick, boardColor, epic, sprint, onStartExecution }: KanbanCardProps) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'TASK',
     item: { id: task.id, status: task.status },
@@ -18,6 +20,18 @@ export function KanbanCard({ task, onCardClick, boardColor, epic, sprint }: Kanb
       isDragging: !!monitor.isDragging(),
     }),
   }));
+
+  if (task.card_type === 'sprint_macro') {
+    return (
+      <div ref={drag as any} style={{ opacity: isDragging ? 0.5 : 1 }}>
+        <SprintMacroCard
+          card={task}
+          onClick={onCardClick}
+          onStartExecution={onStartExecution}
+        />
+      </div>
+    );
+  }
 
   return (
     <div ref={drag as any} style={{ opacity: isDragging ? 0.5 : 1 }}>

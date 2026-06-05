@@ -20,6 +20,7 @@ export interface BoardColumnProps {
   epics: Epic[];
   sprints: Sprint[];
   boardColor: string;
+  onStartExecution?: (sprintId: string) => void;
 }
 
 export function BoardColumn({
@@ -36,6 +37,7 @@ export function BoardColumn({
   epics,
   sprints,
   boardColor,
+  onStartExecution,
 }: BoardColumnProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(title);
@@ -207,6 +209,7 @@ export function BoardColumn({
                 boardColor={boardColor}
                 epic={epics.find((e) => e.id === task.epic_id)}
                 sprint={sprints.find((s) => s.id === task.sprint_id)}
+                onStartExecution={onStartExecution}
               />
             </motion.div>
           ))}

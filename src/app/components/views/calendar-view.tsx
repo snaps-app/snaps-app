@@ -2,6 +2,9 @@ import { getAllCards } from '@/services/cards';
 import { cloneYesterdayExecutions, getAllDailyExecutions } from '@/services/dailyExecutions';
 import { getRoutinesForDate, setRoutineCompletion } from '@/services/routines';
 import { getAllSchedulings } from '@/services/schedulings';
+import { getProjects } from '@/services/projects';
+import { getProjectBoards } from '@/services/boards';
+import { supabase } from '@/lib/supabaseClient';
 import type { CardWithProject, DailyExecutionWithProject, Routine, RoutineWithStatus, SchedulingWithProject } from '@/services/types';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -39,28 +42,48 @@ export function CalendarView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [schedData, execData, cardData] = await Promise.all([
+      const { data: { user } } = await supabase.auth.getUser();
+      const currentUserId = user?.id;
+
+      const [schedData, execData, cardData, projects] = await Promise.all([
         getAllSchedulings(),
         getAllDailyExecutions(),
-        getAllCards()
+        getAllCards(),
+        getProjects(),
       ]);
 
+      // Build set of team_kanban board IDs
+      const boardsPerProject = await Promise.all(
+        projects.map(p => getProjectBoards(p.id).catch(() => []))
+      );
+      const teamKanbanBoardIds = new Set<string>(
+        boardsPerProject.flat().filter(b => b.board_type === 'team_kanban').map(b => b.id)
+      );
+
+      // Filter: team_kanban boards + (user is assignee OR no assignees)
+      const allCardsArr = Array.isArray(cardData) ? cardData : [];
+      const filteredCards = allCardsArr.filter(c => {
+        if (!teamKanbanBoardIds.has(c.board_id)) return false;
+        if (!currentUserId) return !c.user_ids?.length;
+        return !c.user_ids?.length || c.user_ids.includes(currentUserId);
+      });
+
       // Deduplicate by ID to prevent overlap glitches and React key collisions
-      const uniqueScheds = Array.isArray(schedData) 
+      const uniqueScheds = Array.isArray(schedData)
         ? Array.from(new Map(schedData.map(s => [s.id, s])).values())
         : [];
-        
+
       const uniqueExecs = Array.isArray(execData)
         ? Array.from(new Map(execData.map(de => [de.id, de])).values())
         : [];
-        
+
       if (!Array.isArray(schedData) || !Array.isArray(execData)) {
           console.warn("Calendar data mismatch:", { schedData, execData });
       }
 
       setSchedulings(uniqueScheds);
       setDailyExecutions(uniqueExecs);
-      setCards(Array.isArray(cardData) ? cardData : []);
+      setCards(filteredCards);
     } catch (error) {
       console.error("Error fetching calendar data:", error);
     } finally {

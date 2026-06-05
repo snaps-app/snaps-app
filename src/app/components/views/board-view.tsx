@@ -25,6 +25,7 @@ import { PlannerPanel } from '@/app/components/board/PlannerPanel';
 import { useBoardData } from '@/app/components/board/useBoardData';
 import { useBoardModals } from '@/app/components/board/useBoardModals';
 import { StrategyConfiguratorModal } from '@/app/components/modals/strategy-configurator-modal';
+import { ExecutionWizardModal } from '@/app/components/modals/execution-wizard-modal';
 
 /**
  * BoardView Component
@@ -115,6 +116,13 @@ export function BoardView() {
   
   const [isVaccinationModalOpen, setIsVaccinationModalOpen] = useState(false);
   const [vaccinationCard, setVaccinationCard] = useState<Card | null>(null);
+  const [isExecutionWizardOpen, setIsExecutionWizardOpen] = useState(false);
+  const [executionWizardSprintId, setExecutionWizardSprintId] = useState<string | null>(null);
+
+  const handleStartExecution = (sprintId: string) => {
+    setExecutionWizardSprintId(sprintId);
+    setIsExecutionWizardOpen(true);
+  };
   const [vaccinationContent, setVaccinationContent] = useState('');
   const [isVaccinating, setIsVaccinating] = useState(false);
 
@@ -225,7 +233,7 @@ export function BoardView() {
         <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
           <div className="flex gap-6 min-w-max h-full items-start">
             {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns.map((col: any, index: number) => (
-              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} />
+              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} onStartExecution={handleStartExecution} />
             ))}
           </div>
         </div>
@@ -276,6 +284,15 @@ export function BoardView() {
           initialCardIds={filteredAndSortedTasks.map(t => t.id)}
           cards={filteredAndSortedTasks}
         />
+        {isExecutionWizardOpen && executionWizardSprintId && (
+          <ExecutionWizardModal
+            isOpen={isExecutionWizardOpen}
+            onClose={() => { setIsExecutionWizardOpen(false); setExecutionWizardSprintId(null); }}
+            entityId={executionWizardSprintId}
+            entityType="sprint"
+            entityTitle={sprints.find(s => s.id === executionWizardSprintId)?.name || 'Sprint'}
+          />
+        )}
       </div>
     </DndProvider>
   );

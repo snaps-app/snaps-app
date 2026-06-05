@@ -81,12 +81,13 @@ export interface Card {
     board_id: string;
     title: string;
     code?: string;
-    card_type?: 'feature' | 'bug' | 'support' | 'tech-debt';
+    card_type?: 'feature' | 'bug' | 'support' | 'tech-debt' | 'refactor' | 'chore' | 'sprint_macro';
     description: string;
     status: string;
     priority: 'Low' | 'Medium' | 'High';
     due_date?: string;
     labels?: string[];
+    user_ids?: string[];          // assignees (Migration 036)
     epic_id?: string;
     sprint_id?: string;          // FK to sprints.id
     github_issue_number?: number; // Phase 3 prep
