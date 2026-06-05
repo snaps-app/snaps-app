@@ -15,6 +15,7 @@ import { SnapCard } from '@/app/components/shared/snap-card';
 import { BoardListModal } from '@/app/components/modals/board-list-modal';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner } from '@/app/components/ui/spinner';
+import { ProjectRoleProvider } from '@/contexts/project-role-context';
 
 // ... interface Conversation ... (keep or import if shared)
 interface Conversation {
@@ -144,7 +145,8 @@ export function ProjectWorkspace() {
   // ... render ...
 
   return (
-    <div className="flex-1 flex flex-col h-full relative">
+    <ProjectRoleProvider projectId={projectId!}>
+      <div className="flex-1 flex flex-col h-full relative">
       <AnimatePresence>
         {isLoading && (
           <motion.div
@@ -322,5 +324,6 @@ export function ProjectWorkspace() {
         />
       )}
     </div>
+    </ProjectRoleProvider>
   );
 }

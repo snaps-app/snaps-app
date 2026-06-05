@@ -29,6 +29,7 @@ import { RetroView } from '@/app/components/views/retro-view';
 import { TimelineView } from '@/app/components/views/timeline-view';
 import { ExecutionCockpit } from '@/app/components/execution/execution-cockpit';
 import { ScratchView } from '@/app/components/views/scratch-view';
+import { MembersView } from '@/app/components/views/members-view';
 import { supabase } from '@/lib/supabaseClient';
 
 function AuthRedirector() {
@@ -145,6 +146,10 @@ export default function App() {
                         <Route
                             path="/project/:projectId/executions"
                             element={<AIExecutions />}
+                        />
+                        <Route
+                            path="/project/:projectId/members"
+                            element={<MembersView />}
                         />
                     </Route>
                     {/* Execution Cockpit — standalone fullscreen, no sidebar */}
