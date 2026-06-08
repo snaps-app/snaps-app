@@ -15,15 +15,18 @@ import {
   Settings,
   ChevronRight,
   ChevronLeft,
-  Bot
+  Bot,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useProjectRole } from '@/contexts/project-role-context';
 
 
 export function ContextSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { projectId } = useParams();
+  const { can } = useProjectRole();
   const [isOpen, setIsOpen] = useState(true);
   const [boards, setBoards] = useState<Board[]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -60,8 +63,13 @@ export function ContextSidebar() {
     { label: 'AI Executions', icon: Bot, path: `/project/${projectId}/executions` },
     { label: 'Retrospective', icon: RotateCcw, path: `/project/${projectId}/retro` },
     { label: 'Chat', icon: MessageSquare, path: `/project/${projectId}/chat` },
-    { label: 'Settings', icon: Settings, path: `/project/${projectId}/edit` },
   ];
+
+  if (can('manage_members')) {
+    projectNavItems.push({ label: 'Members', icon: Users, path: `/project/${projectId}/members` });
+  }
+
+  projectNavItems.push({ label: 'Settings', icon: Settings, path: `/project/${projectId}/edit` });
 
   return (
     <div className="relative flex">
