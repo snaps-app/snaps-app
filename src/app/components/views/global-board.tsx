@@ -173,12 +173,16 @@ export function GlobalBoard() {
             // Map to store column definitions per project for ID resolution
             const projectColMap: Record<string, Record<string, string>> = {};
             const allBoards: Board[] = [];
+            const teamKanbanBoardIds = new Set<string>();
 
             boardsResults.forEach((boards, idx) => {
                 const projectId = allProjects[idx].id;
                 projectColMap[projectId] = {};
                 boards.forEach(board => {
                     allBoards.push(board);
+                    if (board.board_type === 'team_kanban') {
+                        teamKanbanBoardIds.add(board.id);
+                    }
                     (board.columns || []).forEach(col => {
                         projectColMap[projectId][col.title.toLowerCase()] = col.id;
                     });
@@ -217,8 +221,11 @@ export function GlobalBoard() {
                 columnMap.set('done', { id: 'done', title: 'Done', color: '#22C55E' });
             }
 
+            // Filter to team_kanban boards only
+            const teamKanbanCards = allCards.filter(c => teamKanbanBoardIds.has(c.board_id));
+
             // Normalize card statuses to canonical IDs
-            const normalizedTasks = allCards.map(task => {
+            const normalizedTasks = teamKanbanCards.map(task => {
                 const projectIndex = allProjects.findIndex(p => p.id === task.project_id);
                 const projectBoards = boardsResults[projectIndex] || [];
 

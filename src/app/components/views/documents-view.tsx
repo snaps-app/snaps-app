@@ -12,7 +12,6 @@ import { Spinner } from '@/app/components/ui/spinner';
 import { DocEditorModal } from '@/app/components/documents/doc-editor-modal';
 import { DocViewerModal } from '@/app/components/documents/doc-viewer-modal';
 import { DocCard, FileDocument } from '@/app/components/documents/doc-card';
-import { useProjectRole } from '@/contexts/project-role-context';
 
 const mockDocuments: FileDocument[] = [
   {
@@ -68,7 +67,6 @@ const mockDocuments: FileDocument[] = [
 export function DocumentsView() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { can } = useProjectRole();
   const [activeTab, setActiveTab] = useState<'generated' | 'imported' | 'governance'>('governance');
   const [project, setProject] = useState<any>(null);
 
@@ -402,7 +400,7 @@ O que explicitamente NÃO será construído nesta iteração.
             </motion.div>
 
             <AnimatePresence>
-              {activeTab === 'governance' && can('write') && (
+              {activeTab === 'governance' && (
                 <div className="flex items-center gap-2">
                   <div className="relative group">
                     <motion.button

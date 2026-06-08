@@ -2,7 +2,6 @@ import type { Card, Epic, Sprint } from '@/services/types';
 import { useDrag } from 'react-dnd';
 import { BoardCard } from '@/app/components/shared/board-card';
 import { SprintMacroCard } from '@/app/components/shared/SprintMacroCard';
-import { useProjectRole } from '@/contexts/project-role-context';
 
 interface KanbanCardProps {
   task: Card;
@@ -14,16 +13,13 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ task, onCardClick, boardColor, epic, sprint, onStartExecution }: KanbanCardProps) {
-  const { can } = useProjectRole();
-
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'TASK',
     item: { id: task.id, status: task.status },
-    canDrag: can('write'),
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
-  }), [can]);
+  }));
 
   if (task.card_type === 'sprint_macro') {
     return (

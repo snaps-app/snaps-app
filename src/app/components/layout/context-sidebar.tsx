@@ -65,11 +65,11 @@ export function ContextSidebar() {
     { label: 'Chat', icon: MessageSquare, path: `/project/${projectId}/chat` },
   ];
 
-  projectNavItems.push({ label: 'Settings', icon: Settings, path: `/project/${projectId}/edit` });
-
   if (can('manage_members')) {
     projectNavItems.push({ label: 'Members', icon: Users, path: `/project/${projectId}/members` });
   }
+
+  projectNavItems.push({ label: 'Settings', icon: Settings, path: `/project/${projectId}/edit` });
 
   return (
     <div className="relative flex">

@@ -13,8 +13,6 @@ import { Spinner } from '@/app/components/ui/spinner';
 
 const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-white';
 
-import { useProjectRole } from '@/contexts/project-role-context';
-
 function BddStatusBadge({ validated }: { validated?: boolean }) {
   if (validated === true) {
     return (
@@ -34,7 +32,6 @@ function CardBddRow({ card, onUpdateCard }: { card: api.Card, onUpdateCard: (car
   const [open, setOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const hasBdd = card.bdd_scenarios && card.bdd_scenarios.length > 0;
-  const { can } = useProjectRole();
 
   const toggleValidation = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,7 +70,7 @@ function CardBddRow({ card, onUpdateCard }: { card: api.Card, onUpdateCard: (car
           </div>
           <div className="flex items-center gap-3">
             <BddStatusBadge validated={card.bdd_validated} />
-            {hasBdd && can('write') && (
+            {hasBdd && (
               <button
                 onClick={toggleValidation}
                 disabled={isUpdating}

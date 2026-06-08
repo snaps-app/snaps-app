@@ -9,7 +9,6 @@ import { PlanToCardsWizard } from '@/app/components/modals/plan-to-cards-wizard'
 import { Spinner } from '@/app/components/ui/spinner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useProjectRole } from '@/contexts/project-role-context';
 
 const INPUT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-green-500 text-white placeholder:text-gray-600';
 const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-green-500 text-white';
@@ -17,7 +16,6 @@ const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py
 export function PlansView() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { can } = useProjectRole();
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -137,15 +135,13 @@ export function PlansView() {
               Plans (Sprint Engine)
             </h1>
           </div>
-          {can('write') && (
-            <button
-              onClick={() => handleOpenModal()}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/20 border border-green-500/30 text-green-400 font-bold hover:bg-green-500/30 transition-all"
-            >
-              <Plus className="w-5 h-5" />
-              New Plan
-            </button>
-          )}
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/20 border border-green-500/30 text-green-400 font-bold hover:bg-green-500/30 transition-all"
+          >
+            <Plus className="w-5 h-5" />
+            New Plan
+          </button>
         </motion.div>
 
         {/* Content */}
@@ -176,31 +172,27 @@ export function PlansView() {
                     )}
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {can('write') && (
-                      <>
-                        {plan.status === 'draft' && (
-                          <button
-                            onClick={() => setWizardPlan(plan)}
-                            className="p-2 rounded-lg hover:bg-green-500/10 text-green-500 hover:text-green-400"
-                            title="Convert to Cards"
-                          >
-                            <Layers className="w-4 h-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleOpenModal(plan)}
-                          className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(plan.id)}
-                          className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 hover:text-red-400"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </>
+                    {plan.status === 'draft' && (
+                      <button
+                        onClick={() => setWizardPlan(plan)}
+                        className="p-2 rounded-lg hover:bg-green-500/10 text-green-500 hover:text-green-400"
+                        title="Convert to Cards"
+                      >
+                        <Layers className="w-4 h-4" />
+                      </button>
                     )}
+                    <button
+                      onClick={() => handleOpenModal(plan)}
+                      className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(plan.id)}
+                      className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 hover:text-red-400"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </motion.div>
