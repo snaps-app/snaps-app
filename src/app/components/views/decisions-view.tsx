@@ -6,6 +6,7 @@ import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { ArrowLeft, Plus, Edit2, Trash2, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Spinner } from '@/app/components/ui/spinner';
+import { useProjectRole } from '@/contexts/project-role-context';
 
 const INPUT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-red-500 text-white placeholder:text-gray-600';
 const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-red-500 text-white';
@@ -13,6 +14,7 @@ const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py
 export function DecisionsView() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { can } = useProjectRole();
 
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -144,13 +146,15 @@ export function DecisionsView() {
               Architecture Decisions (ADR)
             </h1>
           </div>
-          <button
-            onClick={() => handleOpenModal()}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 font-bold hover:bg-red-500/30 transition-all"
-          >
-            <Plus className="w-5 h-5" />
-            New ADR
-          </button>
+          {can('write') && (
+            <button
+              onClick={() => handleOpenModal()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 font-bold hover:bg-red-500/30 transition-all"
+            >
+              <Plus className="w-5 h-5" />
+              New ADR
+            </button>
+          )}
         </motion.div>
 
         {/* Content */}
@@ -192,18 +196,22 @@ export function DecisionsView() {
                     )}
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity ml-4">
-                    <button
-                      onClick={() => handleOpenModal(decision)}
-                      className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(decision.id)}
-                      className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 hover:text-red-400"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {can('write') && (
+                      <>
+                        <button
+                          onClick={() => handleOpenModal(decision)}
+                          className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(decision.id)}
+                          className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 hover:text-red-400"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </motion.div>

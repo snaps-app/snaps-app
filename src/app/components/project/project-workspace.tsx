@@ -15,7 +15,7 @@ import { SnapCard } from '@/app/components/shared/snap-card';
 import { BoardListModal } from '@/app/components/modals/board-list-modal';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner } from '@/app/components/ui/spinner';
-import { ProjectRoleProvider } from '@/contexts/project-role-context';
+import { ProjectRoleProvider, useProjectRole } from '@/contexts/project-role-context';
 
 // ... interface Conversation ... (keep or import if shared)
 interface Conversation {
@@ -33,6 +33,7 @@ const allTags = [
 export function ProjectWorkspace() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { can } = useProjectRole();
 
   const [activeConversation, setActiveConversation] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState('All');
@@ -189,60 +190,64 @@ export function ProjectWorkspace() {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Add Snap Button */}
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsSnapModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all"
-                  style={{
-                    background: 'linear-gradient(135deg, #00D4FF 0%, #0099CC 100%)',
-                    border: '1px solid rgba(0, 212, 255, 0.3)',
-                    boxShadow: '0 4px 20px rgba(0, 212, 255, 0.4)',
-                    color: 'white'
-                  }}
-                >
-                  <Plus className="w-5 h-5" />
-                  <span className="text-sm font-medium">Adicionar Snap</span>
-                </motion.button>
+                {can('write') && (
+                  <>
+                    {/* Add Snap Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setIsSnapModalOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all"
+                      style={{
+                        background: 'linear-gradient(135deg, #00D4FF 0%, #0099CC 100%)',
+                        border: '1px solid rgba(0, 212, 255, 0.3)',
+                        boxShadow: '0 4px 20px rgba(0, 212, 255, 0.4)',
+                        color: 'white'
+                      }}
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span className="text-sm font-medium">Adicionar Snap</span>
+                    </motion.button>
 
-                {/* Import Document Button */}
-                <input
-                  type="file"
-                  id="doc-import-input"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file || !projectId) return;
+                    {/* Import Document Button */}
+                    <input
+                      type="file"
+                      id="doc-import-input"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !projectId) return;
 
-                    try {
-                      const content = await file.text();
-                      // Call importDocument with a callback for events
-                      await importDocument(projectId, file.name, content, (event: any) => {
-                        console.log('Import Event:', event);
-                        if (event.type === 'done') {
-                          fetchSnaps(); // Refresh snaps once done
+                        try {
+                          const content = await file.text();
+                          // Call importDocument with a callback for events
+                          await importDocument(projectId, file.name, content, (event: any) => {
+                            console.log('Import Event:', event);
+                            if (event.type === 'done') {
+                              fetchSnaps(); // Refresh snaps once done
+                            }
+                          });
+                        } catch (error) {
+                          console.error('Import failed:', error);
                         }
-                      });
-                    } catch (error) {
-                      console.error('Import failed:', error);
-                    }
-                  }}
-                />
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => document.getElementById('doc-import-input')?.click()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all hidden sm:flex"
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid rgba(0, 212, 255, 0.3)',
-                    color: 'var(--snaps-accent-blue)'
-                  }}
-                >
-                  <Upload className="w-5 h-5" />
-                  <span className="text-sm font-medium">Importar Documento</span>
-                </motion.button>
+                      }}
+                    />
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => document.getElementById('doc-import-input')?.click()}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all hidden sm:flex"
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid rgba(0, 212, 255, 0.3)',
+                        color: 'var(--snaps-accent-blue)'
+                      }}
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span className="text-sm font-medium">Importar Documento</span>
+                    </motion.button>
+                  </>
+                )}
               </div>
             </div>
 

@@ -6,7 +6,8 @@ import { X, Hash, Plus, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tag } from '@/app/components/shared/tag';
 import { formatToISODateOnly, parseDateForStorage } from '@/lib/date-utils';
-import { ExecutionWizardModal } from '@/app/components/modals/execution-wizard-modal';
+import { useParams } from 'react-router-dom';
+import { StrategyConfiguratorModal } from '@/app/components/modals/strategy-configurator-modal';
 import { Spinner } from '@/app/components/ui/spinner';
 import { CardTasksPanel } from '@/app/components/modals/card-tasks-panel';
 import { CardBddPanel } from '@/app/components/modals/card-bdd-panel';
@@ -21,6 +22,7 @@ interface CardModalProps {
     sprints?: Sprint[];
     columns?: { id: string; title: string }[];
     repoNames?: string[];
+    onStartExecution?: (sprintId?: string, cardId?: string) => void;
 }
 
 export function CardModal({ 
@@ -31,9 +33,11 @@ export function CardModal({
     epics = [], 
     sprints = [], 
     columns, 
-    repoNames = [] 
+    repoNames = [],
+    onStartExecution
 }: CardModalProps) {
     const safeColumns = columns || [];
+    const { projectId } = useParams<{ projectId: string }>();
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -362,7 +366,18 @@ export function CardModal({
                                                 <div>
                                                     <label className="block text-sm font-medium mb-2 text-white/50">AI Actions</label>
                                                     <button
-                                                        onClick={() => initialData?.id && setIsWizardOpen(true)}
+                                                        onClick={() => {
+                                                            if (onStartExecution) {
+                                                                if (initialData?.card_type === 'sprint_macro' && initialData.sprint_id) {
+                                                                    onStartExecution(initialData.sprint_id, undefined);
+                                                                } else if (initialData?.id) {
+                                                                    onStartExecution(sprintId || undefined, initialData.id);
+                                                                }
+                                                                onClose();
+                                                            } else if (initialData?.id) {
+                                                                setIsWizardOpen(true);
+                                                            }
+                                                        }}
                                                         disabled={!initialData?.id}
                                                         className="w-full py-2 px-4 rounded-xl flex items-center justify-center gap-2 font-medium transition-all group overflow-hidden relative disabled:opacity-40 disabled:cursor-not-allowed"
                                                         style={{
@@ -489,13 +504,14 @@ export function CardModal({
             )}
         </AnimatePresence>
 
-        {initialData?.id && (
-            <ExecutionWizardModal
+        {initialData?.id && projectId && (
+            <StrategyConfiguratorModal
                 isOpen={isWizardOpen}
                 onClose={() => setIsWizardOpen(false)}
-                entityId={initialData.id}
-                entityType="card"
-                entityTitle={initialData.title}
+                projectId={projectId}
+                initialSprintId={sprintId || null}
+                initialCardIds={[initialData.id]}
+                cards={[initialData]}
             />
         )}
     </>

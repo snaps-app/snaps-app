@@ -6,6 +6,8 @@ import { useDrag, useDrop } from 'react-dnd';
 import { KanbanCard } from '@/app/components/shared/KanbanCard';
 import { BOARD_COLORS } from '@/app/components/board/board-constants';
 
+import { useProjectRole } from '@/contexts/project-role-context';
+
 export interface BoardColumnProps {
   title: string;
   status: string;
@@ -37,36 +39,40 @@ export function BoardColumn({
   sprints,
   boardColor,
 }: BoardColumnProps) {
+  const { can } = useProjectRole();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(title);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
   const [{ isOver }, dropCard] = useDrop(() => ({
     accept: 'TASK',
+    canDrop: () => can('write'),
     drop: (item: { id: string; status: string }) => {
-      if (item.status !== status) {
+      if (item.status !== status && can('write')) {
         onMove(item.id, status);
       }
     },
     collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
+      isOver: !!monitor.isOver() && monitor.canDrop(),
     }),
-  }));
+  }), [can]);
 
   const [, dragColumn] = useDrag({
     type: 'COLUMN',
     item: { index },
-  });
+    canDrag: can('write'),
+  }, [can]);
 
   const [, dropColumn] = useDrop({
     accept: 'COLUMN',
+    canDrop: () => can('write'),
     hover(item: { index: number }) {
-      if (item.index !== index) {
+      if (item.index !== index && can('write')) {
         onMoveColumn(item.index, index);
         item.index = index;
       }
     },
-  });
+  }, [can]);
 
   const hexToRgb = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -119,8 +125,10 @@ export function BoardColumn({
               />
             ) : (
               <h2
-                onClick={() => setIsEditingTitle(true)}
-                className="text-lg font-bold cursor-pointer hover:opacity-80 transition-opacity truncate"
+                onClick={() => {
+                  if (can('write')) setIsEditingTitle(true);
+                }}
+                className={`text-lg font-bold truncate ${can('write') ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
                 style={{
                   color: `rgb(${rgbColor})`,
                   textShadow: `0 0 10px rgba(${rgbColor}, 0.6)`,

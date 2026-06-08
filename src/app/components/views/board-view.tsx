@@ -14,6 +14,7 @@ import { BoardColumnSkeleton } from '@/app/components/ui/index';
 import { BoardColumn } from '@/app/components/shared/BoardColumn';
 import { BOARD_COLORS } from '@/app/components/board/board-constants';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useProjectRole } from '@/contexts/project-role-context';
 
 // Extracted Components
 import { BoardHeader } from '@/app/components/board/BoardHeader';
@@ -35,6 +36,7 @@ import { StrategyConfiguratorModal } from '@/app/components/modals/strategy-conf
 export function BoardView() {
   const { projectId, boardId } = useParams<{ projectId: string, boardId: string }>();
   const navigate = useNavigate();
+  const { can } = useProjectRole();
 
   const {
     board, setBoard,
@@ -115,6 +117,26 @@ export function BoardView() {
   
   const [isVaccinationModalOpen, setIsVaccinationModalOpen] = useState(false);
   const [vaccinationCard, setVaccinationCard] = useState<Card | null>(null);
+  const [strategySprintId, setStrategySprintId] = useState<string | null>(null);
+  const [isStrategySprintSpecific, setIsStrategySprintSpecific] = useState(false);
+  const [strategyCardId, setStrategyCardId] = useState<string | null>(null);
+
+  const handleStartExecution = (sprintId?: string, cardId?: string) => {
+    if (sprintId && !cardId) {
+      setStrategySprintId(sprintId);
+      setIsStrategySprintSpecific(true);
+      setStrategyCardId(null);
+    } else if (cardId) {
+      setStrategySprintId(sprintId || null);
+      setIsStrategySprintSpecific(false);
+      setStrategyCardId(cardId);
+    } else {
+      setStrategySprintId(null);
+      setIsStrategySprintSpecific(false);
+      setStrategyCardId(null);
+    }
+    setIsStrategyModalOpen(true);
+  };
   const [vaccinationContent, setVaccinationContent] = useState('');
   const [isVaccinating, setIsVaccinating] = useState(false);
 
@@ -221,15 +243,15 @@ export function BoardView() {
   return (
     <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
       <div className="flex-1 flex flex-col min-h-0 relative">
-        <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) setIsStrategyModalOpen(true); }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
+        <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) { const activeSprintId = selectedSprintIds.filter(id => id !== 'no_sprint')[0] || null; setStrategySprintId(activeSprintId); setIsStrategySprintSpecific(false); setIsStrategyModalOpen(true); } }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
         <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
           <div className="flex gap-6 min-w-max h-full items-start">
             {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns.map((col: any, index: number) => (
-              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} />
+              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} onStartExecution={handleStartExecution} />
             ))}
           </div>
         </div>
-        {boardId && (
+        {boardId && can('write') && (
           <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20">
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => { setSelectedCard(null); setIsCardModalOpen(true); }} className="w-16 h-16 rounded-full bg-green-500/15 border-2 border-green-500/50 flex items-center justify-center shadow-lg shadow-green-500/20"><Plus className="w-8 h-8 text-green-500" /></motion.button>
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPlannerOpen(true)} className="w-16 h-16 rounded-full bg-orange-500/15 border-2 border-orange-500/50 flex items-center justify-center shadow-lg shadow-orange-500/20"><Bot className="w-7 h-7 text-orange-500" /></motion.button>
@@ -249,6 +271,7 @@ export function BoardView() {
             epics={epics}
             sprints={sprints}
             repoNames={repoNames}
+            onStartExecution={handleStartExecution}
             onSave={async (data) => { 
               if (!localBoardId) return; 
               if (selectedCard) await updateCard(selectedCard.id, data); 
@@ -272,9 +295,9 @@ export function BoardView() {
           isOpen={isStrategyModalOpen}
           onClose={() => setIsStrategyModalOpen(false)}
           projectId={projectId!}
-          initialSprintId={selectedSprintIds.filter(id => id !== 'no_sprint')[0] || null}
-          initialCardIds={filteredAndSortedTasks.map(t => t.id)}
-          cards={filteredAndSortedTasks}
+          initialSprintId={strategySprintId}
+          initialCardIds={isStrategySprintSpecific && strategySprintId ? tasks.filter(t => t.sprint_id === strategySprintId).map(t => t.id) : strategyCardId ? [strategyCardId] : filteredAndSortedTasks.map(t => t.id)}
+          cards={isStrategySprintSpecific && strategySprintId ? tasks.filter(t => t.sprint_id === strategySprintId) : strategyCardId ? tasks.filter(t => t.id === strategyCardId) : filteredAndSortedTasks}
         />
       </div>
     </DndProvider>
