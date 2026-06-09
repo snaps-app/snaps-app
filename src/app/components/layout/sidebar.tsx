@@ -48,17 +48,15 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
   const fetchGlobalRole = async (token: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/users/me`, {
+      const { api } = await import('@/services/client');
+      const response = await api.get('/users/me', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setGlobalRole(data.global_role);
-      }
+      setGlobalRole(response.data.global_role);
     } catch (e) {
-      console.error('Failed to fetch global role:', e);
+      console.error("Failed to fetch global role", e);
     }
   };
 
