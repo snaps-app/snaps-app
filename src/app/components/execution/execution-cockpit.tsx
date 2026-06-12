@@ -20,6 +20,8 @@ import { AgentCapabilitiesModal } from '@/app/components/execution/agent-capabil
 import { CardModal } from '@/app/components/modals/card-modal';
 import { DocumentViewModal } from '@/app/components/modals/document-view-modal';
 import { updateCard } from '@/services/cards';
+import { ExecutionTimer } from '@/app/components/execution/execution-timer';
+import { TimeTrackingModal } from '@/app/components/execution/time-tracking-modal';
 
 export const ExecutionCockpit: React.FC = () => {
     const navigate = useNavigate();
@@ -121,6 +123,8 @@ export const ExecutionCockpit: React.FC = () => {
         selectedTestPlanIds,
         isSavingTestPlanContext,
         handleSaveTestPlanContext,
+        isTimeTrackingModalOpen,
+        setIsTimeTrackingModalOpen,
     } = useExecutionCockpit();
 
     if (isLoading) {
@@ -199,10 +203,11 @@ export const ExecutionCockpit: React.FC = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex items-center gap-2 pb-4 text-xs font-medium transition-all relative shrink-0 ${activeTab === tab.id
-                                    ? 'text-purple-400'
-                                    : 'text-white/40 hover:text-white/70'
-                                    }`}
+                                className={`flex items-center gap-2 pb-4 text-xs font-medium transition-all relative shrink-0 ${
+                                    activeTab === tab.id
+                                        ? 'text-purple-400'
+                                        : 'text-white/40 hover:text-white/70'
+                                }`}
                             >
                                 <tab.icon className="w-4 h-4" />
                                 {tab.label}
@@ -213,10 +218,11 @@ export const ExecutionCockpit: React.FC = () => {
                     <div className="flex items-center gap-2 mb-4">
                         <button
                             onClick={handleOpenDocs}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all group ${selectedDocIds.length > 0
-                                ? 'bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30'
-                                : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                                }`}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all group ${
+                                selectedDocIds.length > 0
+                                    ? 'bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30'
+                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                            }`}
                         >
                             <Layout className="w-3.5 h-3.5" />
                             Docs {selectedDocIds.length > 0 && `(${selectedDocIds.length})`}
@@ -230,10 +236,11 @@ export const ExecutionCockpit: React.FC = () => {
                             return hasTasks ? (
                                 <button
                                     onClick={() => setIsTasksModalOpen(true)}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all group ${doneTasks === allTasks.length
-                                        ? 'bg-green-500/20 border-green-500/30 text-green-400 hover:bg-green-500/30'
-                                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
-                                        }`}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all group ${
+                                        doneTasks === allTasks.length
+                                            ? 'bg-green-500/20 border-green-500/30 text-green-400 hover:bg-green-500/30'
+                                            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                                    }`}
                                 >
                                     <CheckSquare className="w-3.5 h-3.5" />
                                     Tasks ({doneTasks}/{allTasks.length})
@@ -428,6 +435,27 @@ export const ExecutionCockpit: React.FC = () => {
                 execution={execution}
                 templates={templates}
             />
+
+            {/* Live Session Timer — fixed bottom-right, hidden when execution is done */}
+            {execution.status !== 'done' && (
+                <ExecutionTimer executionId={execution.id} projectId={projectId!} />
+            )}
+
+            {/* Time Tracking Modal — opens when execution reaches status=done */}
+            {isTimeTrackingModalOpen && (
+                <TimeTrackingModal
+                    execution={execution}
+                    projectId={projectId!}
+                    onClose={() => {
+                        setIsTimeTrackingModalOpen(false);
+                        navigate(`/project/${projectId}/executions`);
+                    }}
+                    onSkip={() => {
+                        setIsTimeTrackingModalOpen(false);
+                        navigate(`/project/${projectId}/executions`);
+                    }}
+                />
+            )}
 
             {/* Document View Modal */}
             <DocumentViewModal
