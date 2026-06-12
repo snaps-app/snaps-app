@@ -98,6 +98,7 @@ export interface Card {
     task_count?: number;
     bdd_scenarios?: any[];
     bdd_validated?: boolean;
+    user_ids?: string[];
     created_at: string;
     updated_at: string;
 }

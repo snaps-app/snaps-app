@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, Clock, Plus, Trash2, ChevronDown, Loader2, CheckCircle } from 'lucide-react';
 import { getTimeDraft, createTimeLog } from '@/services/timeLogs';
-import { getCard } from '@/services/cards';
+import { getCard, updateCard } from '@/services/cards';
 import { getProjectBoards } from '@/services/boards';
 import type { AgentTaskExecution, Card } from '@/services/types';
 import type { DraftEntry, Participant } from '@/types/timeLogs';
@@ -119,6 +119,22 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                 }
             }
             await Promise.all(posts);
+
+            try {
+                const selectedCard = cards.find(c => c.id === selectedCardId);
+                if (selectedCard) {
+                    const existingUserIds = selectedCard.user_ids || [];
+                    const newUserIds = selectedParticipants.map(p => p.user_id);
+                    const mergedUserIds = Array.from(new Set([...existingUserIds, ...newUserIds]));
+                    
+                    if (mergedUserIds.length > existingUserIds.length) {
+                        await updateCard(selectedCardId, { user_ids: mergedUserIds });
+                    }
+                }
+            } catch (cardErr) {
+                console.error('[TimeTrackingModal] failed to append user_ids to card:', cardErr);
+            }
+
             onClose();
         } catch (err: any) {
             console.error('[TimeTrackingModal] submit error:', err);
