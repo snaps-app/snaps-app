@@ -2,7 +2,7 @@ import { updateCard } from '@/services/cards';
 import { getCardsBySprint, getSprints } from '@/services/sprints';
 import { getTroubleReport } from '@/services/testPlans';
 import type { Card, Sprint, TroubleReport } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { ArrowLeft, ShieldCheck, AlertCircle, FileText, CheckCircle2, XCircle, ChevronDown, ChevronRight, FlaskConical, Layers } from 'lucide-react';
@@ -28,7 +28,7 @@ function BddStatusBadge({ validated }: { validated?: boolean }) {
   );
 }
 
-function CardBddRow({ card, onUpdateCard }: { card: api.Card, onUpdateCard: (cardId: string, updates: Partial<api.Card>) => Promise<void> }) {
+function CardBddRow({ card, onUpdateCard }: { card: Card, onUpdateCard: (cardId: string, updates: Partial<Card>) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const hasBdd = card.bdd_scenarios && card.bdd_scenarios.length > 0;
@@ -136,10 +136,10 @@ export function QAView() {
 
   const [activeTab, setActiveTab] = useState<'plans' | 'reports'>('plans');
   const [copied, setCopied] = useState(false);
-  const [sprints, setSprints] = useState<api.Sprint[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
   const [selectedSprintId, setSelectedSprintId] = useState<string>('');
-  const [sprintCards, setSprintCards] = useState<api.Card[]>([]);
-  const [troubleReport, setTroubleReport] = useState<api.TroubleReport | null>(null);
+  const [sprintCards, setSprintCards] = useState<Card[]>([]);
+  const [troubleReport, setTroubleReport] = useState<TroubleReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCardsLoading, setIsCardsLoading] = useState(false);
 
@@ -190,7 +190,7 @@ export function QAView() {
     }
   };
 
-  const handleUpdateCard = async (cardId: string, updates: Partial<api.Card>) => {
+  const handleUpdateCard = async (cardId: string, updates: Partial<Card>) => {
     try {
       const updatedCard = await updateCard(cardId, updates);
       setSprintCards(prev => prev.map(c => c.id === cardId ? updatedCard : c));
@@ -376,7 +376,7 @@ export function QAView() {
                       </div>
 
                       <h4 className="text-sm font-semibold text-gray-400 mt-2">Failed BDD Cards</h4>
-                      {troubleReport.failed_bdd_cards.map(card => (
+                      {troubleReport.failed_bdd_cards.map((card: Card) => (
                         <div key={card.id} className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 group hover:border-red-500/40 transition-all">
                           <div className="flex items-center justify-between mb-2">
                             <div className="text-xs font-mono text-red-400">{card.code}</div>
@@ -384,7 +384,7 @@ export function QAView() {
                           </div>
                           <h5 className="text-sm font-bold text-white mb-2">{card.title}</h5>
                           <div className="space-y-1">
-                            {card.bdd_scenarios?.map((bdd, idx) => (
+                            {card.bdd_scenarios?.map((bdd: any, idx: number) => (
                               <div key={idx} className="flex items-center gap-2 text-[11px]">
                                 <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
                                 <span className="text-gray-200 font-medium">{bdd.title || bdd.scenario || 'Unknown Scenario'}</span>

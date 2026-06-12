@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Edit2, Download, Copy, ClipboardCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';

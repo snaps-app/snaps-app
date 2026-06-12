@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Bot, Check, Copy, Loader2 } from 'lucide-react';
 import type { AgentTaskExecution } from '@/services/types';
 

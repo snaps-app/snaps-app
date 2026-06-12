@@ -1,5 +1,4 @@
 import type { Epic, Sprint } from '@/services/types';
-import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Zap, Play, Settings, Check, Layers } from 'lucide-react';
 import { FilterMultiSelect } from '@/app/components/shared/FilterMultiSelect';

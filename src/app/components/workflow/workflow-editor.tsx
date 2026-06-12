@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
 import { 
   ReactFlow, 
   Background, 
@@ -8,7 +8,6 @@ import {
   MiniMap, 
   useNodesState, 
   useEdgesState, 
-  Position, 
   MarkerType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -55,8 +54,8 @@ export function WorkflowEditorCanvas() {
     available_agents: string[];
   }>({ available_tools: [], available_skills: [], available_agents: [] });
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // Loading and action state

@@ -43,10 +43,7 @@ export const AIExecutions = () => {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [availableSprints, setAvailableSprints] = useState<Sprint[]>([]);
-    const [availableCards, setAvailableCards] = useState<Card[]>([]);
-    const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
-    const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
-    const [customContext, setCustomContext] = useState('');
+
     
     // Workflow Templates State
     const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
@@ -75,13 +72,7 @@ export const AIExecutions = () => {
                 setAvailableSprints(sprintsData);
 
                 // Flatten cards from columns
-                const allCards = boardData.columns.flatMap(col =>
-                    (boardData as any).cards?.filter((c: any) => c.status === col.id) || []
-                );
-                // If cards are not in boardData directly, they might be in each column or fetched separately
-                // Standardizing: extracting from boardData if present, or using a separate list if not.
-                // Assuming boardData.cards exists based on typical Snaps structure.
-                setAvailableCards((boardData as any).cards || []);
+
             } else {
                 // Fetch all sprints across all projects
                 const sprintsPromises = projsData.map(p => getSprints(p.id).catch(() => []));
@@ -100,33 +91,7 @@ export const AIExecutions = () => {
         fetchData();
     }, [projectId]);
 
-    const handleConfirmExecution = async () => {
-        if (!projectId) return;
-        const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
-        const firstPhaseKey = selectedTemplate?.phases?.[0]?.key || 'macro_planning';
 
-        setIsCreating(true);
-        try {
-            const execution = await createAgentExecution({
-                project_id: projectId,
-                phase: firstPhaseKey,
-                workflow_template_id: selectedTemplateId || undefined,
-                sprint_ids: selectedSprintId ? [selectedSprintId] : [],
-                card_ids: selectedCardIds,
-                context_data: {
-                    user_instruction: customContext,
-                    strategy_focus: firstPhaseKey === 'macro_planning' ? 'strategic' : 'technical'
-                }
-            });
-            navigate(`/project/${projectId}/execution/${execution.id}`);
-        } catch (err: any) {
-            console.error('Failed to start execution:', err);
-            setError('Failed to start agent session');
-        } finally {
-            setIsCreating(false);
-            setIsModalOpen(false);
-        }
-    };
 
     const handleDeleteExecution = async (executionId: string) => {
         if (window.confirm("Tem certeza que deseja excluir esta execução agêntica? Esta ação apagará permanentemente todos os itens filhos e sub-execuções relacionados.")) {
@@ -143,13 +108,7 @@ export const AIExecutions = () => {
         }
     };
 
-    const toggleCard = (cardId: string) => {
-        setSelectedCardIds(prev =>
-            prev.includes(cardId)
-                ? prev.filter(id => id !== cardId)
-                : [...prev, cardId]
-        );
-    };
+
 
     const getProjectName = (projectId: string) =>
         projects.find(p => p.id === projectId)?.name || 'Unknown Project';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Github, Info, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 import { upsertGithubConfig, syncGithubProject } from '@/services/projects';

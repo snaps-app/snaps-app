@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Layout, ShieldCheck, Bug, Network, Bot, CheckSquare, StickyNote, RefreshCcw } from 'lucide-react';
 import { updateGovernanceDoc } from '@/services/governance';

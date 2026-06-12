@@ -1,5 +1,5 @@
 import type { PhaseConfigItem } from '@/services/types';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { ReactFlow, Background, MarkerType } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { PreviewPhaseNode } from '@/app/components/workflow/preview-phase-node';

@@ -1,6 +1,6 @@
 import { createGovernanceDoc, processGovernanceDoc } from '@/services/governance';
 import type { BridgeProcessResult } from '@/services/types';
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { X, Upload, CheckCircle, AlertCircle, Loader2, FileText, Map, File } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 

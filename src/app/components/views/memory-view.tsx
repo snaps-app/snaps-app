@@ -1,7 +1,7 @@
 import { getAllSnaps } from '@/services/snaps';
 import type { Snap } from '@/services/types';
 import { useEffect, useState } from 'react';
-import { Search, Folder, ChevronRight, ChevronDown, FileText, Code, Image as ImageIcon, Brain } from 'lucide-react';
+import { Search, Folder, ChevronRight, ChevronDown, FileText, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { SnapDetailModal } from '@/app/components/modals/snap-detail-modal';
@@ -381,7 +381,7 @@ export function MemoryView() {
                       const labels: string[] = card.snadds?.labels ?? [];
                       if (!labels.includes('agent-memory')) return false;
                     } else if (ruleFilter !== 'all') {
-                      const snapStatus = card.snadds?.status || card.status || '';
+                      const snapStatus = card.snadds?.status || '';
                       if (snapStatus !== ruleFilter) return false;
                     }
                     // Filter by text

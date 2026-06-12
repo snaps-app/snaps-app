@@ -4,6 +4,7 @@ export interface Project {
     description: string;
     instructions: string;
     template: string;
+    user_id?: string;
     settings?: Record<string, any>;
     created_at: string;
     updated_at: string;
@@ -98,7 +99,6 @@ export interface Card {
     task_count?: number;
     bdd_scenarios?: any[];
     bdd_validated?: boolean;
-    user_ids?: string[];
     created_at: string;
     updated_at: string;
 }
@@ -250,7 +250,7 @@ export interface Board {
     project_id: string;
     name: string;
     code?: string;
-    board_type?: 'roadmap' | 'support' | 'general';
+    board_type?: 'roadmap' | 'support' | 'general' | 'team_kanban';
     color?: string;
     columns?: { id: string; title: string; color?: string }[];
     cards?: Card[];
@@ -395,6 +395,7 @@ export interface TroubleReport {
     total_cards: number;
     failed_bdd_cards: CardWithProject[];
     test_plans: TestPlanSummary[];
+    markdown_report?: string;
 }
 
 // --- GitHub Sync Interfaces ---
@@ -414,7 +415,8 @@ export interface GithubConfig {
 
 export interface GithubConfigCreate {
     repo_owner: string;
-    repo_name: string;
+    repo_name?: string;
+    repo_names?: string;
     github_pat: string;
 }
 

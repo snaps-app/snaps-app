@@ -1,5 +1,4 @@
 import type { Sprint } from '@/services/types';
-import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Zap, Plus, Edit2, Trash2 } from 'lucide-react';
 

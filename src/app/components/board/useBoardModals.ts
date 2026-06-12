@@ -7,7 +7,7 @@ export function useBoardModals(projectId: string | undefined, epics: Epic[], set
   const handleCreateEpic = async (name: string, color: string) => {
     if (!projectId) return;
     try {
-      const newEpic = await createEpic(projectId, { name, color });
+      const newEpic = await createEpic(projectId, { project_id: projectId, name, color } as any);
       setEpics(prev => [...prev, newEpic]);
     } catch (error) { console.error('Failed to create epic:', error); }
   };

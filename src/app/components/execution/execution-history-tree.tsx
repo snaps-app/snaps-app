@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bot, ChevronRight } from 'lucide-react';
 import type { AgentTaskExecution } from '@/services/types';

@@ -1,8 +1,8 @@
 import { createAgentExecution } from '@/services/agentExecutions';
 import { getSprints } from '@/services/sprints';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
-import type { Board, Card, Sprint, WorkflowTemplate } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import type { Card, Sprint, WorkflowTemplate } from '@/services/types';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Target, X, Zap, ChevronDown, Layout as LayoutIcon, Calendar, CheckCircle2, ChevronRight, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';

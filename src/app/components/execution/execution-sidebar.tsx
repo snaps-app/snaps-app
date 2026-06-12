@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowRight,
@@ -152,7 +151,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                     if (!gitBranch && !prUrl && !ciStatus) return null;
                     const ciBadge = ciStatus === 'success'
                         ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">CI: passed</span>
-                        : ciStatus === 'failed'
+                        : (ciStatus === 'failed' || ciStatus === 'failure')
                         ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 border border-red-500/30 text-red-300">CI: failed</span>
                         : ciStatus
                         ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300">CI: {ciStatus}</span>

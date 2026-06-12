@@ -45,7 +45,7 @@ export function EditProject() {
         try {
           const config = await getGithubConfig(projectId);
           setRepoOwner(config.repo_owner);
-          setRepoNames(config.repo_names);
+          setRepoNames(config.repo_names || '');
           setGithubPat(config.github_pat);
           if (config.last_sync_at) {
             setLastSyncAt(new Date(config.last_sync_at).toLocaleString());

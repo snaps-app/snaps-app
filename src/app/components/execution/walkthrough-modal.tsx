@@ -1,4 +1,3 @@
-import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Bot, X, Loader2, Check } from 'lucide-react';
@@ -89,7 +88,7 @@ export const WalkthroughModal: React.FC<WalkthroughModalProps> = ({
                                             }`}
                                     >
                                         <p className="text-xs font-bold truncate">{w.name}</p>
-                                        <p className="text-[10px] opacity-50 mt-1">{new Date(w.created_at).toLocaleDateString()} · {w.status}</p>
+                                        <p className="text-[10px] opacity-50 mt-1">{new Date(w.created_at).toLocaleDateString()} · {(w as any).status || w.snadds?.status || 'Active'}</p>
                                     </button>
                                 ))}
                             </div>

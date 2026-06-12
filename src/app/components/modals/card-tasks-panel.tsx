@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Check, Plus, Trash2 } from 'lucide-react';
 import type { Task, Card } from '@/services/types';
 

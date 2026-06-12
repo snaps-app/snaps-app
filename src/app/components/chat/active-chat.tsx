@@ -543,7 +543,7 @@ export function ActiveChat() {
       <SnapDetailModal
         isOpen={isSnapDetailModalOpen}
         onClose={() => setIsSnapDetailModalOpen(false)}
-        snap={selectedSnap}
+        snap={selectedSnap as any}
       />
     </div>
   );

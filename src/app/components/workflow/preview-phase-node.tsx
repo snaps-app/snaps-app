@@ -1,4 +1,3 @@
-import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Bot, GitBranch, GitMerge, Settings, Wrench } from 'lucide-react';
 
@@ -20,8 +19,8 @@ export const PreviewPhaseNode = ({ data }: any) => {
       <div className="flex items-center justify-between mb-1">
         <span className="text-[8.5px] font-mono text-white/30 uppercase tracking-wider font-bold">{data.key}</span>
         <div className="flex gap-1">
-          {isBranching && <GitBranch className="w-3.5 h-3.5 text-blue-400" title={`Branch: ${data.branching_strategy}`} />}
-          {isJoining && <GitMerge className="w-3.5 h-3.5 text-purple-400" title={`Join: ${data.join_strategy}`} />}
+          {isBranching && <span title={`Branch: ${data.branching_strategy}`}><GitBranch className="w-3.5 h-3.5 text-blue-400" /></span>}
+          {isJoining && <span title={`Join: ${data.join_strategy}`}><GitMerge className="w-3.5 h-3.5 text-purple-400" /></span>}
         </div>
       </div>
 

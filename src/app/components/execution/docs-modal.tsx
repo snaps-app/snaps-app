@@ -1,4 +1,3 @@
-import React from 'react';
 import { Layout, X, Loader2, FileText, Eye, Check } from 'lucide-react';
 import type { GovernanceDoc, Decision } from '@/services/types';
 

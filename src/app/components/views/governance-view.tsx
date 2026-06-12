@@ -2,7 +2,7 @@ import { bindSkillToAgent, deleteAgent, deleteGovernanceDoc, deleteResource, del
 import { getProjects } from '@/services/projects';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
 import type { AgentInstruction, GovernanceDoc, Resource, Skill } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Bot, FileText, Wrench, Database, Plus, Edit2, Trash2, X, Shield, Link, Eye, Upload, GitBranch } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PrdImportModal } from '@/app/components/modals/prd-import-modal';

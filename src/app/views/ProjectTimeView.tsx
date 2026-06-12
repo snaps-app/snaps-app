@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, Download, Loader2, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
 import { getProjectTimeLogs, downloadTimeReport } from '@/services/timeLogs';

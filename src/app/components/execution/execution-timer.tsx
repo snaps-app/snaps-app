@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Timer, Minus, X } from 'lucide-react';
 import { startExecutionSession, endExecutionSession } from '@/services/timeLogs';
 

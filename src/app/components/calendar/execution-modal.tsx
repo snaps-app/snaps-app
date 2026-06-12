@@ -2,7 +2,7 @@ import { createDailyExecution, deleteDailyExecution, updateDailyExecution } from
 import { getEpics } from '@/services/epics';
 import { getProjects } from '@/services/projects';
 import type { DailyExecution, Epic, Project } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Clock, Loader2, Calendar, Type, AlignLeft, Target, Rocket, Check, Ban, Circle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';

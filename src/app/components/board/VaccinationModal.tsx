@@ -1,5 +1,4 @@
 import type { Card } from '@/services/types';
-import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Zap, Edit2, Check } from 'lucide-react';
 

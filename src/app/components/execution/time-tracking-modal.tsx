@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { X, Clock, Plus, Trash2, ChevronDown, Loader2, CheckCircle } from 'lucide-react';
 import { getTimeDraft, createTimeLog } from '@/services/timeLogs';
 import { getCard, updateCard } from '@/services/cards';

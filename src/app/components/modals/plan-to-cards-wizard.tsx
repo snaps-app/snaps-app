@@ -1,7 +1,7 @@
 import { getProjectBoards } from '@/services/boards';
 import { createCard } from '@/services/cards';
 import type { Board, Plan } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Layers, Plus, Trash2, CheckCircle, ArrowRight } from 'lucide-react';
 

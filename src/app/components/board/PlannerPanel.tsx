@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Bot, Send } from 'lucide-react';
 
