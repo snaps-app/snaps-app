@@ -81,6 +81,7 @@ export function BoardView() {
   const [isBulkApplyOpen, setIsBulkApplyOpen] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
+  const [strategyTarget, setStrategyTarget] = useState<{ sprintId: string | null; cardIds: string[]; cards: Card[] } | null>(null);
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
   const [allBoards, setAllBoards] = useState<any[]>([]);
   const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
@@ -229,7 +230,7 @@ export function BoardView() {
   return (
     <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
       <div className="flex-1 flex flex-col min-h-0 relative">
-        <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) setIsStrategyModalOpen(true); }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
+        <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) { setStrategyTarget(null); setIsStrategyModalOpen(true); } }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
         <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
           <div className="flex gap-6 min-w-max h-full items-start">
             {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns?.map((col: any, index: number) => (
@@ -257,7 +258,13 @@ export function BoardView() {
             epics={epics}
             sprints={sprints}
             repoNames={repoNames}
-            onSave={async (data) => { 
+            onAiExecute={() => {
+              if (!selectedCard) return;
+              setStrategyTarget({ sprintId: selectedCard.sprint_id || null, cardIds: [selectedCard.id], cards: [selectedCard] });
+              setIsCardModalOpen(false);
+              setIsStrategyModalOpen(true);
+            }}
+            onSave={async (data) => {
               if (!localBoardId) return; 
               if (selectedCard) await updateCard(selectedCard.id, data); 
               else await createCard(localBoardId, { 
@@ -278,11 +285,11 @@ export function BoardView() {
         )}
         <StrategyConfiguratorModal
           isOpen={isStrategyModalOpen}
-          onClose={() => setIsStrategyModalOpen(false)}
+          onClose={() => { setIsStrategyModalOpen(false); setStrategyTarget(null); }}
           projectId={projectId!}
-          initialSprintId={selectedSprintIds.filter(id => id !== 'no_sprint')[0] || null}
-          initialCardIds={filteredAndSortedTasks.map(t => t.id)}
-          cards={filteredAndSortedTasks}
+          initialSprintId={strategyTarget ? strategyTarget.sprintId : (selectedSprintIds.filter(id => id !== 'no_sprint')[0] || null)}
+          initialCardIds={strategyTarget ? strategyTarget.cardIds : filteredAndSortedTasks.map(t => t.id)}
+          cards={strategyTarget ? strategyTarget.cards : filteredAndSortedTasks}
         />
         {isExecutionWizardOpen && executionWizardSprintId && (
           <ExecutionWizardModal

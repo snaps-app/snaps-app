@@ -1,8 +1,11 @@
 import { getCard } from '@/services/cards';
 import { createTask, deleteTask, updateTask } from '@/services/tasks';
 import type { Card, Epic, Sprint, Task } from '@/services/types';
-import { useState, useEffect } from 'react';
-import { X, Hash, Plus, Bot } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Hash, Plus, Bot, Eye, Pencil, Paperclip, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { uploadAttachment } from '@/services/storage';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tag } from '@/app/components/shared/tag';
 import { formatToISODateOnly, parseDateForStorage } from '@/lib/date-utils';
@@ -21,6 +24,8 @@ interface CardModalProps {
     sprints?: Sprint[];
     columns?: { id: string; title: string }[];
     repoNames?: string[];
+    /** If provided, the "AI Execute Task" button calls this (e.g. open the Strategy Configurator) instead of the inline execution wizard. */
+    onAiExecute?: () => void;
 }
 
 export function CardModal({ 
@@ -30,8 +35,9 @@ export function CardModal({
     initialData, 
     epics = [], 
     sprints = [], 
-    columns, 
-    repoNames = [] 
+    columns,
+    repoNames = [],
+    onAiExecute
 }: CardModalProps) {
     const safeColumns = columns || [];
 
@@ -50,6 +56,9 @@ export function CardModal({
     const [bddValidated, setBddValidated] = useState<boolean>(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [descMode, setDescMode] = useState<'edit' | 'preview'>('edit');
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink' | 'red' | 'yellow' | 'slate' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky' | 'fuchsia' | 'emerald' | 'amber'> =
         ['blue', 'orange', 'purple', 'green', 'pink', 'red', 'yellow', 'slate', 'teal', 'indigo', 'lime', 'rose', 'sky', 'fuchsia', 'emerald', 'amber'];
@@ -84,6 +93,7 @@ export function CardModal({
                         const fullCard = await getCard(initialData.id);
                         setTitle(fullCard.title);
                         setDescription(fullCard.description || '');
+                        setDescMode(fullCard.description ? 'preview' : 'edit');
                         setStatus(getEffectiveStatus(fullCard.status));
                         setPriority(fullCard.priority || 'Medium');
                         setCardType(fullCard.card_type || 'feature');
@@ -103,6 +113,7 @@ export function CardModal({
                 } else if (initialData) {
                     setTitle(initialData.title);
                     setDescription(initialData.description || '');
+                    setDescMode(initialData.description ? 'preview' : 'edit');
                     setStatus(getEffectiveStatus(initialData.status));
                     setPriority(initialData.priority || 'Medium');
                     setCardType(initialData.card_type || 'feature');
@@ -118,6 +129,7 @@ export function CardModal({
                     // Reset for new card
                     setTitle('');
                     setDescription('');
+                    setDescMode('edit');
                     setStatus(safeColumns.length > 0 ? safeColumns[0].id : 'todo');
                     setPriority('Medium');
                     setCardType('feature');
@@ -143,7 +155,7 @@ export function CardModal({
                 description,
                 status,
                 priority,
-                card_type: cardType as any,
+                card_type: cardType,
                 due_date: parseDateForStorage(dueDate),
                 epic_id: epicId || undefined,
                 sprint_id: sprintId || undefined,
@@ -153,6 +165,27 @@ export function CardModal({
                 bdd_validated: bddValidated,
             });
             onClose();
+        }
+    };
+
+    const handleUploadFiles = async (files: FileList | null) => {
+        if (!files || files.length === 0) return;
+        setIsUploading(true);
+        try {
+            const snippets: string[] = [];
+            for (const file of Array.from(files)) {
+                const { url } = await uploadAttachment(file);
+                const isImg = file.type.startsWith('image/');
+                snippets.push(isImg ? `![${file.name}](${url})` : `[${file.name}](${url})`);
+            }
+            const block = snippets.join('\n');
+            setDescription(prev => (prev?.trim() ? `${prev}\n\n${block}` : block));
+            setDescMode('preview');
+        } catch (error) {
+            console.error('Upload failed:', error);
+            alert('Falha ao enviar anexo.');
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -327,14 +360,61 @@ export function CardModal({
                                             <div className="flex-1 space-y-6">
                                                 {/* Description */}
                                                 <div>
-                                                    <label className="block text-sm font-medium mb-2 text-white/50">Description</label>
-                                                    <textarea
-                                                        value={description}
-                                                        onChange={(e) => setDescription(e.target.value)}
-                                                        placeholder="Add a more detailed description..."
-                                                        className="w-full h-32 bg-white/5 rounded-xl p-4 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                                                        style={{ color: 'var(--snaps-text-primary)' }}
-                                                    />
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <label className="block text-sm font-medium text-white/50">Description</label>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                ref={fileInputRef}
+                                                                type="file"
+                                                                multiple
+                                                                className="hidden"
+                                                                onChange={(e) => { handleUploadFiles(e.target.files); e.target.value = ''; }}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => fileInputRef.current?.click()}
+                                                                disabled={isUploading}
+                                                                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                                                                title="Anexar arquivo (imagem, PDF, etc.) — embute como Markdown"
+                                                            >
+                                                                {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                                                                Anexar
+                                                            </button>
+                                                            <div className="flex rounded-lg border border-white/10 overflow-hidden">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setDescMode('edit')}
+                                                                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 transition-colors ${descMode === 'edit' ? 'bg-blue-500/20 text-blue-300' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" /> Editar
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setDescMode('preview')}
+                                                                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 transition-colors ${descMode === 'preview' ? 'bg-blue-500/20 text-blue-300' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                                                                >
+                                                                    <Eye className="w-3.5 h-3.5" /> Preview
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {descMode === 'edit' ? (
+                                                        <textarea
+                                                            value={description}
+                                                            onChange={(e) => setDescription(e.target.value)}
+                                                            placeholder="Add a more detailed description... (Markdown suportado)"
+                                                            className="w-full h-48 bg-white/5 rounded-xl p-4 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50 font-mono text-sm"
+                                                            style={{ color: 'var(--snaps-text-primary)' }}
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full min-h-[8rem] bg-white/5 rounded-xl p-4 prose prose-invert prose-sm max-w-none prose-img:rounded-lg prose-img:border prose-img:border-white/10 prose-img:max-h-80 prose-img:w-auto prose-img:object-contain prose-a:text-blue-400">
+                                                            {description?.trim() ? (
+                                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+                                                            ) : (
+                                                                <p className="text-white/30 italic !mt-0">Sem descrição.</p>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Tasks Section */}
@@ -348,7 +428,7 @@ export function CardModal({
 
                                                 {/* BDD Specifications Panel */}
                                                 <CardBddPanel
-                                                    cardType={cardType as any}
+                                                    cardType={cardType}
                                                     bddValidated={bddValidated}
                                                     setBddValidated={setBddValidated}
                                                     bddScenarios={bddScenarios}
@@ -362,7 +442,11 @@ export function CardModal({
                                                 <div>
                                                     <label className="block text-sm font-medium mb-2 text-white/50">AI Actions</label>
                                                     <button
-                                                        onClick={() => initialData?.id && setIsWizardOpen(true)}
+                                                        onClick={() => {
+                                                            if (!initialData?.id) return;
+                                                            if (onAiExecute) onAiExecute();
+                                                            else setIsWizardOpen(true);
+                                                        }}
                                                         disabled={!initialData?.id}
                                                         className="w-full py-2 px-4 rounded-xl flex items-center justify-center gap-2 font-medium transition-all group overflow-hidden relative disabled:opacity-40 disabled:cursor-not-allowed"
                                                         style={{

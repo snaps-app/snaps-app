@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, FileText, Download, File, Plus, Upload, Map } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, FileText, Download, File, HardDrive, Clock, Plus, Upload, Map } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -92,6 +92,7 @@ export function DocumentsView() {
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState<string>('prd');
   const [docContent, setDocContent] = useState('');
+  const [docPublicVisible, setDocPublicVisible] = useState(false);
 
   const handleIngest = async (doc: GovernanceDoc, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -206,7 +207,7 @@ O que explicitamente NÃO será construído nesta iteração.
 
   const resetForm = () => {
     setEditingId(null);
-    setDocName(''); setDocType('prd'); setDocContent('');
+    setDocName(''); setDocType('prd'); setDocContent(''); setDocPublicVisible(false);
   };
 
   const openCreate = () => { resetForm(); setModalOpen(true); };
@@ -214,6 +215,7 @@ O que explicitamente NÃO será construído nesta iteração.
   const openEdit = (item: GovernanceDoc) => {
     setEditingId(item.id);
     setDocName(item.name); setDocType(item.type); setDocContent(item.content);
+    setDocPublicVisible(!!item.public_visible);
     setModalOpen(true);
   };
 
@@ -221,7 +223,7 @@ O que explicitamente NÃO será construído nesta iteração.
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const data = { name: docName, type: docType as any, scope: 'project' as any, project_id: projectId, content: docContent };
+      const data = { name: docName, type: docType as any, scope: 'project' as any, project_id: projectId, content: docContent, public_visible: docPublicVisible };
       editingId ? await updateGovernanceDoc(editingId, data) : await createGovernanceDoc(data);
       setModalOpen(false); resetForm(); fetchDocs();
     } catch (e) { console.error(e); }
@@ -513,6 +515,8 @@ O que explicitamente NÃO será construído nesta iteração.
         setDocType={setDocType}
         docContent={docContent}
         setDocContent={setDocContent}
+        publicVisible={docPublicVisible}
+        setPublicVisible={setDocPublicVisible}
         isSaving={isSaving}
         onSave={handleSave}
       />

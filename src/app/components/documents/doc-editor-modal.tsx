@@ -11,6 +11,8 @@ interface DocEditorModalProps {
   setDocType: (v: string) => void;
   docContent: string;
   setDocContent: (v: string) => void;
+  publicVisible: boolean;
+  setPublicVisible: (v: boolean) => void;
   isSaving: boolean;
   onSave: () => void;
 }
@@ -25,6 +27,8 @@ export function DocEditorModal({
   setDocType,
   docContent,
   setDocContent,
+  publicVisible,
+  setPublicVisible,
   isSaving,
   onSave
 }: DocEditorModalProps) {
@@ -71,6 +75,21 @@ export function DocEditorModal({
               <option value="strategy">Strategy</option>
               <option value="roadmap">Roadmap</option>
             </select>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/40 px-4 py-3">
+            <div className="pr-4">
+              <p className="text-sm font-medium text-gray-200">Visível publicamente</p>
+              <p className="text-xs text-gray-500">Exibe este documento no portal público do cliente (Governance Docs via @snaps/client).</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={publicVisible}
+              onClick={() => setPublicVisible(!publicVisible)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${publicVisible ? 'bg-green-500' : 'bg-white/15'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${publicVisible ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Content (Markdown)</label>
