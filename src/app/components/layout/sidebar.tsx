@@ -67,6 +67,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { label: 'Memory', icon: Brain, path: '/memory' },
     { label: 'Board', icon: Activity, path: '/global-board' },
     { label: 'Calendar', icon: Calendar, path: '/calendar' },
+    { label: 'Time', icon: Clock, path: '/time' },
     { label: 'Governance', icon: Shield, path: '/governance' },
     { label: 'AI Executions', icon: Bot, path: '/ai-executions' },
     { label: 'Time', icon: Clock, path: '/time' },

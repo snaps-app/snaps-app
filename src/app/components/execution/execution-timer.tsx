@@ -23,8 +23,12 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) =
     );
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const sessionIdRef = useRef<string | null>(null);
+    const initializedRef = useRef<boolean>(false);
 
     useEffect(() => {
+        if (initializedRef.current) return;
+        initializedRef.current = true;
+
         let mounted = true;
 
         const startSession = async () => {
@@ -54,6 +58,7 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) =
             if (intervalRef.current) clearInterval(intervalRef.current);
             if (sessionIdRef.current) {
                 endExecutionSession(executionId, sessionIdRef.current).catch(() => {});
+                sessionIdRef.current = null;
             }
         };
     }, [executionId]);

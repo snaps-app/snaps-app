@@ -217,6 +217,7 @@ export interface GovernanceDoc {
     content: string;
     project_id?: string;
     scope?: AgentScope;
+    public_visible?: boolean;
     created_at: string;
     updated_at: string;
 }
