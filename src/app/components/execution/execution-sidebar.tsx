@@ -16,7 +16,6 @@ import { ExecutionRequirementsChecklist } from '@/app/components/execution/execu
 import { ExecutionPromptSnapshot } from '@/app/components/execution/execution-prompt-snapshot';
 import { ExecutionProjectSprintDetails } from '@/app/components/execution/execution-project-sprint-details';
 import { ExecutionAgentContext } from '@/app/components/execution/execution-agent-context';
-import { updateCard } from '@/services/cards';
 
 interface ExecutionSidebarProps {
     projectId: string;
@@ -95,13 +94,11 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
 
     const handleRequirementToggle = async (requirementKey: string, value: boolean) => {
         try {
-            if (requirementKey === 'bdd_validated') {
-                // Mark all cards as bdd_validated
-                await Promise.all(cards.map(c => updateCard(c.id, { bdd_validated: value })));
-            } else if (requirementKey === 'cards_done') {
-                // Mark all cards as done
-                await Promise.all(cards.map(c => updateCard(c.id, { status: value ? 'done' : 'assurance' })));
-            }
+            const { api } = await import('@/services/client');
+            await api.patch(`/api/agent-executions/${execution.id}/manual-requirement`, {
+                requirement_key: requirementKey,
+                value
+            });
         } catch (err) {
             console.error('Failed to toggle requirement:', err);
         }
