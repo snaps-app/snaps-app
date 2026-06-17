@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
@@ -112,7 +112,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     type: agentType as any, 
                     instructions: agentInstructions, 
                     scope: agentScope as any,
-                    project_id: agentScope === 'project' ? agentProjectId : null
+                    project_id: agentScope === 'project' ? agentProjectId : undefined
                 };
                 editingId ? await updateAgent(editingId, data) : await createAgent(data);
             } else if (tab === 'docs') {
@@ -120,7 +120,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     name: docName, 
                     type: docType as any, 
                     scope: docScope as any, 
-                    project_id: docScope === 'project' ? docProjectId : null,
+                    project_id: docScope === 'project' ? docProjectId : undefined,
                     content: docContent 
                 };
                 editingId ? await updateGovernanceDoc(editingId, data) : await createGovernanceDoc(data);
@@ -131,14 +131,14 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     language: skillLang, 
                     version: skillVersion, 
                     scope: skillScope as any,
-                    project_id: skillScope === 'project' ? skillProjectId : null
+                    project_id: skillScope === 'project' ? skillProjectId : undefined
                 };
                 editingId ? await updateSkill(editingId, data) : await createSkill(data);
             } else {
                 const data = { 
                     name: resName, 
                     type: resType as any, 
-                    project_id: resProjectId || null,
+                    project_id: resProjectId || undefined,
                     content: resContent 
                 };
                 editingId ? await updateResource(editingId, data) : await createResource(data);

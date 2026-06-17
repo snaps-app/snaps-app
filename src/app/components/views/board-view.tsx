@@ -1,10 +1,10 @@
-import { createAgentExecution } from '@/services/agentExecutions';
+
 import { createBoard, getProjectBoards, updateBoard } from '@/services/boards';
 import { createCard, updateCard, updateCardStatus } from '@/services/cards';
 import { getGithubConfig, getProjects } from '@/services/projects';
 import { createSnap } from '@/services/snaps';
-import type { Board, Card, Epic, Sprint } from '@/services/types';
-import React, { useState, useEffect, useMemo } from 'react';
+import type { Card } from '@/services/types';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Bot } from 'lucide-react';
 import { motion } from 'motion/react';
 import { DndProvider } from 'react-dnd';
@@ -90,7 +90,7 @@ export function BoardView() {
     if (projectId) {
       getGithubConfig(projectId).then(config => {
         if (config && config.repo_names) {
-          const names = config.repo_names.split(',').map((n: string) => n.strip ? n.strip() : n.trim());
+          const names = config.repo_names.split(',').map((n: string) => n.trim());
           setRepoNames(names);
         }
       }).catch(() => setRepoNames([]));
@@ -232,8 +232,8 @@ export function BoardView() {
         <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) setIsStrategyModalOpen(true); }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
         <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
           <div className="flex gap-6 min-w-max h-full items-start">
-            {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns.map((col: any, index: number) => (
-              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} onStartExecution={handleStartExecution} />
+            {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns?.map((col: any, index: number) => (
+              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} onStartExecution={handleStartExecution} onTitleChange={async () => {}} onColorChange={async () => {}} onMoveColumn={async () => {}} />
             ))}
           </div>
         </div>
@@ -243,7 +243,7 @@ export function BoardView() {
             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPlannerOpen(true)} className="w-16 h-16 rounded-full bg-orange-500/15 border-2 border-orange-500/50 flex items-center justify-center shadow-lg shadow-orange-500/20"><Bot className="w-7 h-7 text-orange-500" /></motion.button>
           </div>
         )}
-        <EpicModal isOpen={isEpicModalOpen} onClose={() => setIsEpicModalOpen(false)} {...{ epics, editingEpicId, epicNameInput, epicColorInput, isCreatingEpic, isCreatingEpicUtils, setEpicNameInput, setEpicColorInput, handleCreateEpic, handleUpdateEpic, handleDeleteEpic, startEditingEpic: (e: any) => { setEditingEpicId(e.id); setEpicNameInput(e.name); setEpicColorInput(e.color); }, startCreatingEpic: () => { setIsCreatingEpic(true); setEditingEpicId(null); setEpicNameInput(''); }, setIsCreatingEpic, setEditingEpicId }} />
+        <EpicModal isOpen={isEpicModalOpen} onClose={() => setIsEpicModalOpen(false)} {...{ epics, editingEpicId, epicNameInput, epicColorInput, isCreatingEpic, isCreatingEpicUtils, setEpicNameInput, setEpicColorInput, handleCreateEpic: async () => handleCreateEpic(epicNameInput, epicColorInput), handleUpdateEpic: async (id: string) => handleUpdateEpic(id, epicNameInput, epicColorInput), handleDeleteEpic, startEditingEpic: (e: any) => { setEditingEpicId(e.id); setEpicNameInput(e.name); setEpicColorInput(e.color); }, startCreatingEpic: () => { setIsCreatingEpic(true); setEditingEpicId(null); setEpicNameInput(''); }, setIsCreatingEpic, setEditingEpicId }} />
         <SprintModal isOpen={isSprintModalOpen} onClose={() => setIsSprintModalOpen(false)} {...{ sprints, editingSprintId, sprintNameInput, sprintTagInput, sprintObjectiveInput, isSprintFormOpen, isSprintSaving, setSprintNameInput, setSprintTagInput, setSprintObjectiveInput, setIsSprintFormOpen, setEditingSprintId, handleCreateSprint: onCreateSprint, handleUpdateSprint: onUpdateSprint, handleDeleteSprint, startEditingSprint: (s: any) => { setEditingSprintId(s.id); setSprintNameInput(s.name); setSprintTagInput(s.tag); setSprintObjectiveInput(s.objective || ''); } }} />
         <BulkApplyModal isOpen={isBulkApplyOpen} onClose={() => setIsBulkApplyOpen(false)} {...{ isLoadingBoards, allBoards, selectedBoardIds, toggleBoardSelection: (id) => { const n = new Set(selectedBoardIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedBoardIds(n); }, handleBulkApplyConfirm: async () => { if (!board?.columns) return; setIsBulkSaving(true); try { if (isDirty) await handleSaveBoard(); await Promise.all(Array.from(selectedBoardIds).map(id => updateBoard(id, { columns: board.columns }))); setIsBulkApplyOpen(false); setSelectedBoardIds(new Set()); } finally { setIsBulkSaving(false); } }, isBulkSaving }} />
         <VaccinationModal isOpen={isVaccinationModalOpen} onClose={() => setIsVaccinationModalOpen(false)} {...{ vaccinationCard, vaccinationContent, setVaccinationContent, handleVaccinate: async () => { if (!vaccinationCard || !projectId) return; setIsVaccinating(true); try { await createSnap({ project_id: projectId, name: `[VACINA] ${vaccinationCard.title}`, description: `Resolução do bug ${vaccinationCard.code || ''}`, content: vaccinationContent, snadds: { labels: ['bug-vaccination'], status: 'vacinado' } }); setIsVaccinationModalOpen(false); } finally { setIsVaccinating(false); } }, isVaccinating }} />

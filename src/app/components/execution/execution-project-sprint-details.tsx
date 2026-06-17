@@ -1,4 +1,3 @@
-import React from 'react';
 import { FolderGit2, Target, FileText } from 'lucide-react';
 import { WorkflowFlowPreview } from '@/app/components/workflow/workflow-flow-preview';
 import type { AgentTaskExecution, ProjectDetail, Sprint, WorkflowTemplate } from '@/services/types';

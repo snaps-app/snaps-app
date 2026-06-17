@@ -1,4 +1,3 @@
-import React from 'react';
 import { Wrench, Cpu, X } from 'lucide-react';
 import type { AgentTaskExecution, WorkflowTemplate } from '@/services/types';
 

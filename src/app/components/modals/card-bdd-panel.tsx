@@ -1,4 +1,3 @@
-import React from 'react';
 import { Bot, Check, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 

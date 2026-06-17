@@ -39,7 +39,7 @@ export function CardModal({
     const [description, setDescription] = useState('');
     const [status, setStatus] = useState<string>('todo');
     const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
-    const [cardType, setCardType] = useState<'feature' | 'bug' | 'support' | 'tech-debt'>('feature');
+    const [cardType, setCardType] = useState<any>('feature');
     const [dueDate, setDueDate] = useState('');
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
@@ -143,7 +143,7 @@ export function CardModal({
                 description,
                 status,
                 priority,
-                card_type: cardType,
+                card_type: cardType as any,
                 due_date: parseDateForStorage(dueDate),
                 epic_id: epicId || undefined,
                 sprint_id: sprintId || undefined,
@@ -348,7 +348,7 @@ export function CardModal({
 
                                                 {/* BDD Specifications Panel */}
                                                 <CardBddPanel
-                                                    cardType={cardType}
+                                                    cardType={cardType as any}
                                                     bddValidated={bddValidated}
                                                     setBddValidated={setBddValidated}
                                                     bddScenarios={bddScenarios}

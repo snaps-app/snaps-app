@@ -1,6 +1,7 @@
+import React from 'react';
 import { getProjectBoards } from '@/services/boards';
 import type { Board } from '@/services/types';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { 
   LayoutDashboard, 

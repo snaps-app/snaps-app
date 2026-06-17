@@ -1,5 +1,4 @@
 import type { Epic } from '@/services/types';
-import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Edit2, Trash2, Plus } from 'lucide-react';
 import { BOARD_COLORS } from '@/app/components/board/board-constants';

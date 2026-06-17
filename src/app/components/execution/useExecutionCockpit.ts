@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { advanceAgentExecution, getAgentExecution, getAgentExecutionTree, rollbackAgentExecution, syncAgentExecution } from '@/services/agentExecutions';
 import { getProjectBoards } from '@/services/boards';
-import { updateCard } from '@/services/cards';
+import { getCard, updateCard } from '@/services/cards';
 import { getEpics } from '@/services/epics';
 import { getAgents } from '@/services/governance';
 import { getGithubConfig, getProject } from '@/services/projects';
@@ -28,6 +28,7 @@ export const useExecutionCockpit = () => {
     const [columns, setColumns] = useState<{ id: string; title: string }[]>([]);
     const [agentInstructions, setAgentInstructions] = useState<string | null>(null);
     const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+    const [isTimeTrackingModalOpen, setIsTimeTrackingModalOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'cockpit' | 'branches'>('cockpit');
     const [selectedCard, setSelectedCard] = useState<Card | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -238,8 +239,8 @@ export const useExecutionCockpit = () => {
                     console.error('Failed to fetch agents:', err);
                 }
 
+                const allCards: Card[] = [];
                 if (data.sprint_ids && data.sprint_ids.length > 0) {
-                    const allCards: Card[] = [];
                     for (const sId of data.sprint_ids) {
                         try {
                             const sprintCards = await getCardsBySprint(sId);
@@ -248,8 +249,20 @@ export const useExecutionCockpit = () => {
                             console.error(`Failed to fetch cards for sprint ${sId}:`, err);
                         }
                     }
-                    setCards(allCards);
                 }
+                if (data.card_ids && data.card_ids.length > 0) {
+                    const existing = new Set(allCards.map(c => c.id));
+                    for (const cId of data.card_ids) {
+                        if (existing.has(cId)) continue;
+                        try {
+                            const card = await getCard(cId);
+                            if (card) allCards.push(card);
+                        } catch (err) {
+                            console.error(`Failed to fetch scoped card ${cId}:`, err);
+                        }
+                    }
+                }
+                setCards(allCards);
 
                 if (data.phase === 'micro_planning' || data.phase === 'plan_review') setActiveTab('plan');
                 else if (data.phase === 'execution') setActiveTab('cards');
@@ -295,11 +308,11 @@ export const useExecutionCockpit = () => {
             setExecution(updated);
             fetchSisters();
 
+            const allCards: any[] = [];
             if (updated.sprint_ids && updated.sprint_ids.length > 0) {
                 const sprintData = await getSprints(projectId!);
                 setSprints(sprintData.filter(s => updated.sprint_ids.includes(s.id)));
 
-                const allCards: any[] = [];
                 for (const sId of updated.sprint_ids) {
                     try {
                         const sprintCards = await getCardsBySprint(sId);
@@ -308,8 +321,22 @@ export const useExecutionCockpit = () => {
                         console.error(`Failed to refresh cards for sprint ${sId}:`, err);
                     }
                 }
-                setCards(allCards);
                 await fetchTroubleReport(updated.sprint_ids);
+            }
+            if (updated.card_ids && updated.card_ids.length > 0) {
+                const existing = new Set(allCards.map(c => c.id));
+                for (const cId of updated.card_ids) {
+                    if (existing.has(cId)) continue;
+                    try {
+                        const card = await getCard(cId);
+                        if (card) allCards.push(card);
+                    } catch (err) {
+                        console.error(`Failed to refresh scoped card ${cId}:`, err);
+                    }
+                }
+            }
+            if ((updated.sprint_ids?.length || 0) > 0 || (updated.card_ids?.length || 0) > 0) {
+                setCards(allCards);
             }
         } catch (error) {
             console.error('Failed to sync state:', error);
@@ -330,7 +357,7 @@ export const useExecutionCockpit = () => {
             if (updated.id !== executionId) {
                 navigate(`/project/${projectId}/execution/${updated.id}`);
             } else if (updated.status === 'done') {
-                navigate(`/project/${projectId}/executions`);
+                setIsTimeTrackingModalOpen(true);
             }
         } catch (error: any) {
             console.error('Failed to advance phase:', error);
@@ -503,6 +530,8 @@ export const useExecutionCockpit = () => {
         updatePlanStatus,
         deletePlanFn,
         handleApproveBDD,
-        handleToggleScenario
+        handleToggleScenario,
+        isTimeTrackingModalOpen,
+        setIsTimeTrackingModalOpen,
     };
 };

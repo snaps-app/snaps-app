@@ -3,9 +3,9 @@ import { listChats } from '@/services/chats';
 import { importDocument } from '@/services/import';
 import { getProject } from '@/services/projects';
 import { createSnap, getSnaps } from '@/services/snaps';
-import type { Board, Chat, Project, Snap } from '@/services/types';
-import { useEffect, useState, useMemo } from 'react';
-import { Plus, Settings, FolderOpen, Search, MessageSquare, Clock, ArrowLeft, LayoutDashboard, KanbanSquare, Upload, FileText, Tag as TagIcon, Calendar, ShieldAlert, LifeBuoy, ShieldCheck } from 'lucide-react';
+import type { Board, Chat, Snap } from '@/services/types';
+import { useEffect, useState } from 'react';
+import { Plus, Upload, Tag as TagIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // import { Button } from '@/app/components/shared/button'; // Unused
 import { SnapModal } from '@/app/components/modals/snap-modal';
@@ -34,19 +34,19 @@ export function ProjectWorkspace() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
 
-  const [activeConversation, setActiveConversation] = useState<string | null>(null);
+  const [_activeConversation, _setActiveConversation] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState('All');
   const [isSnapModalOpen, setIsSnapModalOpen] = useState(false);
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<any | null>(null); // Snap from API but adapted for UI modal
   const [snaps, setSnaps] = useState<Snap[]>([]);
-  const [project, setProject] = useState<Project | null>(null);
+  const [_project, setProject] = useState<any | null>(null);
   const [boards, setBoards] = useState<Board[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [_conversations, setConversations] = useState<Conversation[]>([]);
+  const [_searchQuery, _setSearchQuery] = useState('');
   // const [importStatus, setImportStatus] = useState<string | null>(null); // Unused
   const [isBoardListModalOpen, setIsBoardListModalOpen] = useState(false);
-  const [mobileView, setMobileView] = useState<'conversations' | 'memory'>('memory');
+  const [_mobileView, _setMobileView] = useState<'conversations' | 'memory'>('memory');
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProject = async () => {
@@ -118,9 +118,9 @@ export function ProjectWorkspace() {
     loadData();
   }, [projectId]);
 
-  const supportBoardId = useMemo(() => {
-    return boards.find(b => b.board_type === 'support')?.id;
-  }, [boards]);
+  // const supportBoardId = useMemo(() => {
+  //   return boards.find(b => b.board_type === 'support')?.id;
+  // }, [boards]);
 
 
   const handleCreateSnap = async (snapData: { title: string; content: string; tags: string[] }) => {

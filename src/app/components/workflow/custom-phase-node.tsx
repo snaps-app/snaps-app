@@ -21,8 +21,8 @@ export const CustomPhaseNode = ({ data, selected }: any) => {
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-mono text-white/40 uppercase tracking-wider">{data.key}</span>
         <div className="flex gap-1.5">
-          {isBranching && <GitBranch className="w-3.5 h-3.5 text-blue-400" title={`Branch: ${data.branching_strategy}`} />}
-          {isJoining && <GitMerge className="w-3.5 h-3.5 text-purple-400" title={`Join: ${data.join_strategy}`} />}
+          {isBranching && <span title={`Branch: ${data.branching_strategy}`}><GitBranch className="w-3.5 h-3.5 text-blue-400" /></span>}
+          {isJoining && <span title={`Join: ${data.join_strategy}`}><GitMerge className="w-3.5 h-3.5 text-purple-400" /></span>}
         </div>
       </div>
 

@@ -2,6 +2,7 @@ interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   color?: string;
   className?: string;
+  label?: string;
 }
 
 const sizeMap = {

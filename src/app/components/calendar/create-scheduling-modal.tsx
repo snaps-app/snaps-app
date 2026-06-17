@@ -2,7 +2,7 @@ import { getEpics } from '@/services/epics';
 import { getProjects } from '@/services/projects';
 import { createScheduling } from '@/services/schedulings';
 import type { Epic, Project, SchedulingCreate } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, Type, AlignLeft, Loader2, Target, Repeat, Clock } from 'lucide-react';
 import { format } from 'date-fns';

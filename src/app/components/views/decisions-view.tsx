@@ -1,6 +1,6 @@
 import { createDecision, deleteDecision, getDecisions, updateDecision } from '@/services/decisions';
 import type { Decision } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { ArrowLeft, Plus, Edit2, Trash2, ShieldAlert } from 'lucide-react';

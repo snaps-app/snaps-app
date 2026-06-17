@@ -18,15 +18,14 @@ const ROLE_COLORS: Record<string, { bg: string; border: string; text: string }> 
 export function MembersView() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { can, loading: roleLoading, role: myRole } = useProjectRole();
+  const { can, loading: roleLoading, } = useProjectRole();
   
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [projectOwnerId, setProjectOwnerId] = useState<string | null>(null);
-
+  
   // Redirect if user doesn't have permission to view members (Admin or Owner only)
   useEffect(() => {
     if (!roleLoading && !can('manage_members')) {
@@ -45,8 +44,7 @@ export function MembersView() {
 
       // 2. Fetch project details to identify the owner
       const project = await getProject(projectId);
-      setProjectOwnerId(project.user_id);
-
+      
       // 3. Fetch project members list
       const membersData = await getProjectMembers(projectId);
 

@@ -30,6 +30,8 @@ import { TimelineView } from '@/app/components/views/timeline-view';
 import { ExecutionCockpit } from '@/app/components/execution/execution-cockpit';
 import { ScratchView } from '@/app/components/views/scratch-view';
 import { MembersView } from '@/app/components/views/members-view';
+import { TimeView } from '@/app/views/TimeView';
+import { ProjectTimeView } from '@/app/views/ProjectTimeView';
 import { supabase } from '@/lib/supabaseClient';
 
 function AuthRedirector() {
@@ -37,8 +39,6 @@ function AuthRedirector() {
 
     useEffect(() => {
         const hash = window.location.hash;
-        // Only navigate if we are NOT already on /update-password
-        // This prevents stripping the hash before Supabase can parse it
         if (hash && (hash.includes('type=invite') || hash.includes('type=recovery'))) {
             if (window.location.pathname !== '/update-password') {
                 navigate('/update-password' + hash);
@@ -89,79 +89,31 @@ export default function App() {
                         <Route path="/workflow-editor/:templateId" element={<WorkflowEditorCanvas />} />
                         <Route path="/workflow-editor/new" element={<WorkflowEditorCanvas />} />
                         <Route path="/users" element={<UserManagement />} />
+                        <Route path="/time" element={<TimeView />} />
 
                         {/* Project Routes */}
-                        <Route
-                            path="/project/:projectId"
-                            element={<ProjectWorkspace />}
-                        />
-                        <Route
-                            path="/project/:projectId/edit"
-                            element={<EditProject />}
-                        />
-                        <Route
-                            path="/project/:projectId/docs"
-                            element={<DocumentsView />}
-                        />
-                        <Route
-                            path="/project/:projectId/generate"
-                            element={<GenerateDocument />}
-                        />
-                        <Route
-                            path="/project/:projectId/chat"
-                            element={<ActiveChat />}
-                        />
-                        <Route
-                            path="/project/:projectId/chat/:sessionId"
-                            element={<ActiveChat />}
-                        />
-                        <Route
-                            path="/project/:projectId/board"
-                            element={<BoardView />}
-                        />
-                        <Route
-                            path="/project/:projectId/board/:boardId"
-                            element={<BoardView />}
-                        />
-                        <Route
-                            path="/project/:projectId/plans"
-                            element={<PlansView />}
-                        />
-                        <Route
-                            path="/project/:projectId/decisions"
-                            element={<DecisionsView />}
-                        />
-                        <Route
-                            path="/project/:projectId/qa"
-                            element={<QAView />}
-                        />
-                        <Route
-                            path="/project/:projectId/retro"
-                            element={<RetroView />}
-                        />
-                        <Route
-                            path="/project/:projectId/timeline"
-                            element={<TimelineView />}
-                        />
-                        <Route
-                            path="/project/:projectId/executions"
-                            element={<AIExecutions />}
-                        />
-                        <Route
-                            path="/project/:projectId/members"
-                            element={<MembersView />}
-                        />
+                        <Route path="/project/:projectId" element={<ProjectWorkspace />} />
+                        <Route path="/project/:projectId/edit" element={<EditProject />} />
+                        <Route path="/project/:projectId/docs" element={<DocumentsView />} />
+                        <Route path="/project/:projectId/generate" element={<GenerateDocument />} />
+                        <Route path="/project/:projectId/chat" element={<ActiveChat />} />
+                        <Route path="/project/:projectId/chat/:sessionId" element={<ActiveChat />} />
+                        <Route path="/project/:projectId/board" element={<BoardView />} />
+                        <Route path="/project/:projectId/board/:boardId" element={<BoardView />} />
+                        <Route path="/project/:projectId/plans" element={<PlansView />} />
+                        <Route path="/project/:projectId/decisions" element={<DecisionsView />} />
+                        <Route path="/project/:projectId/qa" element={<QAView />} />
+                        <Route path="/project/:projectId/retro" element={<RetroView />} />
+                        <Route path="/project/:projectId/timeline" element={<TimelineView />} />
+                        <Route path="/project/:projectId/executions" element={<AIExecutions />} />
+                        <Route path="/project/:projectId/members" element={<MembersView />} />
+                        <Route path="/project/:projectId/time" element={<ProjectTimeView />} />
                     </Route>
+
                     {/* Execution Cockpit — standalone fullscreen, no sidebar */}
-                    <Route
-                        path="/project/:projectId/execution/:executionId"
-                        element={<ExecutionCockpit />}
-                    />
+                    <Route path="/project/:projectId/execution/:executionId" element={<ExecutionCockpit />} />
                     {/* Scratchpad — standalone fullscreen, no sidebar */}
-                    <Route
-                        path="/project/:projectId/execution/:executionId/scratch"
-                        element={<ScratchView />}
-                    />
+                    <Route path="/project/:projectId/execution/:executionId/scratch" element={<ScratchView />} />
 
                     {/* Fallback */}
                     <Route path="*" element={<Navigate to="/" replace />} />

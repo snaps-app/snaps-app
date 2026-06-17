@@ -1,9 +1,9 @@
 import { createSprint, getSprints, updateSprint } from '@/services/sprints';
 import type { Sprint } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
-import { ArrowLeft, RotateCcw, Plus, CheckCircle, AlertCircle, Lightbulb, Zap } from 'lucide-react';
+import { ArrowLeft, RotateCcw, CheckCircle, AlertCircle, Lightbulb, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Spinner } from '@/app/components/ui/spinner';
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ShieldCheck, ChevronRight } from 'lucide-react';
 import type { Card } from '@/services/types';
 

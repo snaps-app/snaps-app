@@ -1,6 +1,6 @@
 import { createProjectApiKey, getProjectApiKeys, revokeProjectApiKey } from '@/services/projects';
 import type { ProjectApiKeyCreated, ProjectApiKeyPublic } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Key, Copy, Check, Plus, Trash2, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Spinner } from '@/app/components/ui/spinner';

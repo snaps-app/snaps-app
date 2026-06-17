@@ -1,14 +1,14 @@
 import { getAgentExecution } from '@/services/agentExecutions';
 import { createSnap, deleteSnap, getSnaps, updateSnap } from '@/services/snaps';
 import type { AgentTaskExecution, Snap } from '@/services/types';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
     StickyNote, 
     Plus, 
-    X, 
+    
     Trash2, 
     Clock, 
     Loader2, 

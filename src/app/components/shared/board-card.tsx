@@ -1,13 +1,12 @@
 import type { Card } from '@/services/types';
-import React from 'react';
 import { motion } from 'motion/react';
 import { Card as CardContainer } from '@/app/components/shared/card';
 import { Flame, AlertCircle, CircleMinus, Calendar, Bug, LifeBuoy, Wrench, Sparkles, ShieldCheck } from 'lucide-react';
 import { formatToSaoPauloShort } from '@/lib/date-utils';
 
 interface BoardCardProps {
-    card: CardType;
-    onClick?: (card: CardType) => void;
+    card: Card;
+    onClick?: (card: Card) => void;
     projectName?: string;
     boardColor?: string; // Expected to be in a format compatible with CSS background/border
     epic?: { name: string; color: string };
@@ -141,11 +140,11 @@ export function BoardCard({ card, onClick, projectName, boardColor = 'rgba(168, 
                                 </h3>
                                 <div className="flex-shrink-0 flex items-center gap-2">
                                     {card.bdd_validated ? (
-                                        <ShieldCheck className="w-4 h-4 text-green-500 filter drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]" title="BDD Validated" />
+                                        <span title="BDD Validated"><ShieldCheck className="w-4 h-4 text-green-500 filter drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]" /></span>
                                     ) : card.bdd_scenarios && card.bdd_scenarios.length > 0 ? (
-                                        <ShieldCheck className="w-4 h-4 text-purple-400 opacity-60" title="Has BDD Scenarios" />
+                                        <span title="Has BDD Scenarios"><ShieldCheck className="w-4 h-4 text-purple-400 opacity-60" /></span>
                                     ) : (
-                                        <ShieldCheck className="w-4 h-4 text-white/10" title="Missing BDD" />
+                                        <span title="Missing BDD"><ShieldCheck className="w-4 h-4 text-white/10" /></span>
                                     )}
                                     {getPriorityIcon()}
                                 </div>
