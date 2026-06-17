@@ -58,93 +58,111 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
             )}
 
             {activeRules.sprint_linked && (
-                <div className="flex items-center gap-3">
-                    {execution.sprint_ids && execution.sprint_ids.length > 0 ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('sprint_linked')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {(execution.sprint_ids && execution.sprint_ids.length > 0) || manualRequirements['sprint_linked'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${execution.sprint_ids && execution.sprint_ids.length > 0 ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${(execution.sprint_ids && execution.sprint_ids.length > 0) || manualRequirements['sprint_linked'] ? 'text-white/60' : 'text-white/30'}`}>
                         Sprint Created & Linked
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.plan_approved && (
-                <div className="flex items-center gap-3">
-                    {(execution.context_data?.plans || []).some((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status)) ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('plan_approved')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {((execution.context_data?.plans || []).some((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['plan_approved'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${(execution.context_data?.plans || []).some((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status)) ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${((execution.context_data?.plans || []).some((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['plan_approved'] ? 'text-white/60' : 'text-white/30'}`}>
                         Strategic Plan Approved
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.tactical_plans_approved && (
-                <div className="flex items-center gap-3">
-                    {(execution.context_data?.plans || []).every((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status)) ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('tactical_plans_approved')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {((execution.context_data?.plans || []).every((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['tactical_plans_approved'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${(execution.context_data?.plans || []).every((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status)) ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${((execution.context_data?.plans || []).every((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['tactical_plans_approved'] ? 'text-white/60' : 'text-white/30'}`}>
                         All Tactical Plans Approved
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.plan_selected && (
-                <div className="flex items-center gap-3">
-                    {(execution.context_data?.plans || []).some((p: any) => ['selected', 'in_execution', 'executed'].includes(p.status)) ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('plan_selected')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {((execution.context_data?.plans || []).some((p: any) => ['selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['plan_selected'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${(execution.context_data?.plans || []).some((p: any) => ['selected', 'in_execution', 'executed'].includes(p.status)) ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${((execution.context_data?.plans || []).some((p: any) => ['selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['plan_selected'] ? 'text-white/60' : 'text-white/30'}`}>
                         At least one plan selected
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.bdd_scenarios_generated && (
-                <div className="flex items-center gap-3">
-                    {cards.length > 0 && cards.every(c => (c.bdd_scenarios?.length || 0) > 0) ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('bdd_scenarios_generated')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {(cards.length > 0 && cards.every(c => (c.bdd_scenarios?.length || 0) > 0)) || manualRequirements['bdd_scenarios_generated'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${cards.length > 0 && cards.every(c => (c.bdd_scenarios?.length || 0) > 0) ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${(cards.length > 0 && cards.every(c => (c.bdd_scenarios?.length || 0) > 0)) || manualRequirements['bdd_scenarios_generated'] ? 'text-white/60' : 'text-white/30'}`}>
                         BDD Scenarios Generated
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.tasks_finished && (
-                <div className="flex items-center gap-3">
-                    {cards.length > 0 && cards.every(c => c.status === 'assurance' || c.status === 'done') ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('tasks_finished')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {(cards.length > 0 && cards.every(c => c.status === 'assurance' || c.status === 'done')) || manualRequirements['tasks_finished'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${cards.length > 0 && cards.every(c => c.status === 'assurance' || c.status === 'done') ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${(cards.length > 0 && cards.every(c => c.status === 'assurance' || c.status === 'done')) || manualRequirements['tasks_finished'] ? 'text-white/60' : 'text-white/30'}`}>
                         All Tasks Finished (Assurance)
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.cards_done && (
@@ -184,23 +202,26 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
             )}
 
             {activeRules.ci_passed && (
-                <div className="flex items-center gap-3">
-                    {execution.context_data?.ci_status === 'success' ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('ci_passed')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {(execution.context_data?.ci_status === 'success') || manualRequirements['ci_passed'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${execution.context_data?.ci_status === 'success' ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${(execution.context_data?.ci_status === 'success') || manualRequirements['ci_passed'] ? 'text-white/60' : 'text-white/30'}`}>
                         CI Passed
-                        {execution.context_data?.ci_status && execution.context_data.ci_status !== 'success' && (
+                        {execution.context_data?.ci_status && execution.context_data.ci_status !== 'success' && !manualRequirements['ci_passed'] && (
                             <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300">
                                 {execution.context_data.ci_status}
                             </span>
                         )}
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.pr_merged && (
