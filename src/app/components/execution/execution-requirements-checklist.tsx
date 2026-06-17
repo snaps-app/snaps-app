@@ -1,17 +1,21 @@
 import { Check } from 'lucide-react';
 import type { AgentTaskExecution, Card, WorkflowTemplate } from '@/services/types';
+import { useState } from 'react';
 
 interface ExecutionRequirementsChecklistProps {
     execution: AgentTaskExecution;
     templates: WorkflowTemplate[];
     cards: Card[];
+    onRequirementToggle?: (requirementKey: string, value: boolean) => Promise<void>;
 }
 
 export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsChecklistProps> = ({
     execution,
     templates,
     cards,
+    onRequirementToggle,
 }) => {
+    const [manualRequirements, setManualRequirements] = useState<Record<string, boolean>>({});
     const activeTemplate = templates.find(t => t.id === execution.workflow_template_id) || templates[0];
     const activePhaseConfig = activeTemplate?.phases?.find((p: any) => p.key === execution.phase);
 
@@ -31,6 +35,19 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
     }
 
     const hasAnyRule = Object.values(activeRules).some(v => !!v);
+
+    const toggleRequirement = async (key: string) => {
+        const newValue = !manualRequirements[key];
+        setManualRequirements(prev => ({ ...prev, [key]: newValue }));
+        if (onRequirementToggle) {
+            try {
+                await onRequirementToggle(key, newValue);
+            } catch (err) {
+                console.error('Failed to toggle requirement:', err);
+                setManualRequirements(prev => ({ ...prev, [key]: !newValue }));
+            }
+        }
+    };
 
     return (
         <div className="mb-4 space-y-2">
@@ -131,33 +148,39 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
             )}
 
             {activeRules.cards_done && (
-                <div className="flex items-center gap-3">
-                    {cards.length > 0 && cards.every(c => c.status === 'done') ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('cards_done')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {(cards.length > 0 && cards.every(c => c.status === 'done')) || manualRequirements['cards_done'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${cards.length > 0 && cards.every(c => c.status === 'done') ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${(cards.length > 0 && cards.every(c => c.status === 'done')) || manualRequirements['cards_done'] ? 'text-white/60' : 'text-white/30'}`}>
                         All Cards Validated & Done
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.bdd_validated && (
-                <div className="flex items-center gap-3">
-                    {cards.length > 0 && cards.every(c => c.bdd_validated) ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('bdd_validated')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {(cards.length > 0 && cards.every(c => c.bdd_validated)) || manualRequirements['bdd_validated'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${cards.length > 0 && cards.every(c => c.bdd_validated) ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${(cards.length > 0 && cards.every(c => c.bdd_validated)) || manualRequirements['bdd_validated'] ? 'text-white/60' : 'text-white/30'}`}>
                         BDD Design Approved (Scenario Review)
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.ci_passed && (
