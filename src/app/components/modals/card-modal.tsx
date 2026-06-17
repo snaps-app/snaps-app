@@ -155,7 +155,7 @@ export function CardModal({
                 description,
                 status,
                 priority,
-                card_type: cardType,
+                card_type: cardType as any,
                 due_date: parseDateForStorage(dueDate),
                 epic_id: epicId || undefined,
                 sprint_id: sprintId || undefined,
@@ -428,7 +428,7 @@ export function CardModal({
 
                                                 {/* BDD Specifications Panel */}
                                                 <CardBddPanel
-                                                    cardType={cardType}
+                                                    cardType={cardType as any}
                                                     bddValidated={bddValidated}
                                                     setBddValidated={setBddValidated}
                                                     bddScenarios={bddScenarios}

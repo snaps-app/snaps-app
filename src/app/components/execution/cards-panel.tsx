@@ -1,4 +1,3 @@
-import React from 'react';
 import { Zap } from 'lucide-react';
 import { BoardCard } from '@/app/components/shared/board-card';
 import type { Card, Epic, Sprint } from '@/services/types';
