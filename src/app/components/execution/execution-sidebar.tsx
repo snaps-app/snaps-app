@@ -96,30 +96,11 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     const handleRequirementToggle = async (requirementKey: string, value: boolean) => {
         try {
             if (requirementKey === 'bdd_validated') {
-                // Mark ALL cards in all sprints as bdd_validated
-                if (execution.sprint_ids && execution.sprint_ids.length > 0) {
-                    const { api } = await import('@/services/client');
-                    // Get all cards for these sprints
-                    const response = await api.get(`/cards/`, {
-                        params: { sprint_ids: execution.sprint_ids.join(',') }
-                    });
-                    const sprintCards = response.data;
-                    await Promise.all(
-                        sprintCards.map((c: any) => updateCard(c.id, { bdd_validated: value }))
-                    );
-                }
+                // Mark all cards as bdd_validated
+                await Promise.all(cards.map(c => updateCard(c.id, { bdd_validated: value })));
             } else if (requirementKey === 'cards_done') {
-                // Mark ALL cards as done
-                if (execution.sprint_ids && execution.sprint_ids.length > 0) {
-                    const { api } = await import('@/services/client');
-                    const response = await api.get(`/cards/`, {
-                        params: { sprint_ids: execution.sprint_ids.join(',') }
-                    });
-                    const sprintCards = response.data;
-                    await Promise.all(
-                        sprintCards.map((c: any) => updateCard(c.id, { status: value ? 'done' : 'assurance' }))
-                    );
-                }
+                // Mark all cards as done
+                await Promise.all(cards.map(c => updateCard(c.id, { status: value ? 'done' : 'assurance' })));
             }
         } catch (err) {
             console.error('Failed to toggle requirement:', err);
