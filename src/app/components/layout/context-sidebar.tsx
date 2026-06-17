@@ -3,21 +3,22 @@ import { getProjectBoards } from '@/services/boards';
 import type { Board } from '@/services/types';
 import { useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Activity, 
-  GitBranch, 
-  ClipboardList, 
-  FileText, 
-  FolderOpen, 
-  ShieldCheck, 
-  RotateCcw, 
-  MessageSquare, 
+import {
+  LayoutDashboard,
+  Activity,
+  GitBranch,
+  ClipboardList,
+  FileText,
+  FolderOpen,
+  ShieldCheck,
+  RotateCcw,
+  MessageSquare,
   Settings,
   ChevronRight,
   ChevronLeft,
   Bot,
-  Users
+  Users,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useProjectRole } from '@/contexts/project-role-context';
@@ -63,6 +64,7 @@ export function ContextSidebar() {
     { label: 'QA Engine', icon: ShieldCheck, path: `/project/${projectId}/qa` },
     { label: 'AI Executions', icon: Bot, path: `/project/${projectId}/executions` },
     { label: 'Retrospective', icon: RotateCcw, path: `/project/${projectId}/retro` },
+    { label: 'Time', icon: Clock, path: `/project/${projectId}/time` },
     { label: 'Chat', icon: MessageSquare, path: `/project/${projectId}/chat` },
   ];
 

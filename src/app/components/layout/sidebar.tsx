@@ -1,16 +1,17 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderArchive, 
-  Brain, 
-  Activity, 
-  Calendar, 
-  ChevronLeft, 
-  ChevronRight, 
-  Shield, 
+import {
+  LayoutDashboard,
+  FolderArchive,
+  Brain,
+  Activity,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Shield,
   Bot,
-  Users
+  Users,
+  Clock
 } from 'lucide-react';
 
 import { motion } from 'motion/react';
@@ -68,6 +69,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { label: 'Calendar', icon: Calendar, path: '/calendar' },
     { label: 'Governance', icon: Shield, path: '/governance' },
     { label: 'AI Executions', icon: Bot, path: '/ai-executions' },
+    { label: 'Time', icon: Clock, path: '/time' },
   ];
 
   if (globalRole === 'super_admin') {
