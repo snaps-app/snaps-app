@@ -204,18 +204,21 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
             )}
 
             {activeRules.pr_merged && (
-                <div className="flex items-center gap-3">
-                    {execution.context_data?.pr_merged ? (
-                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                <button
+                    onClick={() => toggleRequirement('pr_merged')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {execution.context_data?.pr_merged || manualRequirements['pr_merged'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
-                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10" />
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${execution.context_data?.pr_merged ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${execution.context_data?.pr_merged || manualRequirements['pr_merged'] ? 'text-white/60' : 'text-white/30'}`}>
                         PR Merged
                     </span>
-                </div>
+                </button>
             )}
         </div>
     );
