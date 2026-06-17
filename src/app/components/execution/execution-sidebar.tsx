@@ -16,6 +16,7 @@ import { ExecutionRequirementsChecklist } from '@/app/components/execution/execu
 import { ExecutionPromptSnapshot } from '@/app/components/execution/execution-prompt-snapshot';
 import { ExecutionProjectSprintDetails } from '@/app/components/execution/execution-project-sprint-details';
 import { ExecutionAgentContext } from '@/app/components/execution/execution-agent-context';
+import { updateCard } from '@/services/cards';
 
 interface ExecutionSidebarProps {
     projectId: string;
@@ -90,6 +91,20 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
             }
         }
         return phaseLabels[phaseKey] || phaseKey.replace(/_/g, ' ').toUpperCase();
+    };
+
+    const handleRequirementToggle = async (requirementKey: string, value: boolean) => {
+        try {
+            if (requirementKey === 'bdd_validated') {
+                // Mark all cards as bdd_validated
+                await Promise.all(cards.map(c => updateCard(c.id, { bdd_validated: value })));
+            } else if (requirementKey === 'cards_done') {
+                // Mark all cards as done
+                await Promise.all(cards.map(c => updateCard(c.id, { status: value ? 'done' : 'assurance' })));
+            }
+        } catch (err) {
+            console.error('Failed to toggle requirement:', err);
+        }
     };
 
     return (
@@ -229,6 +244,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                             execution={execution}
                             templates={templates}
                             cards={cards}
+                            onRequirementToggle={handleRequirementToggle}
                         />
 
                         <div className="flex gap-2 mb-4">
