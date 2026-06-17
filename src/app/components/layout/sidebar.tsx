@@ -1,16 +1,17 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderArchive, 
-  Brain, 
-  Activity, 
-  Calendar, 
-  ChevronLeft, 
-  ChevronRight, 
-  Shield, 
+import {
+  LayoutDashboard,
+  FolderArchive,
+  Brain,
+  Activity,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Shield,
   Bot,
-  Users
+  Users,
+  Clock
 } from 'lucide-react';
 
 import { motion } from 'motion/react';
@@ -66,6 +67,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { label: 'Memory', icon: Brain, path: '/memory' },
     { label: 'Board', icon: Activity, path: '/global-board' },
     { label: 'Calendar', icon: Calendar, path: '/calendar' },
+    { label: 'Time', icon: Clock, path: '/time' },
     { label: 'Governance', icon: Shield, path: '/governance' },
     { label: 'AI Executions', icon: Bot, path: '/ai-executions' },
   ];
