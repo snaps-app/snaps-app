@@ -7,7 +7,7 @@ import { getEpics } from '@/services/epics';
 import { getAgents } from '@/services/governance';
 import { getGithubConfig, getProject } from '@/services/projects';
 import { getCardsBySprint, getSprints } from '@/services/sprints';
-import { getTroubleReport } from '@/services/testPlans';
+import { getExecutionTroubleReport, getTestPlans, getTroubleReport } from '@/services/testPlans';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
 import { getSnaps } from '@/services/snaps';
 
@@ -141,6 +141,47 @@ export const useExecutionCockpit = () => {
         }
     };
 
+    // Resolve o trouble report / test_plans pela agent-task-execution, agregando
+    // TODAS as executions do branching (a árvore). Cobre execuções de bug/RCA sem sprint.
+    const loadExecutionTroubleReport = async (execId: string, tree: AgentTaskExecution[]) => {
+        if (!projectId || !execId) return;
+        try {
+            // Report base resolvido por execution (test_plans por execution_id OU sprint + failed_bdd_cards)
+            let report: any = null;
+            try {
+                report = await getExecutionTroubleReport(execId);
+            } catch {
+                /* execução sem report base (ex.: sem sprint e sem cards) — segue com agregação */
+            }
+
+            // Agrega test_plans de cada execution do branching (current + árvore inteira)
+            const ids = Array.from(new Set([execId, ...tree.map(e => e.id)]));
+            const lists = await Promise.all(
+                ids.map(id => getTestPlans(projectId, undefined, id).catch(() => []))
+            );
+
+            const byId = new Map<string, any>();
+            for (const p of (report?.test_plans ?? [])) byId.set(p.id, p);
+            for (const list of lists) for (const p of list) if (!byId.has(p.id)) byId.set(p.id, p);
+            const mergedPlans = Array.from(byId.values());
+
+            if (!report && mergedPlans.length === 0) {
+                setTroubleReport(null);
+                return;
+            }
+
+            setTroubleReport({
+                total_cards: 0,
+                failed_bdd_cards: [],
+                sprint_name: 'Execução (test plans)',
+                ...(report ?? {}),
+                test_plans: mergedPlans,
+            });
+        } catch (err) {
+            console.error('Failed to load execution trouble report:', err);
+        }
+    };
+
     const handleOpenPeerReview = async () => {
         if (!projectId || !execution) return;
         setIsPeerReviewModalOpen(true);
@@ -159,8 +200,8 @@ export const useExecutionCockpit = () => {
         }
     };
 
-    const fetchSisters = async () => {
-        if (!projectId || !executionId) return;
+    const fetchSisters = async (): Promise<AgentTaskExecution[]> => {
+        if (!projectId || !executionId) return [];
         try {
             const tree = await getAgentExecutionTree(executionId);
             setExecutionTree(tree);
@@ -174,8 +215,10 @@ export const useExecutionCockpit = () => {
             } else {
                 setSisterExecutions([]);
             }
+            return tree;
         } catch (err) {
             console.error('Failed to fetch sister executions:', err);
+            return [];
         }
     };
 
@@ -186,7 +229,7 @@ export const useExecutionCockpit = () => {
 
                 const data = await getAgentExecution(executionId);
                 setExecution(data);
-                fetchSisters();
+                const tree = await fetchSisters();
 
                 try {
                     const [globalAgents, projectAgents, projectEpics, projectSprints, projectData, templatesData] = await Promise.all([
@@ -269,9 +312,9 @@ export const useExecutionCockpit = () => {
                 else if (data.phase === 'assurance') setActiveTab('bdd');
                 else if (data.phase === 'retro') setActiveTab('retro');
 
-                if (data.phase === 'assurance' || data.phase === 'retro') {
-                    fetchTroubleReport(data.sprint_ids);
-                }
+                // Test plans / trouble report resolvidos pela execution + árvore de branching
+                // (cobre execuções de bug/RCA sem sprint, que antes não exibiam nada).
+                await loadExecutionTroubleReport(executionId, tree);
 
                 const savedIds = data.context_data?.selected_test_plan_ids;
                 if (Array.isArray(savedIds)) setSelectedTestPlanIds(savedIds);
@@ -306,7 +349,7 @@ export const useExecutionCockpit = () => {
         try {
             const updated = await syncAgentExecution(executionId, missionInstructions, selectedDocIds, selectedDecisionIds);
             setExecution(updated);
-            fetchSisters();
+            const tree = await fetchSisters();
 
             const allCards: any[] = [];
             if (updated.sprint_ids && updated.sprint_ids.length > 0) {
@@ -338,6 +381,7 @@ export const useExecutionCockpit = () => {
             if ((updated.sprint_ids?.length || 0) > 0 || (updated.card_ids?.length || 0) > 0) {
                 setCards(allCards);
             }
+            await loadExecutionTroubleReport(executionId, tree);
         } catch (error) {
             console.error('Failed to sync state:', error);
         } finally {
