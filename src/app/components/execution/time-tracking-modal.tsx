@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Clock, Plus, Trash2, ChevronDown, Loader2, CheckCircle } from 'lucide-react';
 import { getTimeDraft, createTimeLog } from '@/services/timeLogs';
 import { getCard, updateCard } from '@/services/cards';
 import { getProjectBoards } from '@/services/boards';
 import type { AgentTaskExecution, Card } from '@/services/types';
 import type { DraftEntry, Participant } from '@/types/timeLogs';
+import { supabase } from '@/lib/supabaseClient';
 
 interface TimeTrackingModalProps {
     execution: AgentTaskExecution;
@@ -40,6 +41,10 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
         const load = async () => {
             setIsLoading(true);
             try {
+                // Get current user
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                const currentUserId = currentUser?.id;
+
                 const draft = await getTimeDraft(execution.id);
 
                 setDrafts(draft.drafts.map((d, i) => ({
@@ -47,10 +52,12 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                     _key: `${d.date}-${d.user_id}-${i}`,
                 })));
 
+                // Pre-select current user; only select current user if they have drafts
                 setParticipants(draft.participants.map((p) => {
                     const pDrafts = draft.drafts.filter((d) => d.user_id === p.user_id);
                     const totalH = pDrafts.reduce((acc, d) => acc + d.hours, 0);
-                    return { ...p, selected: true, hours: Math.round(totalH * 10) / 10 };
+                    const isCurrentUser = p.user_id.toString() === currentUserId;
+                    return { ...p, selected: isCurrentUser || pDrafts.length > 0, hours: Math.round(totalH * 10) / 10 };
                 }));
 
                 const cardIds = execution.card_ids ?? [];

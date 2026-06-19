@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Timer, Minus, X } from 'lucide-react';
-import { startExecutionSession, endExecutionSession } from '@/services/timeLogs';
+import { startExecutionSession, endExecutionSession, saveSessionHeartbeat } from '@/services/timeLogs';
 
 interface ExecutionTimerProps {
     executionId: string;
@@ -22,6 +22,7 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) =
         () => localStorage.getItem('timer-minimized') === 'true'
     );
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const initializedRef = useRef<boolean>(false);
 
@@ -46,6 +47,14 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) =
                 intervalRef.current = setInterval(() => {
                     setElapsed(Math.floor((Date.now() - start.getTime()) / 1000));
                 }, 1000);
+
+                // Heartbeat: save session progress every 30s to prevent data loss if browser closes
+                heartbeatRef.current = setInterval(() => {
+                    const elapsedSecs = Math.floor((Date.now() - start.getTime()) / 1000);
+                    saveSessionHeartbeat(executionId, data.session_id, elapsedSecs).catch(err => {
+                        console.warn('[ExecutionTimer] Heartbeat failed:', err);
+                    });
+                }, 30000);
             } catch (err) {
                 console.error('[ExecutionTimer] Failed to start session:', err);
             }
@@ -56,6 +65,7 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) =
         return () => {
             mounted = false;
             if (intervalRef.current) clearInterval(intervalRef.current);
+            if (heartbeatRef.current) clearInterval(heartbeatRef.current);
             if (sessionIdRef.current) {
                 endExecutionSession(executionId, sessionIdRef.current).catch(() => {});
                 sessionIdRef.current = null;
@@ -73,6 +83,7 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) =
 
     const handleClose = () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
+        if (heartbeatRef.current) clearInterval(heartbeatRef.current);
         if (sessionIdRef.current) {
             endExecutionSession(executionId, sessionIdRef.current).catch(() => {});
             sessionIdRef.current = null;

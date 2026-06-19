@@ -10,6 +10,12 @@ export const endExecutionSession = async (executionId: string, sessionId: string
     await api.patch(`/agent-executions/${executionId}/sessions/${sessionId}/end`);
 };
 
+export const saveSessionHeartbeat = async (executionId: string, sessionId: string, elapsedSeconds: number): Promise<void> => {
+    await api.patch(`/agent-executions/${executionId}/sessions/${sessionId}/heartbeat`, {
+        elapsed_seconds: elapsedSeconds
+    });
+};
+
 export const getTimeDraft = async (executionId: string): Promise<TimeDraftResponse> => {
     const response = await api.get(`/agent-executions/${executionId}/time-draft`);
     return response.data;
