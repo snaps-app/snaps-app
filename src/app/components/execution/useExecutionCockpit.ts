@@ -40,6 +40,11 @@ export const useExecutionCockpit = () => {
     const [entryReviewed, setEntryReviewed] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isAdvancing, setIsAdvancing] = useState(false);
+    // Manual override (bypass): when the user hand-validates Phase Requirements,
+    // advancing forces past ALL automated advance_conditions via the backend `force` flag.
+    const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
+    const setManualOverride = (key: string, value: boolean) =>
+        setManualOverrides(prev => ({ ...prev, [key]: value }));
     const [isRollingBack, setIsRollingBack] = useState(false);
     const [missionInstructions, setMissionInstructions] = useState('');
 
@@ -393,9 +398,11 @@ export const useExecutionCockpit = () => {
         if (!executionId) return;
         setIsAdvancing(true);
         try {
-            const updated = await advanceAgentExecution(executionId, missionInstructions, selectedDocIds, selectedDecisionIds);
+            const force = Object.values(manualOverrides).some(Boolean);
+            const updated = await advanceAgentExecution(executionId, missionInstructions, selectedDocIds, selectedDecisionIds, force);
             setExecution(updated);
             setMissionInstructions('');
+            setManualOverrides({});
             fetchSisters();
 
             if (updated.id !== executionId) {
@@ -570,6 +577,7 @@ export const useExecutionCockpit = () => {
         handleSaveTestPlanContext,
         handleRefresh,
         handleAdvance,
+        setManualOverride,
         handleRollback,
         updatePlanStatus,
         deletePlanFn,

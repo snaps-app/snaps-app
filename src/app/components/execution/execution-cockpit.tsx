@@ -114,6 +114,7 @@ export const ExecutionCockpit: React.FC = () => {
         handleSavePlan,
         handleRefresh,
         handleAdvance,
+        setManualOverride,
         handleRollback,
         updatePlanStatus,
         deletePlanFn,
@@ -180,6 +181,8 @@ export const ExecutionCockpit: React.FC = () => {
                 isRollingBack={isRollingBack}
                 handleRefresh={handleRefresh}
                 handleAdvance={handleAdvance}
+                setManualOverride={setManualOverride}
+                setIsTimeTrackingModalOpen={setIsTimeTrackingModalOpen}
                 handleRollback={handleRollback}
                 setIsAgentModalOpen={setIsAgentModalOpen}
                 setIsToolsModalOpen={setIsToolsModalOpen}
@@ -445,13 +448,16 @@ export const ExecutionCockpit: React.FC = () => {
                 <TimeTrackingModal
                     execution={execution}
                     projectId={projectId!}
+                    availableCards={cards}
                     onClose={() => {
+                        // Time logged (or saved successfully): close modal and leave the cockpit.
                         setIsTimeTrackingModalOpen(false);
                         navigate(`/project/${projectId}/executions`);
                     }}
                     onSkip={() => {
+                        // Dismiss without logging: stay on the cockpit so the user can
+                        // reopen via "Execution Complete — Exit" and still log their time.
                         setIsTimeTrackingModalOpen(false);
-                        navigate(`/project/${projectId}/executions`);
                     }}
                 />
             )}

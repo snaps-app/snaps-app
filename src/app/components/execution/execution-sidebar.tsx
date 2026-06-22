@@ -41,6 +41,8 @@ interface ExecutionSidebarProps {
     isRollingBack: boolean;
     handleRefresh: () => Promise<void>;
     handleAdvance: () => Promise<void>;
+    setManualOverride: (key: string, value: boolean) => void;
+    setIsTimeTrackingModalOpen: (open: boolean) => void;
     handleRollback: (targetPhase?: string) => Promise<void>;
     setIsAgentModalOpen: (open: boolean) => void;
     setIsToolsModalOpen: (open: boolean) => void;
@@ -66,6 +68,8 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     isRollingBack,
     handleRefresh,
     handleAdvance,
+    setManualOverride,
+    setIsTimeTrackingModalOpen,
     handleRollback,
     setIsAgentModalOpen,
     setIsToolsModalOpen
@@ -93,6 +97,9 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     };
 
     const handleRequirementToggle = async (requirementKey: string, value: boolean) => {
+        // Primary bypass path: mark the override locally so the next Advance sends force=true.
+        setManualOverride(requirementKey, value);
+        // Secondary: persist the override server-side (best-effort, non-blocking).
         try {
             const { api } = await import('@/services/client');
             await api.patch(`/api/agent-executions/${execution.id}/manual-requirement`, {
@@ -100,7 +107,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                 value
             });
         } catch (err) {
-            console.error('Failed to toggle requirement:', err);
+            console.error('Failed to persist requirement override:', err);
         }
     };
 
@@ -298,7 +305,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                             </div>
                         )}
                         <button
-                            onClick={execution.status === 'done' ? () => navigate(`/project/${projectId}/executions`) : handleAdvance}
+                            onClick={execution.status === 'done' ? () => setIsTimeTrackingModalOpen(true) : handleAdvance}
                             disabled={isAdvancing}
                             className={`w-full h-12 ${execution.status === 'done' ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20'} text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50`}
                         >

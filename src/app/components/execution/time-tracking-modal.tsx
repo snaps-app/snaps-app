@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabaseClient';
 interface TimeTrackingModalProps {
     execution: AgentTaskExecution;
     projectId: string;
+    /** Cards already loaded by the cockpit (includes the sprint macrocard). */
+    availableCards?: Card[];
     onClose: () => void;
     onSkip: () => void;
 }
@@ -26,6 +28,7 @@ interface ParticipantState extends Participant {
 export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
     execution,
     projectId,
+    availableCards,
     onClose,
     onSkip,
 }) => {
@@ -60,19 +63,25 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                     return { ...p, selected: isCurrentUser || pDrafts.length > 0, hours: Math.round(totalH * 10) / 10 };
                 }));
 
-                const cardIds = execution.card_ids ?? [];
-                if (cardIds.length > 0) {
-                    const resolved = await Promise.all(cardIds.map((id) => getCard(id).catch(() => null)));
-                    const valid = resolved.filter(Boolean) as Card[];
-                    setCards(valid);
-                    if (valid.length === 1) setSelectedCardId(valid[0].id);
-                } else {
-                    try {
-                        const boards = await getProjectBoards(projectId);
-                        const tkBoard = boards.find((b: any) => b.type === 'team_kanban');
-                        if (tkBoard) setCards(tkBoard.cards ?? []);
-                    } catch { }
+                // Prefer the cockpit's already-loaded card list (includes the sprint macrocard,
+                // loaded via getCardsBySprint). Fall back to fetching by card_ids / board.
+                let collected: Card[] = availableCards ?? [];
+                if (collected.length === 0) {
+                    const cardIds = execution.card_ids ?? [];
+                    if (cardIds.length > 0) {
+                        const resolved = await Promise.all(cardIds.map((id) => getCard(id).catch(() => null)));
+                        collected = resolved.filter(Boolean) as Card[];
+                    } else {
+                        try {
+                            const boards = await getProjectBoards(projectId);
+                            const tkBoard = boards.find((b: any) => b.type === 'team_kanban');
+                            if (tkBoard) collected = tkBoard.cards ?? [];
+                        } catch { }
+                    }
                 }
+
+                setCards(collected);
+                if (collected.length === 1) setSelectedCardId(collected[0].id);
             } catch (err) {
                 console.error('[TimeTrackingModal] load error:', err);
                 setError('Não foi possível carregar os dados da sessão.');

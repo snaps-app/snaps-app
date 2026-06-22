@@ -27,15 +27,17 @@ export const getProjectAgentExecutions = async (projectId: string, skip = 0, lim
 };
 
 export const advanceAgentExecution = async (
-    executionId: string, 
-    instructions?: string, 
-    docIds?: string[], 
-    decisionIds?: string[]
+    executionId: string,
+    instructions?: string,
+    docIds?: string[],
+    decisionIds?: string[],
+    force?: boolean
 ): Promise<AgentTaskExecution> => {
-    const response = await api.patch(`/api/agent-executions/${executionId}/advance`, { 
-        instructions, 
-        doc_ids: docIds, 
-        decision_ids: decisionIds 
+    const response = await api.patch(`/api/agent-executions/${executionId}/advance`, {
+        instructions,
+        doc_ids: docIds,
+        decision_ids: decisionIds,
+        force: force ?? false
     });
     return response.data;
 };
