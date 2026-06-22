@@ -1,11 +1,14 @@
 import { Check } from 'lucide-react';
 import type { AgentTaskExecution, Card, WorkflowTemplate } from '@/services/types';
-import { useState } from 'react';
 
 interface ExecutionRequirementsChecklistProps {
     execution: AgentTaskExecution;
     templates: WorkflowTemplate[];
     cards: Card[];
+    // Single source of truth shared with the cockpit hook — the same state that
+    // computes `force` on Advance. Deriving the green check from this guarantees:
+    // box green by manual action  <=>  force=true is sent on the next Advance.
+    manualOverrides: Record<string, boolean>;
     onRequirementToggle?: (requirementKey: string, value: boolean) => Promise<void>;
 }
 
@@ -13,9 +16,10 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
     execution,
     templates,
     cards,
+    manualOverrides,
     onRequirementToggle,
 }) => {
-    const [manualRequirements, setManualRequirements] = useState<Record<string, boolean>>({});
+    const manualRequirements = manualOverrides;
     const activeTemplate = templates.find(t => t.id === execution.workflow_template_id) || templates[0];
     const activePhaseConfig = activeTemplate?.phases?.find((p: any) => p.key === execution.phase);
 
@@ -38,13 +42,13 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
 
     const toggleRequirement = async (key: string) => {
         const newValue = !manualRequirements[key];
-        setManualRequirements(prev => ({ ...prev, [key]: newValue }));
+        // Drive the shared hook state directly (sets force + best-effort persist).
+        // No local mirror state, so the green check can never diverge from `force`.
         if (onRequirementToggle) {
             try {
                 await onRequirementToggle(key, newValue);
             } catch (err) {
                 console.error('Failed to toggle requirement:', err);
-                setManualRequirements(prev => ({ ...prev, [key]: !newValue }));
             }
         }
     };

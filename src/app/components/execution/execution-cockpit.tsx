@@ -114,6 +114,7 @@ export const ExecutionCockpit: React.FC = () => {
         handleSavePlan,
         handleRefresh,
         handleAdvance,
+        manualOverrides,
         setManualOverride,
         handleRollback,
         updatePlanStatus,
@@ -181,6 +182,7 @@ export const ExecutionCockpit: React.FC = () => {
                 isRollingBack={isRollingBack}
                 handleRefresh={handleRefresh}
                 handleAdvance={handleAdvance}
+                manualOverrides={manualOverrides}
                 setManualOverride={setManualOverride}
                 setIsTimeTrackingModalOpen={setIsTimeTrackingModalOpen}
                 handleRollback={handleRollback}

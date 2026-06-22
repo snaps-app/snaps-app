@@ -577,6 +577,7 @@ export const useExecutionCockpit = () => {
         handleSaveTestPlanContext,
         handleRefresh,
         handleAdvance,
+        manualOverrides,
         setManualOverride,
         handleRollback,
         updatePlanStatus,

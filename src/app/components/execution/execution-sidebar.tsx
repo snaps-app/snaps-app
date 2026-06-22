@@ -41,6 +41,7 @@ interface ExecutionSidebarProps {
     isRollingBack: boolean;
     handleRefresh: () => Promise<void>;
     handleAdvance: () => Promise<void>;
+    manualOverrides: Record<string, boolean>;
     setManualOverride: (key: string, value: boolean) => void;
     setIsTimeTrackingModalOpen: (open: boolean) => void;
     handleRollback: (targetPhase?: string) => Promise<void>;
@@ -68,6 +69,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     isRollingBack,
     handleRefresh,
     handleAdvance,
+    manualOverrides,
     setManualOverride,
     setIsTimeTrackingModalOpen,
     handleRollback,
@@ -248,6 +250,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                             execution={execution}
                             templates={templates}
                             cards={cards}
+                            manualOverrides={manualOverrides}
                             onRequirementToggle={handleRequirementToggle}
                         />
 
