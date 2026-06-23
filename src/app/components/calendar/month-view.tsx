@@ -8,6 +8,7 @@ import Holidays from 'date-holidays';
 import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
 import { Loader2, Repeat } from 'lucide-react';
 import { ScrollArea } from '@/app/components/ui/scroll-area';
+import { parseServerDate, formatServerTime } from '@/lib/date-utils';
 
 interface MonthViewProps {
     currentDate: Date;
@@ -60,8 +61,8 @@ export function MonthView({ currentDate, schedulings, cards, loading, onExecute 
 
                     // Filter items for this day
                     const daySchedulings = schedulings.filter(s => {
-                        const sStart = new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
-                        const sEnd = new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
+                        const sStart = parseServerDate(s.start_date);
+                        const sEnd = parseServerDate(s.end_date);
                         sStart.setHours(0, 0, 0, 0);
                         sEnd.setHours(23, 59, 59, 999);
                         const d = new Date(day);
@@ -134,8 +135,8 @@ export function MonthView({ currentDate, schedulings, cards, loading, onExecute 
                                             description: s.description,
                                             project_id: s.project_id,
                                             epic_id: s.epic_id,
-                                            startTime: format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm'),
-                                            endTime: format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')
+                                            startTime: formatServerTime(s.start_date),
+                                            endTime: formatServerTime(s.end_date)
                                         })}
                                         className="text-xs px-2 py-1 rounded truncate shadow-sm cursor-pointer hover:brightness-110 transition-all border border-solid"
                                         style={{
