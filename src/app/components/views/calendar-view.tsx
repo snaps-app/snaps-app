@@ -4,7 +4,6 @@ import { getRoutinesForDate, setRoutineCompletion } from '@/services/routines';
 import { getAllSchedulings } from '@/services/schedulings';
 import { getProjects } from '@/services/projects';
 import { getProjectBoards } from '@/services/boards';
-import { supabase } from '@/lib/supabaseClient';
 import type { CardWithProject, DailyExecutionWithProject, Routine, RoutineWithStatus, SchedulingWithProject } from '@/services/types';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -48,14 +47,13 @@ export function CalendarView() {
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
 
-  // Board context for filtering cards (team_kanban + assignee). Cards are only used in the Day view,
-  // so this heavier context is fetched lazily and only once.
-  const boardContextRef = useRef<{ loaded: boolean; userId?: string; teamKanbanBoardIds: Set<string> }>({
+  // Set of team_kanban board ids, used to scope which cards belong on the calendar.
+  // Fetched once (boards rarely change) to avoid the per-project N+1 on every refresh.
+  const boardContextRef = useRef<{ loaded: boolean; teamKanbanBoardIds: Set<string> }>({
     loaded: false,
     teamKanbanBoardIds: new Set<string>(),
   });
   const executionsLoadedRef = useRef(false);
-  const cardsLoadedRef = useRef(false);
   const didInitialLoad = useRef(false);
 
   // --- Granular loaders: each updates only its own slice (no full reload) ---
@@ -81,14 +79,12 @@ export function CalendarView() {
   const ensureBoardContext = useCallback(async () => {
     if (boardContextRef.current.loaded) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       const projects = await getProjects();
       const boardsPerProject = await Promise.all(
         projects.map(p => getProjectBoards(p.id).catch(() => []))
       );
       boardContextRef.current = {
         loaded: true,
-        userId: user?.id,
         teamKanbanBoardIds: new Set<string>(
           boardsPerProject.flat().filter(b => b.board_type === 'team_kanban').map(b => b.id)
         ),
@@ -98,38 +94,34 @@ export function CalendarView() {
     }
   }, []);
 
+  // All cards on team_kanban boards. Month/Week use the ones with a due_date (chips);
+  // Day shows the ones that are not Done. High limit so large boards aren't truncated.
   const refreshCards = useCallback(async () => {
     try {
       await ensureBoardContext();
-      const { userId, teamKanbanBoardIds } = boardContextRef.current;
-      const cardData = await getAllCards();
+      const { teamKanbanBoardIds } = boardContextRef.current;
+      const cardData = await getAllCards(0, 1000);
       const arr = Array.isArray(cardData) ? cardData : [];
-      const filtered = arr.filter(c => {
-        if (!teamKanbanBoardIds.has(c.board_id)) return false;
-        if (!userId) return !c.user_ids?.length;
-        return !c.user_ids?.length || c.user_ids.includes(userId);
-      });
-      setCards(filtered);
-      cardsLoadedRef.current = true;
+      setCards(arr.filter(c => teamKanbanBoardIds.has(c.board_id)));
     } catch (error) {
       console.error("Error loading cards:", error);
     }
   }, [ensureBoardContext]);
 
-  // --- View-aware loading: fetch only what the active view needs ---
-  // Month: schedulings. Week: schedulings + executions. Day: schedulings + executions + cards.
-  // Data is filtered client-side by date, so changing the date does NOT require a refetch.
+  // --- View-aware loading ---
+  // All views need schedulings + cards (Month/Week show due_date chips). Only Week/Day need
+  // daily executions, so those are loaded lazily. Data is filtered client-side by date, so
+  // changing the date does NOT require a refetch.
   const loadForView = useCallback(async (v: ViewMode, initial = false) => {
     if (initial) setInitialLoading(true);
     try {
-      const tasks: Promise<void>[] = [refreshSchedulings()];
+      const tasks: Promise<void>[] = [refreshSchedulings(), refreshCards()];
       if (v === 'week' || v === 'day') tasks.push(refreshExecutions());
-      if (v === 'day') tasks.push(refreshCards());
       await Promise.all(tasks);
     } finally {
       if (initial) setInitialLoading(false);
     }
-  }, [refreshSchedulings, refreshExecutions, refreshCards]);
+  }, [refreshSchedulings, refreshCards, refreshExecutions]);
 
   useEffect(() => {
     if (!didInitialLoad.current) {
@@ -137,10 +129,9 @@ export function CalendarView() {
       loadForView(view, true);
       return;
     }
-    // On view switch, lazily load the slices that view needs (if not loaded yet).
+    // On view switch, lazily load executions the first time a heavier view is opened.
     if ((view === 'week' || view === 'day') && !executionsLoadedRef.current) refreshExecutions();
-    if (view === 'day' && !cardsLoadedRef.current) refreshCards();
-  }, [view, loadForView, refreshExecutions, refreshCards]);
+  }, [view, loadForView, refreshExecutions]);
 
   const handleExecute = (data: ExecuteTodayData) => {
     setExecuteData(data);

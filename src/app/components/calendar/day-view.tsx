@@ -77,24 +77,17 @@ export function DayView({
     }, [dailyExecutions, currentDate]);
 
     const activeCards = useMemo(() => {
-        // Filter "To Do" or "In Progress" (assuming statuses might be "To Do", "In Progress", "todo", "doing")
-        const relevant = cards.filter(c => {
-            const st = c.status?.toLowerCase() || '';
-            return st.includes('to do') || st.includes('todo') || st.includes('in progress') || st.includes('doing');
-        });
+        // All cards on team_kanban boards that are NOT Done (cards are already scoped to
+        // team_kanban boards upstream). "Done" matches any status containing "done".
+        const relevant = cards.filter(c => !(c.status?.toLowerCase() || '').includes('done'));
 
-        // 1. group with due date
-        const withDue = relevant.filter(c => c.due_date).sort((a, b) => {
-            const dateA = a.due_date!.substring(0, 10);
-            const dateB = b.due_date!.substring(0, 10);
-            return dateA.localeCompare(dateB);
-        });
-        // 2. group "in progress" no due date
-        const inProgressNoDue = relevant.filter(c => !c.due_date && (c.status?.toLowerCase().includes('in progress') || c.status?.toLowerCase().includes('doing')));
-        // 3. group "todo" no due date
-        const todoNoDue = relevant.filter(c => !c.due_date && (c.status?.toLowerCase().includes('to do') || c.status?.toLowerCase().includes('todo')));
+        // Cards with a due date first (earliest first), then the remaining ones.
+        const withDue = relevant
+            .filter(c => c.due_date)
+            .sort((a, b) => a.due_date!.substring(0, 10).localeCompare(b.due_date!.substring(0, 10)));
+        const noDue = relevant.filter(c => !c.due_date);
 
-        return [...withDue, ...inProgressNoDue, ...todoNoDue];
+        return [...withDue, ...noDue];
     }, [cards]);
 
     if (loading) {
