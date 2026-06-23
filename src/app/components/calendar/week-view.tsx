@@ -6,6 +6,7 @@ import {
 import { Repeat, Check, Ban } from 'lucide-react';
 import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
 import { ScrollArea } from '@/app/components/ui/scroll-area';
+import { parseServerDate, formatServerTime } from '@/lib/date-utils';
 
 interface WeekViewProps {
     currentDate: Date;
@@ -65,9 +66,8 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                 {daysInWeek.map((day, i) => {
                     // Filter schedulings and cards for this day
                     const daySchedulings = schedulings.filter(s => {
-                        // Strip 'Z' or offset to treat it as a local/naive date string
-                        const sStart = new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
-                        const sEnd = new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
+                        const sStart = parseServerDate(s.start_date);
+                        const sEnd = parseServerDate(s.end_date);
                         sStart.setHours(0, 0, 0, 0);
                         sEnd.setHours(23, 59, 59, 999);
                         const d = new Date(day);
@@ -101,8 +101,8 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                     return (
                         <div key={`allday-${i}`} className={`flex-1 border-r border-white/5 p-1 flex flex-col gap-1 ${i === 6 ? 'border-r-0' : ''}`}>
                             {daySchedulings.filter(s => {
-                                const start = new Date(s.start_date);
-                                const end = new Date(s.end_date);
+                                const start = parseServerDate(s.start_date);
+                                const end = parseServerDate(s.end_date);
                                 // If it spans exactly the whole day or more, keep it at top
                                 // Otherwise if it's a specific time block, we'll move it to the grid
                                 const isAllDay = (start.getHours() === 0 && start.getMinutes() === 0 &&
@@ -118,8 +118,8 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                                         description: s.description,
                                         project_id: s.project_id,
                                         epic_id: s.epic_id,
-                                        startTime: format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm'),
-                                        endTime: format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')
+                                        startTime: formatServerTime(s.start_date),
+                                        endTime: formatServerTime(s.end_date)
                                     })}
                                     className="text-xs px-2 py-0.5 rounded truncate bg-purple-500/20 text-purple-300 border border-purple-500/30 cursor-pointer hover:brightness-110"
                                     title={s.title}
@@ -184,9 +184,8 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                             const dayExecutions = dailyExecutions.filter(de => de.date === dayStr);
 
                             const dayGridSchedulings = schedulings.filter(s => {
-                                // Strip 'Z' or offset to treat it as a local/naive date string
-                                const sStart = new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
-                                const sEnd = new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
+                                const sStart = parseServerDate(s.start_date);
+                                const sEnd = parseServerDate(s.end_date);
                                 const d = new Date(day);
                                 d.setHours(12, 0, 0, 0);
 
@@ -218,8 +217,8 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                                 <div key={`col-${i}`} className={`flex-1 relative border-r border-white/5 ${i === 6 ? 'border-r-0' : ''}`}>
                                     {/* Schedulings in Grid */}
                                     {dayGridSchedulings.map(s => {
-                                        const sStart = new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
-                                        const sEnd = new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
+                                        const sStart = parseServerDate(s.start_date);
+                                        const sEnd = parseServerDate(s.end_date);
                                         const startH = sStart.getHours() + sStart.getMinutes() / 60;
                                         const endH = sEnd.getHours() + sEnd.getMinutes() / 60;
                                         const top = startH * 60;
@@ -235,8 +234,8 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                                                     description: s.description,
                                                     project_id: s.project_id,
                                                     epic_id: s.epic_id,
-                                                    startTime: format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm'),
-                                                    endTime: format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')
+                                                    startTime: formatServerTime(s.start_date),
+                                                    endTime: formatServerTime(s.end_date)
                                                 })}
                                                 className="absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 overflow-hidden group hover:z-10 transition-all cursor-pointer"
                                                 style={{
@@ -245,7 +244,7 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                                                     borderLeftWidth: '4px',
                                                     borderLeftColor: s.epic_color || '#A855F7'
                                                 }}
-                                                title={`${s.title}\n${s.start_date.substring(11, 16)} - ${s.end_date.substring(11, 16)}`}
+                                                title={`${s.title}\n${formatServerTime(s.start_date)} - ${formatServerTime(s.end_date)}`}
                                             >
                                                 <div className="flex flex-col mb-0.5">
                                                     <span
@@ -259,7 +258,7 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                                                     {s.recurrence && s.recurrence !== 'none' && <Repeat className="w-2.5 h-2.5" />}
                                                     {s.title}
                                                 </div>
-                                                <div className="text-[9px] opacity-70 mt-0.5 truncate">{format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')} - {format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')}</div>
+                                                <div className="text-[9px] opacity-70 mt-0.5 truncate">{formatServerTime(s.start_date)} - {formatServerTime(s.end_date)}</div>
                                             </div>
                                         );
                                     })}
