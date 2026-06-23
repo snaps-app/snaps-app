@@ -8,7 +8,7 @@ import Holidays from 'date-holidays';
 import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
 import { Loader2, Repeat } from 'lucide-react';
 import { ScrollArea } from '@/app/components/ui/scroll-area';
-import { parseServerDate, formatServerTime } from '@/lib/date-utils';
+import { parseServerDate } from '@/lib/date-utils';
 
 interface MonthViewProps {
     currentDate: Date;
@@ -16,9 +16,10 @@ interface MonthViewProps {
     cards: CardWithProject[];
     loading: boolean;
     onExecute?: (data: ExecuteTodayData) => void;
+    onEditScheduling?: (s: SchedulingWithProject) => void;
 }
 
-export function MonthView({ currentDate, schedulings, cards, loading, onExecute }: MonthViewProps) {
+export function MonthView({ currentDate, schedulings, cards, loading, onExecute, onEditScheduling }: MonthViewProps) {
     const hd = useMemo(() => new Holidays('BR'), []);
 
     const daysInMonth = useMemo(() => {
@@ -128,16 +129,7 @@ export function MonthView({ currentDate, schedulings, cards, loading, onExecute 
                                 {daySchedulings.map(s => (
                                     <div
                                         key={`sched-${s.id}`}
-                                        onClick={() => onExecute?.({
-                                            type: 'scheduling',
-                                            id: s.id,
-                                            title: s.title,
-                                            description: s.description,
-                                            project_id: s.project_id,
-                                            epic_id: s.epic_id,
-                                            startTime: formatServerTime(s.start_date),
-                                            endTime: formatServerTime(s.end_date)
-                                        })}
+                                        onClick={() => onEditScheduling?.(s)}
                                         className="text-xs px-2 py-1 rounded truncate shadow-sm cursor-pointer hover:brightness-110 transition-all border border-solid"
                                         style={{
                                             backgroundColor: s.epic_color ? `${s.epic_color}30` : `${s.board_color || '#A855F7'}20`,

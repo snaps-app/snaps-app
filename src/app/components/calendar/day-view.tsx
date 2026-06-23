@@ -15,6 +15,7 @@ interface DayViewProps {
     routines?: RoutineWithStatus[];
     loading: boolean;
     onExecute?: (data: ExecuteTodayData) => void;
+    onEditScheduling?: (s: SchedulingWithProject) => void;
     onAddExecution?: () => void;
     onEditExecution?: (execution: DailyExecutionWithProject) => void;
     onCloneYesterday?: () => Promise<void>;
@@ -31,6 +32,7 @@ export function DayView({
     routines = [],
     loading,
     onExecute,
+    onEditScheduling,
     onAddExecution,
     onEditExecution,
     onCloneYesterday,
@@ -122,16 +124,7 @@ export function DayView({
                             daySchedulings.map(s => (
                                 <div
                                     key={s.id}
-                                    onClick={() => onExecute?.({
-                                        type: 'scheduling',
-                                        id: s.id,
-                                        title: s.title,
-                                        description: s.description,
-                                        project_id: s.project_id,
-                                        epic_id: s.epic_id,
-                                        startTime: formatServerTime(s.start_date),
-                                        endTime: formatServerTime(s.end_date)
-                                    })}
+                                    onClick={() => onEditScheduling?.(s)}
                                     className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-2 hover:bg-white/10 transition-colors cursor-pointer group"
                                 >
                                     <div className="flex items-start justify-between">

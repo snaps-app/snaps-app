@@ -16,9 +16,10 @@ interface WeekViewProps {
     loading: boolean;
     onExecute?: (data: ExecuteTodayData) => void;
     onEditExecution?: (execution: DailyExecutionWithProject) => void;
+    onEditScheduling?: (s: SchedulingWithProject) => void;
 }
 
-export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loading, onExecute, onEditExecution }: WeekViewProps) {
+export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loading, onExecute, onEditExecution, onEditScheduling }: WeekViewProps) {
     const daysInWeek = useMemo(() => {
         const start = startOfWeek(currentDate, { weekStartsOn: 0 }); // Sunday
         const end = endOfWeek(currentDate, { weekStartsOn: 0 });
@@ -111,16 +112,7 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                             }).map(s => (
                                 <div
                                     key={s.id}
-                                    onClick={() => onExecute?.({
-                                        type: 'scheduling',
-                                        id: s.id,
-                                        title: s.title,
-                                        description: s.description,
-                                        project_id: s.project_id,
-                                        epic_id: s.epic_id,
-                                        startTime: formatServerTime(s.start_date),
-                                        endTime: formatServerTime(s.end_date)
-                                    })}
+                                    onClick={() => onEditScheduling?.(s)}
                                     className="text-xs px-2 py-0.5 rounded truncate bg-purple-500/20 text-purple-300 border border-purple-500/30 cursor-pointer hover:brightness-110"
                                     title={s.title}
                                 >
@@ -227,16 +219,7 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                                         return (
                                             <div
                                                 key={`grid-sched-${s.id}`}
-                                                onClick={() => onExecute?.({
-                                                    type: 'scheduling',
-                                                    id: s.id,
-                                                    title: s.title,
-                                                    description: s.description,
-                                                    project_id: s.project_id,
-                                                    epic_id: s.epic_id,
-                                                    startTime: formatServerTime(s.start_date),
-                                                    endTime: formatServerTime(s.end_date)
-                                                })}
+                                                onClick={() => onEditScheduling?.(s)}
                                                 className="absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 overflow-hidden group hover:z-10 transition-all cursor-pointer"
                                                 style={{
                                                     top: `${top}px`,

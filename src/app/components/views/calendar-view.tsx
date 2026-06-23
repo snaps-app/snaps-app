@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays } from 'date-fns';
+import { formatServerTime } from '@/lib/date-utils';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { MonthView } from '@/app/components/calendar/month-view';
 import { WeekView } from '@/app/components/calendar/week-view';
@@ -34,6 +35,8 @@ export function CalendarView() {
   const [executeData, setExecuteData] = useState<ExecuteTodayData | null>(null);
   const [isExecuteModalOpen, setIsExecuteModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editScheduling, setEditScheduling] = useState<SchedulingWithProject | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false);
   const [selectedExecution, setSelectedExecution] = useState<DailyExecutionWithProject | null>(null);
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
@@ -97,6 +100,27 @@ export function CalendarView() {
 
   const handleExecute = (data: ExecuteTodayData) => {
     setExecuteData(data);
+    setIsExecuteModalOpen(true);
+  };
+
+  const handleEditScheduling = (s: SchedulingWithProject) => {
+    setEditScheduling(s);
+    setIsEditModalOpen(true);
+  };
+
+  // From inside the edit modal: switch to the Execute Today flow for this scheduling
+  const handleExecuteFromEdit = (s: SchedulingWithProject) => {
+    setIsEditModalOpen(false);
+    setExecuteData({
+      type: 'scheduling',
+      id: s.id,
+      title: s.title,
+      description: s.description,
+      project_id: s.project_id,
+      epic_id: s.epic_id,
+      startTime: formatServerTime(s.start_date),
+      endTime: formatServerTime(s.end_date),
+    });
     setIsExecuteModalOpen(true);
   };
 
@@ -219,9 +243,9 @@ export function CalendarView() {
               transition={{ duration: 0.2 }}
               className="h-full"
             >
-              {view === 'month' && <MonthView currentDate={currentDate} schedulings={schedulings} cards={cards} loading={loading} onExecute={handleExecute} />}
-              {view === 'week' && <WeekView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} loading={loading} onExecute={handleExecute} onEditExecution={handleEditExecution} />}
-              {view === 'day' && <DayView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} routines={routines} loading={loading} onExecute={handleExecute} onAddExecution={handleAddExecution} onEditExecution={handleEditExecution} onCloneYesterday={handleCloneYesterday} onToggleRoutineStatus={handleToggleRoutineStatus} onAddRoutine={handleAddRoutine} onEditRoutine={handleEditRoutine} />}
+              {view === 'month' && <MonthView currentDate={currentDate} schedulings={schedulings} cards={cards} loading={loading} onExecute={handleExecute} onEditScheduling={handleEditScheduling} />}
+              {view === 'week' && <WeekView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} loading={loading} onExecute={handleExecute} onEditExecution={handleEditExecution} onEditScheduling={handleEditScheduling} />}
+              {view === 'day' && <DayView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} routines={routines} loading={loading} onExecute={handleExecute} onAddExecution={handleAddExecution} onEditExecution={handleEditExecution} onCloneYesterday={handleCloneYesterday} onToggleRoutineStatus={handleToggleRoutineStatus} onAddRoutine={handleAddRoutine} onEditRoutine={handleEditRoutine} onEditScheduling={handleEditScheduling} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -267,6 +291,16 @@ export function CalendarView() {
         onClose={() => setIsCreateModalOpen(false)}
         currentDate={currentDate}
         onSuccess={fetchData}
+      />
+
+      {/* Edit Scheduling (same modal in edit mode) */}
+      <CreateSchedulingModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        currentDate={currentDate}
+        onSuccess={fetchData}
+        scheduling={editScheduling}
+        onExecuteToday={handleExecuteFromEdit}
       />
 
       <ExecutionModal
