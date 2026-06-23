@@ -164,6 +164,38 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess,
         }
     };
 
+    // When the start changes, keep the same duration (defaults to 1h) and never let the end fall before it.
+    const handleStartChange = (newStartDate: string, newStartTime: string) => {
+        setStartDate(newStartDate);
+        setStartTime(newStartTime);
+
+        const newStart = new Date(`${newStartDate}T${newStartTime}:00`);
+        if (isNaN(newStart.getTime())) return;
+
+        const oldStart = new Date(`${startDate}T${startTime}:00`);
+        const oldEnd = new Date(`${endDate}T${endTime}:00`);
+        let durationMs = oldEnd.getTime() - oldStart.getTime();
+        if (!(durationMs > 0)) durationMs = 60 * 60 * 1000; // fallback: 1h
+
+        const newEnd = new Date(newStart.getTime() + durationMs);
+        setEndDate(format(newEnd, 'yyyy-MM-dd'));
+        setEndTime(format(newEnd, 'HH:mm'));
+    };
+
+    // Prevent an end before/equal to the start: snap it to start + 1h.
+    const handleEndChange = (newEndDate: string, newEndTime: string) => {
+        const start = new Date(`${startDate}T${startTime}:00`);
+        const end = new Date(`${newEndDate}T${newEndTime}:00`);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end <= start) {
+            const fixed = new Date(start.getTime() + 60 * 60 * 1000);
+            setEndDate(format(fixed, 'yyyy-MM-dd'));
+            setEndTime(format(fixed, 'HH:mm'));
+            return;
+        }
+        setEndDate(newEndDate);
+        setEndTime(newEndTime);
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -260,14 +292,14 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess,
                                         type="date"
                                         className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-zinc-200 focus:outline-none focus:border-orange-500/50 transition-colors scheme-dark text-xs"
                                         value={startDate}
-                                        onChange={e => setStartDate(e.target.value)}
+                                        onChange={e => handleStartChange(e.target.value, startTime)}
                                     />
                                     <input
                                         required
                                         type="time"
                                         className="w-24 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-zinc-200 focus:outline-none focus:border-orange-500/50 transition-colors scheme-dark text-xs"
                                         value={startTime}
-                                        onChange={e => setStartTime(e.target.value)}
+                                        onChange={e => handleStartChange(startDate, e.target.value)}
                                     />
                                 </div>
                             </div>
@@ -279,16 +311,18 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess,
                                     <input
                                         required
                                         type="date"
+                                        min={startDate}
                                         className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-zinc-200 focus:outline-none focus:border-orange-500/50 transition-colors scheme-dark text-xs"
                                         value={endDate}
-                                        onChange={e => setEndDate(e.target.value)}
+                                        onChange={e => handleEndChange(e.target.value, endTime)}
                                     />
                                     <input
                                         required
                                         type="time"
+                                        min={endDate === startDate ? startTime : undefined}
                                         className="w-24 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-zinc-200 focus:outline-none focus:border-orange-500/50 transition-colors scheme-dark text-xs"
                                         value={endTime}
-                                        onChange={e => setEndTime(e.target.value)}
+                                        onChange={e => handleEndChange(endDate, e.target.value)}
                                     />
                                 </div>
                             </div>
