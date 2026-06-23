@@ -1,17 +1,22 @@
 import { getEpics } from '@/services/epics';
 import { getProjects } from '@/services/projects';
-import { createScheduling } from '@/services/schedulings';
-import type { Epic, Project, SchedulingCreate } from '@/services/types';
+import { createScheduling, updateScheduling, deleteScheduling } from '@/services/schedulings';
+import type { Epic, Project, SchedulingCreate, SchedulingWithProject } from '@/services/types';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Type, AlignLeft, Loader2, Target, Repeat, Clock } from 'lucide-react';
+import { X, Calendar, Type, AlignLeft, Loader2, Target, Repeat, Clock, Trash2, Play } from 'lucide-react';
 import { format } from 'date-fns';
+import { parseServerDate, formatServerTime } from '@/lib/date-utils';
 
 interface CreateSchedulingModalProps {
     isOpen: boolean;
     onClose: () => void;
     currentDate: Date;
     onSuccess: () => void;
+    /** When provided, the modal works in edit mode (pre-filled + PUT). */
+    scheduling?: SchedulingWithProject | null;
+    /** Triggers the "Execute Today" flow for the scheduling being edited. */
+    onExecuteToday?: (scheduling: SchedulingWithProject) => void;
 }
 
 const RECURRENCE_OPTIONS = [
@@ -21,7 +26,8 @@ const RECURRENCE_OPTIONS = [
     { id: 'monthly', label: 'Mensal', icon: Repeat },
 ];
 
-export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess }: CreateSchedulingModalProps) {
+export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess, scheduling, onExecuteToday }: CreateSchedulingModalProps) {
+    const isEdit = !!scheduling;
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [startDate, setStartDate] = useState(format(currentDate, 'yyyy-MM-dd'));
@@ -38,15 +44,31 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
     const [fetchingProjects, setFetchingProjects] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            fetchInitialData();
+        if (!isOpen) return;
+        fetchInitialData();
+        if (scheduling) {
+            // Edit mode: pre-fill from the scheduling (UTC -> local for date/time inputs)
+            setTitle(scheduling.title || '');
+            setDescription(scheduling.description || '');
+            setStartDate(format(parseServerDate(scheduling.start_date), 'yyyy-MM-dd'));
+            setStartTime(formatServerTime(scheduling.start_date));
+            setEndDate(format(parseServerDate(scheduling.end_date), 'yyyy-MM-dd'));
+            setEndTime(formatServerTime(scheduling.end_date));
+            setRecurrence(scheduling.recurrence || 'none');
+            setProjectId(scheduling.project_id);
+            setEpicId(scheduling.epic_id || '');
+        } else {
+            // Create mode: defaults
+            setTitle('');
+            setDescription('');
             setStartDate(format(currentDate, 'yyyy-MM-dd'));
             setEndDate(format(currentDate, 'yyyy-MM-dd'));
-            setStartTime('09:00'); // Reset time
-            setEndTime('10:00'); // Reset time
-            setRecurrence('none'); // Reset recurrence
+            setStartTime('09:00');
+            setEndTime('10:00');
+            setRecurrence('none');
+            setEpicId('');
         }
-    }, [isOpen]);
+    }, [isOpen, scheduling]);
 
     useEffect(() => {
         if (projectId) {
@@ -62,7 +84,8 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
         try {
             const data = await getProjects();
             setProjects(data);
-            if (data.length > 0) {
+            // Only auto-select the first project when creating (edit mode keeps the scheduling's project)
+            if (data.length > 0 && !scheduling) {
                 setProjectId(data[0].id);
             }
         } catch (error) {
@@ -100,7 +123,11 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
                 recurrence: recurrence === 'none' ? undefined : recurrence,
                 status: 'scheduled'
             };
-            await createScheduling(projectId, payload);
+            if (isEdit && scheduling) {
+                await updateScheduling(scheduling.id, payload);
+            } else {
+                await createScheduling(projectId, payload);
+            }
             onSuccess();
             onClose();
             // Reset form
@@ -108,10 +135,32 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
             setDescription('');
             setRecurrence('none');
         } catch (error) {
-            console.error("Failed to create scheduling:", error);
-            alert("Failed to create scheduling");
+            console.error("Failed to save scheduling:", error);
+            alert(isEdit ? "Failed to update scheduling" : "Failed to create scheduling");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!scheduling) return;
+        if (!window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
+        setLoading(true);
+        try {
+            await deleteScheduling(scheduling.id);
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error("Failed to delete scheduling:", error);
+            alert("Failed to delete scheduling");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExecuteToday = () => {
+        if (scheduling && onExecuteToday) {
+            onExecuteToday(scheduling);
         }
     };
 
@@ -141,7 +190,7 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
                             <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
                                 <Calendar className="w-4 h-4 text-orange-400" />
                             </div>
-                            <h2 className="text-lg font-semibold text-white">Novo Agendamento</h2>
+                            <h2 className="text-lg font-semibold text-white">{isEdit ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
                         </div>
                         <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors text-zinc-400">
                             <X className="w-5 h-5" />
@@ -159,7 +208,9 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
                                 required
                                 value={projectId}
                                 onChange={e => setProjectId(e.target.value)}
-                                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-zinc-200 focus:outline-none focus:border-orange-500/50 transition-colors appearance-none cursor-pointer"
+                                disabled={isEdit}
+                                title={isEdit ? 'O projeto não pode ser alterado na edição' : undefined}
+                                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-zinc-200 focus:outline-none focus:border-orange-500/50 transition-colors appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {fetchingProjects ? <option>Carregando projetos...</option> : projects.map(p => (
                                     <option key={p.id} value={p.id}>{p.name}</option>
@@ -295,22 +346,47 @@ export function CreateSchedulingModal({ isOpen, onClose, currentDate, onSuccess 
                             </div>
                         </div>
 
+                        {/* Execute Today — ação secundária destacada (modo edição) */}
+                        {isEdit && onExecuteToday && (
+                            <button
+                                type="button"
+                                onClick={handleExecuteToday}
+                                disabled={loading}
+                                className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-[#00D4FF] border border-[#00D4FF]/30 bg-[#00D4FF]/5 hover:bg-[#00D4FF]/10 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Play className="w-4 h-4" />
+                                Executar hoje
+                            </button>
+                        )}
+
                         {/* Footer */}
-                        <div className="flex justify-end gap-3 mt-4 border-t border-white/10 pt-6">
+                        <div className="flex items-center gap-3 border-t border-white/10 pt-5">
+                            {isEdit && (
+                                <button
+                                    type="button"
+                                    onClick={handleDelete}
+                                    disabled={loading}
+                                    title="Excluir agendamento"
+                                    aria-label="Excluir agendamento"
+                                    className="p-2.5 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-6 py-2.5 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                                className="ml-auto px-5 py-2.5 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading || !projectId}
-                                className="px-8 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-[#FF6B35] to-[#A855F7] text-white shadow-lg shadow-orange-500/20 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                className="px-6 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-[#FF6B35] to-[#A855F7] text-white shadow-lg shadow-orange-500/20 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                Criar Agendamento
+                                {isEdit ? 'Salvar Alterações' : 'Criar Agendamento'}
                             </button>
                         </div>
                     </form>
