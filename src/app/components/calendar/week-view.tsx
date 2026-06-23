@@ -19,6 +19,41 @@ interface WeekViewProps {
     onEditScheduling?: (s: SchedulingWithProject) => void;
 }
 
+// Does a scheduling (incl. recurrence) fall on the given calendar day?
+function schedulingOccursOn(s: SchedulingWithProject, day: Date): boolean {
+    const sStart = parseServerDate(s.start_date);
+    const sEnd = parseServerDate(s.end_date);
+    sStart.setHours(0, 0, 0, 0);
+    sEnd.setHours(23, 59, 59, 999);
+    const d = new Date(day);
+    d.setHours(12, 0, 0, 0);
+
+    if (d >= sStart && d <= sEnd) return true;
+
+    if (!s.recurrence || s.recurrence === 'none' || d < sStart) return false;
+    if (s.recurrence === 'daily') return true;
+    if (s.recurrence === 'weekly') {
+        const diffDays = Math.floor((d.getTime() - sStart.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays % 7 === 0;
+    }
+    if (s.recurrence === 'monthly') return d.getDate() === sStart.getDate();
+    return false;
+}
+
+// A scheduling that spans the whole local day (00:00 -> 23:59) is rendered in the top row.
+function isAllDayScheduling(s: SchedulingWithProject): boolean {
+    const start = parseServerDate(s.start_date);
+    const end = parseServerDate(s.end_date);
+    return start.getHours() === 0 && start.getMinutes() === 0 && end.getHours() === 23 && end.getMinutes() === 59;
+}
+
+function cardDueOn(c: CardWithProject, day: Date): boolean {
+    if (!c.due_date) return false;
+    const datePart = c.due_date.substring(0, 10);
+    const [year, month, d] = datePart.split('-').map(Number);
+    return d === day.getDate() && (month - 1) === day.getMonth() && year === day.getFullYear();
+}
+
 export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loading, onExecute, onEditExecution, onEditScheduling }: WeekViewProps) {
     const daysInWeek = useMemo(() => {
         const start = startOfWeek(currentDate, { weekStartsOn: 0 }); // Sunday
@@ -27,6 +62,20 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
     }, [currentDate]);
 
     const hours = Array.from({ length: 24 }, (_, i) => i);
+
+    // Precompute per-day buckets once (was filtered twice per day on every render).
+    const weekCells = useMemo(() => daysInWeek.map(day => {
+        const dayStr = format(day, 'yyyy-MM-dd');
+        const occurring = schedulings.filter(s => schedulingOccursOn(s, day));
+        return {
+            day,
+            dayStr,
+            allDaySchedulings: occurring.filter(isAllDayScheduling),
+            gridSchedulings: occurring.filter(s => !isAllDayScheduling(s)),
+            dayCards: cards.filter(c => cardDueOn(c, day)),
+            dayExecutions: dailyExecutions.filter(de => de.date === dayStr),
+        };
+    }), [daysInWeek, schedulings, cards, dailyExecutions]);
 
     if (loading) {
         return (
@@ -64,88 +113,44 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
 
             {/* All-day / Top events (Schedulings + Cards) */}
             <div className="flex border-b border-white/10 bg-white/[0.02] pl-16 min-h-[40px]">
-                {daysInWeek.map((day, i) => {
-                    // Filter schedulings and cards for this day
-                    const daySchedulings = schedulings.filter(s => {
-                        const sStart = parseServerDate(s.start_date);
-                        const sEnd = parseServerDate(s.end_date);
-                        sStart.setHours(0, 0, 0, 0);
-                        sEnd.setHours(23, 59, 59, 999);
-                        const d = new Date(day);
-                        d.setHours(12, 0, 0, 0);
-
-                        // Basic overlap
-                        if (d >= sStart && d <= sEnd) return true;
-
-                        // Recurrence overlap
-                        if (!s.recurrence || s.recurrence === 'none' || d < sStart) return false;
-
-                        if (s.recurrence === 'daily') return true;
-                        if (s.recurrence === 'weekly') {
-                            const diffDays = Math.floor((d.getTime() - sStart.getTime()) / (1000 * 60 * 60 * 24));
-                            return diffDays % 7 === 0;
-                        }
-                        if (s.recurrence === 'monthly') return d.getDate() === sStart.getDate();
-
-                        return false;
-                    });
-
-                    const dayCards = cards.filter(c => {
-                        if (!c.due_date) return false;
-                        const datePart = c.due_date.substring(0, 10);
-                        const [year, month, d] = datePart.split('-').map(Number);
-                        return d === day.getDate() &&
-                            (month - 1) === day.getMonth() &&
-                            year === day.getFullYear();
-                    });
-
-                    return (
-                        <div key={`allday-${i}`} className={`flex-1 border-r border-white/5 p-1 flex flex-col gap-1 ${i === 6 ? 'border-r-0' : ''}`}>
-                            {daySchedulings.filter(s => {
-                                const start = parseServerDate(s.start_date);
-                                const end = parseServerDate(s.end_date);
-                                // If it spans exactly the whole day or more, keep it at top
-                                // Otherwise if it's a specific time block, we'll move it to the grid
-                                const isAllDay = (start.getHours() === 0 && start.getMinutes() === 0 &&
-                                    end.getHours() === 23 && end.getMinutes() === 59);
-                                return isAllDay;
-                            }).map(s => (
-                                <div
-                                    key={s.id}
-                                    onClick={() => onEditScheduling?.(s)}
-                                    className="text-xs px-2 py-0.5 rounded truncate bg-purple-500/20 text-purple-300 border border-purple-500/30 cursor-pointer hover:brightness-110"
-                                    title={s.title}
-                                >
-                                    <div className="flex flex-col gap-0.5 pointer-events-none">
-                                        <div className="flex items-center gap-1 truncate mb-0.5">
-                                            <span
-                                                className="text-[8px] uppercase font-bold px-1 rounded-sm border border-current whitespace-nowrap overflow-hidden text-ellipsis"
-                                                style={{ color: s.board_color || '#A855F7', backgroundColor: `${s.board_color || '#A855F7'}10` }}
-                                            >
-                                                {s.project_name}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-1 truncate font-medium">
-                                            {s.recurrence && s.recurrence !== 'none' && <Repeat className="w-2.5 h-2.5" />}
-                                            <span className="truncate">{s.title}</span>
-                                        </div>
+                {weekCells.map(({ allDaySchedulings, dayCards }, i) => (
+                    <div key={`allday-${i}`} className={`flex-1 border-r border-white/5 p-1 flex flex-col gap-1 ${i === 6 ? 'border-r-0' : ''}`}>
+                        {allDaySchedulings.map(s => (
+                            <div
+                                key={s.id}
+                                onClick={() => onEditScheduling?.(s)}
+                                className="text-xs px-2 py-0.5 rounded truncate bg-purple-500/20 text-purple-300 border border-purple-500/30 cursor-pointer hover:brightness-110"
+                                title={s.title}
+                            >
+                                <div className="flex flex-col gap-0.5 pointer-events-none">
+                                    <div className="flex items-center gap-1 truncate mb-0.5">
+                                        <span
+                                            className="text-[8px] uppercase font-bold px-1 rounded-sm border border-current whitespace-nowrap overflow-hidden text-ellipsis"
+                                            style={{ color: s.board_color || '#A855F7', backgroundColor: `${s.board_color || '#A855F7'}10` }}
+                                        >
+                                            {s.project_name}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1 truncate font-medium">
+                                        {s.recurrence && s.recurrence !== 'none' && <Repeat className="w-2.5 h-2.5" />}
+                                        <span className="truncate">{s.title}</span>
                                     </div>
                                 </div>
-                            ))}
-                            {dayCards.map(c => (
-                                <div
-                                    key={c.id}
-                                    onClick={() => onExecute?.({ type: 'card', id: c.id, title: c.title, project_id: c.project_id })}
-                                    className="flex items-center gap-1 text-[10px] px-1 py-0.5 rounded border border-white/10 bg-white/5 text-zinc-300 cursor-pointer hover:bg-white/10"
-                                    title={c.title}
-                                >
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.board_color || '#A855F7' }} />
-                                    <span className="truncate">{c.title}</span>
-                                </div>
-                            ))}
-                        </div>
-                    );
-                })}
+                            </div>
+                        ))}
+                        {dayCards.map(c => (
+                            <div
+                                key={c.id}
+                                onClick={() => onExecute?.({ type: 'card', id: c.id, title: c.title, project_id: c.project_id })}
+                                className="flex items-center gap-1 text-[10px] px-1 py-0.5 rounded border border-white/10 bg-white/5 text-zinc-300 cursor-pointer hover:bg-white/10"
+                                title={c.title}
+                            >
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.board_color || '#A855F7' }} />
+                                <span className="truncate">{c.title}</span>
+                            </div>
+                        ))}
+                    </div>
+                ))}
             </div>
 
             {/* Time Grid */}
@@ -170,123 +175,87 @@ export function WeekView({ currentDate, schedulings, dailyExecutions, cards, loa
                             ))}
                         </div>
 
-                        {daysInWeek.map((day, i) => {
-                            // Filter daily executions for this day
-                            const dayStr = format(day, 'yyyy-MM-dd');
-                            const dayExecutions = dailyExecutions.filter(de => de.date === dayStr);
+                        {weekCells.map(({ gridSchedulings, dayExecutions }, i) => (
+                            <div key={`col-${i}`} className={`flex-1 relative border-r border-white/5 ${i === 6 ? 'border-r-0' : ''}`}>
+                                {/* Schedulings in Grid */}
+                                {gridSchedulings.map(s => {
+                                    const sStart = parseServerDate(s.start_date);
+                                    const sEnd = parseServerDate(s.end_date);
+                                    const startH = sStart.getHours() + sStart.getMinutes() / 60;
+                                    const endH = sEnd.getHours() + sEnd.getMinutes() / 60;
+                                    const top = startH * 60;
+                                    const height = (endH - startH) * 60;
 
-                            const dayGridSchedulings = schedulings.filter(s => {
-                                const sStart = parseServerDate(s.start_date);
-                                const sEnd = parseServerDate(s.end_date);
-                                const d = new Date(day);
-                                d.setHours(12, 0, 0, 0);
-
-                                let matchesDate = false;
-                                const dTime = d.getTime();
-                                const sStartTime = new Date(sStart).setHours(0, 0, 0, 0);
-                                const sEndTime = new Date(sEnd).setHours(23, 59, 59, 999);
-
-                                if (dTime >= sStartTime && dTime <= sEndTime) {
-                                    matchesDate = true;
-                                } else if (s.recurrence && s.recurrence !== 'none' && dTime >= sStartTime) {
-                                    if (s.recurrence === 'daily') matchesDate = true;
-                                    else if (s.recurrence === 'weekly') {
-                                        const diffDays = Math.floor((dTime - sStartTime) / (1000 * 60 * 60 * 24));
-                                        matchesDate = diffDays % 7 === 0;
-                                    }
-                                    else if (s.recurrence === 'monthly') matchesDate = d.getDate() === sStart.getDate();
-                                }
-
-                                if (!matchesDate) return false;
-
-                                // Only show in grid if it's NOT all-day
-                                const isAllDay = (sStart.getHours() === 0 && sStart.getMinutes() === 0 &&
-                                    sEnd.getHours() === 23 && sEnd.getMinutes() === 59);
-                                return !isAllDay;
-                            });
-
-                            return (
-                                <div key={`col-${i}`} className={`flex-1 relative border-r border-white/5 ${i === 6 ? 'border-r-0' : ''}`}>
-                                    {/* Schedulings in Grid */}
-                                    {dayGridSchedulings.map(s => {
-                                        const sStart = parseServerDate(s.start_date);
-                                        const sEnd = parseServerDate(s.end_date);
-                                        const startH = sStart.getHours() + sStart.getMinutes() / 60;
-                                        const endH = sEnd.getHours() + sEnd.getMinutes() / 60;
-                                        const top = startH * 60;
-                                        const height = (endH - startH) * 60;
-
-                                        return (
-                                            <div
-                                                key={`grid-sched-${s.id}`}
-                                                onClick={() => onEditScheduling?.(s)}
-                                                className="absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 overflow-hidden group hover:z-10 transition-all cursor-pointer"
-                                                style={{
-                                                    top: `${top}px`,
-                                                    height: `${Math.max(height, 24)}px`,
-                                                    borderLeftWidth: '4px',
-                                                    borderLeftColor: s.epic_color || '#A855F7'
-                                                }}
-                                                title={`${s.title}\n${formatServerTime(s.start_date)} - ${formatServerTime(s.end_date)}`}
-                                            >
-                                                <div className="flex flex-col mb-0.5">
-                                                    <span
-                                                        className="text-[8px] uppercase font-bold px-1 py-0.5 rounded-sm bg-black/20 w-max border border-white/5 whitespace-nowrap"
-                                                        style={{ color: s.board_color || '#A855F7' }}
-                                                    >
-                                                        {s.project_name}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-1 font-semibold truncate leading-tight">
-                                                    {s.recurrence && s.recurrence !== 'none' && <Repeat className="w-2.5 h-2.5" />}
-                                                    {s.title}
-                                                </div>
-                                                <div className="text-[9px] opacity-70 mt-0.5 truncate">{formatServerTime(s.start_date)} - {formatServerTime(s.end_date)}</div>
+                                    return (
+                                        <div
+                                            key={`grid-sched-${s.id}`}
+                                            onClick={() => onEditScheduling?.(s)}
+                                            className="absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-lg border border-purple-500/30 bg-purple-500/10 text-purple-300 overflow-hidden group hover:z-10 transition-all cursor-pointer"
+                                            style={{
+                                                top: `${top}px`,
+                                                height: `${Math.max(height, 24)}px`,
+                                                borderLeftWidth: '4px',
+                                                borderLeftColor: s.epic_color || '#A855F7'
+                                            }}
+                                            title={`${s.title}\n${formatServerTime(s.start_date)} - ${formatServerTime(s.end_date)}`}
+                                        >
+                                            <div className="flex flex-col mb-0.5">
+                                                <span
+                                                    className="text-[8px] uppercase font-bold px-1 py-0.5 rounded-sm bg-black/20 w-max border border-white/5 whitespace-nowrap"
+                                                    style={{ color: s.board_color || '#A855F7' }}
+                                                >
+                                                    {s.project_name}
+                                                </span>
                                             </div>
-                                        );
-                                    })}
-
-                                    {/* Executions */}
-                                    {dayExecutions.map(exec => {
-                                        const startH = parseHour(exec.start_hour);
-                                        const endH = parseHour(exec.end_hour);
-                                        const top = startH * 60;
-                                        const height = (endH - startH) * 60;
-
-                                        return (
-                                            <div
-                                                key={exec.id}
-                                                onClick={() => onEditExecution?.(exec)}
-                                                className="absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-lg border border-solid overflow-hidden group hover:z-10 transition-all cursor-pointer"
-                                                style={{
-                                                    top: `${top}px`,
-                                                    height: `${Math.max(height, 20)}px`,
-                                                    backgroundColor: exec.epic_color ? `${exec.epic_color}30` : 'rgba(0, 212, 255, 0.2)',
-                                                    borderColor: exec.epic_color ? `${exec.epic_color}50` : 'rgba(0, 212, 255, 0.3)',
-                                                    color: exec.epic_color || '#00D4FF'
-                                                }}
-                                                title={`${exec.title}\n${exec.start_hour} - ${exec.end_hour}`}
-                                            >
-                                                <div className="flex flex-col mb-0.5">
-                                                    <span
-                                                        className="text-[8px] uppercase font-bold px-1 py-0.5 rounded-sm bg-black/20 w-max border border-white/5 whitespace-nowrap"
-                                                        style={{ color: exec.board_color || '#00D4FF' }}
-                                                    >
-                                                        {exec.project_name}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-1 font-semibold truncate leading-tight">
-                                                    <span className="truncate">{exec.title}</span>
-                                                    {exec.status === 'executed' && <Check className="w-3 h-3 text-green-400 flex-shrink-0" />}
-                                                    {exec.status === 'blocked' && <Ban className="w-3 h-3 text-red-400 flex-shrink-0" />}
-                                                </div>
-                                                <div className="text-[9px] opacity-70 mt-0.5 truncate">{exec.start_hour} - {exec.end_hour}</div>
+                                            <div className="flex items-center gap-1 font-semibold truncate leading-tight">
+                                                {s.recurrence && s.recurrence !== 'none' && <Repeat className="w-2.5 h-2.5" />}
+                                                {s.title}
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })}
+                                            <div className="text-[9px] opacity-70 mt-0.5 truncate">{formatServerTime(s.start_date)} - {formatServerTime(s.end_date)}</div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Executions */}
+                                {dayExecutions.map(exec => {
+                                    const startH = parseHour(exec.start_hour);
+                                    const endH = parseHour(exec.end_hour);
+                                    const top = startH * 60;
+                                    const height = (endH - startH) * 60;
+
+                                    return (
+                                        <div
+                                            key={exec.id}
+                                            onClick={() => onEditExecution?.(exec)}
+                                            className="absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-lg border border-solid overflow-hidden group hover:z-10 transition-all cursor-pointer"
+                                            style={{
+                                                top: `${top}px`,
+                                                height: `${Math.max(height, 20)}px`,
+                                                backgroundColor: exec.epic_color ? `${exec.epic_color}30` : 'rgba(0, 212, 255, 0.2)',
+                                                borderColor: exec.epic_color ? `${exec.epic_color}50` : 'rgba(0, 212, 255, 0.3)',
+                                                color: exec.epic_color || '#00D4FF'
+                                            }}
+                                            title={`${exec.title}\n${exec.start_hour} - ${exec.end_hour}`}
+                                        >
+                                            <div className="flex flex-col mb-0.5">
+                                                <span
+                                                    className="text-[8px] uppercase font-bold px-1 py-0.5 rounded-sm bg-black/20 w-max border border-white/5 whitespace-nowrap"
+                                                    style={{ color: exec.board_color || '#00D4FF' }}
+                                                >
+                                                    {exec.project_name}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1 font-semibold truncate leading-tight">
+                                                <span className="truncate">{exec.title}</span>
+                                                {exec.status === 'executed' && <Check className="w-3 h-3 text-green-400 flex-shrink-0" />}
+                                                {exec.status === 'blocked' && <Ban className="w-3 h-3 text-red-400 flex-shrink-0" />}
+                                            </div>
+                                            <div className="text-[9px] opacity-70 mt-0.5 truncate">{exec.start_hour} - {exec.end_hour}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))}
                     </div>
                 </div>
             </ScrollArea>

@@ -19,6 +19,34 @@ interface MonthViewProps {
     onEditScheduling?: (s: SchedulingWithProject) => void;
 }
 
+// Does a scheduling (incl. recurrence) fall on the given calendar day?
+function schedulingOccursOn(s: SchedulingWithProject, day: Date): boolean {
+    const sStart = parseServerDate(s.start_date);
+    const sEnd = parseServerDate(s.end_date);
+    sStart.setHours(0, 0, 0, 0);
+    sEnd.setHours(23, 59, 59, 999);
+    const d = new Date(day);
+    d.setHours(12, 0, 0, 0); // noon avoids timezone boundary issues
+
+    if (d >= sStart && d <= sEnd) return true;
+
+    if (!s.recurrence || s.recurrence === 'none' || d < sStart) return false;
+    if (s.recurrence === 'daily') return true;
+    if (s.recurrence === 'weekly') {
+        const diffDays = Math.floor((d.getTime() - sStart.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays % 7 === 0;
+    }
+    if (s.recurrence === 'monthly') return d.getDate() === sStart.getDate();
+    return false;
+}
+
+function cardDueOn(c: CardWithProject, day: Date): boolean {
+    if (!c.due_date) return false;
+    const datePart = c.due_date.substring(0, 10); // Reliable YYYY-MM-DD
+    const [year, month, d] = datePart.split('-').map(Number);
+    return d === day.getDate() && (month - 1) === day.getMonth() && year === day.getFullYear();
+}
+
 export function MonthView({ currentDate, schedulings, cards, loading, onExecute, onEditScheduling }: MonthViewProps) {
     const hd = useMemo(() => new Holidays('BR'), []);
 
@@ -30,6 +58,14 @@ export function MonthView({ currentDate, schedulings, cards, loading, onExecute,
 
         return eachDayOfInterval({ start: startDate, end: endDate });
     }, [currentDate]);
+
+    // Precompute everything heavy per day once, instead of on every render.
+    const monthCells = useMemo(() => daysInMonth.map(day => ({
+        day,
+        isHoliday: hd.isHoliday(day),
+        daySchedulings: schedulings.filter(s => schedulingOccursOn(s, day)),
+        dayCards: cards.filter(c => cardDueOn(c, day)),
+    })), [daysInMonth, schedulings, cards, hd]);
 
     if (loading) {
         return (
@@ -54,51 +90,10 @@ export function MonthView({ currentDate, schedulings, cards, loading, onExecute,
 
             {/* Grid */}
             <div className="flex-1 grid grid-cols-7 grid-rows-5 auto-rows-fr">
-                {daysInMonth.map((day, i) => {
-                    const isHoliday = hd.isHoliday(day);
+                {monthCells.map(({ day, isHoliday, daySchedulings, dayCards }, i) => {
                     const isDayWeekend = isWeekend(day);
                     const isCurrentMonth = isSameMonth(day, currentDate);
                     const isDayToday = isToday(day);
-
-                    // Filter items for this day
-                    const daySchedulings = schedulings.filter(s => {
-                        const sStart = parseServerDate(s.start_date);
-                        const sEnd = parseServerDate(s.end_date);
-                        sStart.setHours(0, 0, 0, 0);
-                        sEnd.setHours(23, 59, 59, 999);
-                        const d = new Date(day);
-                        d.setHours(12, 0, 0, 0); // noon avoids timezone boundary issues
-
-                        // Basic overlap
-                        if (d >= sStart && d <= sEnd) return true;
-
-                        // Recurrence overlap
-                        if (!s.recurrence || s.recurrence === 'none' || d < sStart) return false;
-
-                        if (s.recurrence === 'daily') {
-                            return true; // Shows every day after start
-                        }
-
-                        if (s.recurrence === 'weekly') {
-                            const diffDays = Math.floor((d.getTime() - sStart.getTime()) / (1000 * 60 * 60 * 24));
-                            return diffDays % 7 === 0;
-                        }
-
-                        if (s.recurrence === 'monthly') {
-                            return d.getDate() === sStart.getDate();
-                        }
-
-                        return false;
-                    });
-
-                    const dayCards = cards.filter(c => {
-                        if (!c.due_date) return false;
-                        const datePart = c.due_date.substring(0, 10); // Reliable YYYY-MM-DD
-                        const [year, month, d] = datePart.split('-').map(Number);
-                        return d === day.getDate() &&
-                            (month - 1) === day.getMonth() &&
-                            year === day.getFullYear();
-                    });
 
                     return (
                         <div
