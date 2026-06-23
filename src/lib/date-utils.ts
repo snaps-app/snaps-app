@@ -3,7 +3,29 @@
  * Centralizes date formatting and parsing using 'America/Sao_Paulo' timezone.
  */
 
+import { format } from 'date-fns';
+
 const SAO_PAULO_TZ = 'America/Sao_Paulo';
+
+/**
+ * Parses a server ISO timestamp (stored in UTC, with a 'Z' or offset suffix)
+ * into a Date in the user's local timezone.
+ *
+ * IMPORTANT: do NOT strip the 'Z'/offset before parsing. `new Date(iso)`
+ * already converts UTC -> local correctly. Stripping the offset makes JS treat
+ * the UTC wall-clock as if it were local time, which shifts the displayed time
+ * by the timezone offset (e.g. +3h in BRT) and can push events to the wrong day.
+ */
+export function parseServerDate(iso: string): Date {
+    return new Date(iso);
+}
+
+/**
+ * Formats a server ISO timestamp to local 'HH:mm' for display.
+ */
+export function formatServerTime(iso: string): string {
+    return format(parseServerDate(iso), 'HH:mm');
+}
 
 /**
  * Formats a date string or object to 'DD/MM' using the São Paulo timezone.
