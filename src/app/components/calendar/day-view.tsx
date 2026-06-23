@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, CalendarDays, Repeat } from 'lucide-react';
 import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
 import { ScrollArea } from '@/app/components/ui/scroll-area';
 import { DailyExecutionTimeline } from '@/app/components/execution/daily-execution-timeline';
+import { parseServerDate, formatServerTime } from '@/lib/date-utils';
 
 interface DayViewProps {
     currentDate: Date;
@@ -41,8 +42,8 @@ export function DayView({
     // Filter data for current day
     const daySchedulings = useMemo(() => {
         const daySchedulings = schedulings.filter(s => {
-            const sStart = new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
-            const sEnd = new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
+            const sStart = parseServerDate(s.start_date);
+            const sEnd = parseServerDate(s.end_date);
             sStart.setHours(0, 0, 0, 0);
             sEnd.setHours(23, 59, 59, 999);
             const d = new Date(currentDate);
@@ -128,8 +129,8 @@ export function DayView({
                                         description: s.description,
                                         project_id: s.project_id,
                                         epic_id: s.epic_id,
-                                        startTime: format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm'),
-                                        endTime: format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')
+                                        startTime: formatServerTime(s.start_date),
+                                        endTime: formatServerTime(s.end_date)
                                     })}
                                     className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-2 hover:bg-white/10 transition-colors cursor-pointer group"
                                 >
@@ -155,7 +156,7 @@ export function DayView({
                                         <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-medium">
                                             <div className="flex items-center gap-1">
                                                 <Clock className="w-3 h-3" />
-                                                {format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')} - {format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')}
+                                                {formatServerTime(s.start_date)} - {formatServerTime(s.end_date)}
                                             </div>
                                             {s.recurrence && s.recurrence !== 'none' && (
                                                 <div className="flex items-center gap-1 text-purple-400/80 capitalize">
