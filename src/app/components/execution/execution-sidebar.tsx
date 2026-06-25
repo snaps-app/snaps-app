@@ -166,10 +166,10 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                 {(() => {
                     const ctx = execution.context_data || {};
                     const gitBranch = ctx.git_branch;
-                    const prUrl = ctx.pr_url;
+                    const prUrls: string[] = ctx.pr_urls ?? (ctx.pr_url ? [ctx.pr_url] : []);
                     const ciStatus = ctx.ci_status;
                     const retryCount = ctx.retry_count;
-                    if (!gitBranch && !prUrl && !ciStatus) return null;
+                    if (!gitBranch && prUrls.length === 0 && !ciStatus) return null;
                     const ciBadge = ciStatus === 'success'
                         ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">CI: passed</span>
                         : (ciStatus === 'failed' || ciStatus === 'failure')
@@ -185,12 +185,12 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                                     <span className="font-mono text-blue-300/70">{gitBranch}</span>
                                 </div>
                             )}
-                            {prUrl && (
-                                <a href={prUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-purple-300 transition-colors whitespace-nowrap">
+                            {prUrls.map((url, i) => (
+                                <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-purple-300 transition-colors whitespace-nowrap">
                                     <ExternalLink className="w-3 h-3 text-purple-400/60" />
-                                    <span>PR Link</span>
+                                    <span>PR{prUrls.length > 1 ? ` #${i + 1}` : ' Link'}</span>
                                 </a>
-                            )}
+                            ))}
                             {ciBadge}
                             {retryCount !== undefined && retryCount > 0 && (
                                 <span className="text-[9px] text-white/30">Retries: {retryCount}</span>
