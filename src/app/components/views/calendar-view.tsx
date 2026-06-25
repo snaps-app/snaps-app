@@ -4,12 +4,12 @@ import { getRoutinesForDate, setRoutineCompletion } from '@/services/routines';
 import { getAllSchedulings } from '@/services/schedulings';
 import { getProjects } from '@/services/projects';
 import { getProjectBoards } from '@/services/boards';
-import { supabase } from '@/lib/supabaseClient';
 import type { CardWithProject, DailyExecutionWithProject, Routine, RoutineWithStatus, SchedulingWithProject } from '@/services/types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays } from 'date-fns';
+import { formatServerTime } from '@/lib/date-utils';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { MonthView } from '@/app/components/calendar/month-view';
 import { WeekView } from '@/app/components/calendar/week-view';
@@ -21,6 +21,10 @@ import { RoutineModal } from '@/app/components/calendar/routine-modal';
 
 type ViewMode = 'month' | 'week' | 'day';
 
+function dedupeById<T extends { id: string }>(arr: unknown): T[] {
+  return Array.isArray(arr) ? Array.from(new Map((arr as T[]).map(x => [x.id, x])).values()) : [];
+}
+
 export function CalendarView() {
   const [view, setView] = useState<ViewMode>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -28,75 +32,129 @@ export function CalendarView() {
   const [dailyExecutions, setDailyExecutions] = useState<DailyExecutionWithProject[]>([]);
   const [cards, setCards] = useState<CardWithProject[]>([]);
   const [routines, setRoutines] = useState<RoutineWithStatus[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Only the very first load shows the full-screen spinner. Subsequent refreshes happen in the
+  // background so the calendar never blanks/remounts on every change.
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Modal State
   const [executeData, setExecuteData] = useState<ExecuteTodayData | null>(null);
   const [isExecuteModalOpen, setIsExecuteModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editScheduling, setEditScheduling] = useState<SchedulingWithProject | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false);
   const [selectedExecution, setSelectedExecution] = useState<DailyExecutionWithProject | null>(null);
   const [isRoutineModalOpen, setIsRoutineModalOpen] = useState(false);
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  // Set of team_kanban board ids, used to scope which cards belong on the calendar.
+  // Fetched once (boards rarely change) to avoid the per-project N+1 on every refresh.
+  const boardContextRef = useRef<{ loaded: boolean; teamKanbanBoardIds: Set<string> }>({
+    loaded: false,
+    teamKanbanBoardIds: new Set<string>(),
+  });
+  const executionsLoadedRef = useRef(false);
+
+  // --- Granular loaders: each updates only its own slice (no full reload) ---
+  const refreshSchedulings = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const currentUserId = user?.id;
+      const data = await getAllSchedulings();
+      setSchedulings(dedupeById<SchedulingWithProject>(data));
+    } catch (error) {
+      console.error("Error loading schedulings:", error);
+    }
+  }, []);
 
-      const [schedData, execData, cardData, projects] = await Promise.all([
-        getAllSchedulings(),
-        getAllDailyExecutions(),
-        getAllCards(),
-        getProjects(),
-      ]);
+  const refreshExecutions = useCallback(async () => {
+    try {
+      const data = await getAllDailyExecutions();
+      setDailyExecutions(dedupeById<DailyExecutionWithProject>(data));
+      executionsLoadedRef.current = true;
+    } catch (error) {
+      console.error("Error loading daily executions:", error);
+    }
+  }, []);
 
-      // Build set of team_kanban board IDs
+  const ensureBoardContext = useCallback(async () => {
+    if (boardContextRef.current.loaded) return;
+    try {
+      const projects = await getProjects();
       const boardsPerProject = await Promise.all(
         projects.map(p => getProjectBoards(p.id).catch(() => []))
       );
-      const teamKanbanBoardIds = new Set<string>(
-        boardsPerProject.flat().filter(b => b.board_type === 'team_kanban').map(b => b.id)
-      );
-
-      // Filter: team_kanban boards + (user is assignee OR no assignees)
-      const allCardsArr = Array.isArray(cardData) ? cardData : [];
-      const filteredCards = allCardsArr.filter(c => {
-        if (!teamKanbanBoardIds.has(c.board_id)) return false;
-        if (!currentUserId) return !c.user_ids?.length;
-        return !c.user_ids?.length || c.user_ids.includes(currentUserId);
-      });
-
-      // Deduplicate by ID to prevent overlap glitches and React key collisions
-      const uniqueScheds = Array.isArray(schedData)
-        ? Array.from(new Map(schedData.map(s => [s.id, s])).values())
-        : [];
-
-      const uniqueExecs = Array.isArray(execData)
-        ? Array.from(new Map(execData.map(de => [de.id, de])).values())
-        : [];
-
-      if (!Array.isArray(schedData) || !Array.isArray(execData)) {
-          console.warn("Calendar data mismatch:", { schedData, execData });
-      }
-
-      setSchedulings(uniqueScheds);
-      setDailyExecutions(uniqueExecs);
-      setCards(filteredCards);
+      boardContextRef.current = {
+        loaded: true,
+        teamKanbanBoardIds: new Set<string>(
+          boardsPerProject.flat().filter(b => b.board_type === 'team_kanban').map(b => b.id)
+        ),
+      };
     } catch (error) {
-      console.error("Error fetching calendar data:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error loading board context:", error);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
   }, []);
+
+  // All cards on team_kanban boards. Month/Week use the ones with a due_date (chips);
+  // Day shows the ones that are not Done. High limit so large boards aren't truncated.
+  const refreshCards = useCallback(async () => {
+    try {
+      await ensureBoardContext();
+      const { teamKanbanBoardIds } = boardContextRef.current;
+      const cardData = await getAllCards(0, 1000);
+      const arr = Array.isArray(cardData) ? cardData : [];
+      setCards(arr.filter(c => teamKanbanBoardIds.has(c.board_id)));
+    } catch (error) {
+      console.error("Error loading cards:", error);
+    }
+  }, [ensureBoardContext]);
+
+  // --- Initial load (mount only) ---
+  // Schedulings drive the spinner so it clears fast; cards/executions fill in afterwards in
+  // the background. Month/Week show due_date chips from cards; only Week/Day need executions.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await refreshSchedulings();
+      } finally {
+        if (!cancelled) setInitialLoading(false);
+      }
+      // Non-blocking secondary data
+      refreshCards();
+      if (view === 'week' || view === 'day') refreshExecutions();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When switching to a heavier view, lazily load its extra slices once.
+  useEffect(() => {
+    if ((view === 'week' || view === 'day') && !executionsLoadedRef.current) refreshExecutions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   const handleExecute = (data: ExecuteTodayData) => {
     setExecuteData(data);
+    setIsExecuteModalOpen(true);
+  };
+
+  const handleEditScheduling = (s: SchedulingWithProject) => {
+    setEditScheduling(s);
+    setIsEditModalOpen(true);
+  };
+
+  // From inside the edit modal: switch to the Execute Today flow for this scheduling
+  const handleExecuteFromEdit = (s: SchedulingWithProject) => {
+    setIsEditModalOpen(false);
+    setExecuteData({
+      type: 'scheduling',
+      id: s.id,
+      title: s.title,
+      description: s.description,
+      project_id: s.project_id,
+      epic_id: s.epic_id,
+      startTime: formatServerTime(s.start_date),
+      endTime: formatServerTime(s.end_date),
+    });
     setIsExecuteModalOpen(true);
   };
 
@@ -112,7 +170,7 @@ export function CalendarView() {
 
   const handleCloneYesterday = async () => {
     await cloneYesterdayExecutions(format(currentDate, 'yyyy-MM-dd'));
-    await fetchData();
+    await refreshExecutions();
   };
 
   const fetchRoutinesForDate = async (date: Date) => {
@@ -125,7 +183,7 @@ export function CalendarView() {
     }
   };
 
-  // Fetch routines when view or date changes
+  // Fetch routines when view or date changes (routines only exist in the Day view)
   useEffect(() => {
     if (view === 'day') {
       fetchRoutinesForDate(currentDate);
@@ -219,9 +277,9 @@ export function CalendarView() {
               transition={{ duration: 0.2 }}
               className="h-full"
             >
-              {view === 'month' && <MonthView currentDate={currentDate} schedulings={schedulings} cards={cards} loading={loading} onExecute={handleExecute} />}
-              {view === 'week' && <WeekView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} loading={loading} onExecute={handleExecute} onEditExecution={handleEditExecution} />}
-              {view === 'day' && <DayView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} routines={routines} loading={loading} onExecute={handleExecute} onAddExecution={handleAddExecution} onEditExecution={handleEditExecution} onCloneYesterday={handleCloneYesterday} onToggleRoutineStatus={handleToggleRoutineStatus} onAddRoutine={handleAddRoutine} onEditRoutine={handleEditRoutine} />}
+              {view === 'month' && <MonthView currentDate={currentDate} schedulings={schedulings} cards={cards} loading={initialLoading} onExecute={handleExecute} onEditScheduling={handleEditScheduling} />}
+              {view === 'week' && <WeekView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} loading={initialLoading} onExecute={handleExecute} onEditExecution={handleEditExecution} onEditScheduling={handleEditScheduling} />}
+              {view === 'day' && <DayView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} routines={routines} loading={initialLoading} onExecute={handleExecute} onAddExecution={handleAddExecution} onEditExecution={handleEditExecution} onCloneYesterday={handleCloneYesterday} onToggleRoutineStatus={handleToggleRoutineStatus} onAddRoutine={handleAddRoutine} onEditRoutine={handleEditRoutine} onEditScheduling={handleEditScheduling} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -232,7 +290,7 @@ export function CalendarView() {
         onClose={() => setIsExecuteModalOpen(false)}
         data={executeData}
         currentDate={currentDate}
-        onSuccess={fetchData}
+        onSuccess={refreshExecutions}
       />
 
       {/* Floating Action Button */}
@@ -266,7 +324,17 @@ export function CalendarView() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         currentDate={currentDate}
-        onSuccess={fetchData}
+        onSuccess={refreshSchedulings}
+      />
+
+      {/* Edit Scheduling (same modal in edit mode) */}
+      <CreateSchedulingModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        currentDate={currentDate}
+        onSuccess={refreshSchedulings}
+        scheduling={editScheduling}
+        onExecuteToday={handleExecuteFromEdit}
       />
 
       <ExecutionModal
@@ -274,14 +342,14 @@ export function CalendarView() {
         onClose={() => setIsExecutionModalOpen(false)}
         execution={selectedExecution}
         currentDate={currentDate}
-        onSuccess={() => { fetchData(); fetchRoutinesForDate(currentDate); }}
+        onSuccess={() => { refreshExecutions(); fetchRoutinesForDate(currentDate); }}
       />
 
       <RoutineModal
         isOpen={isRoutineModalOpen}
         onClose={() => setIsRoutineModalOpen(false)}
         routine={selectedRoutine}
-        onSuccess={() => { fetchData(); fetchRoutinesForDate(currentDate); }}
+        onSuccess={() => { fetchRoutinesForDate(currentDate); }}
       />
     </div>
   );

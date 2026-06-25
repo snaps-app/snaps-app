@@ -504,6 +504,10 @@ export function GlobalBoard() {
                 <CardModal
                     isOpen={!!editingCard}
                     onClose={() => setEditingCard(null)}
+                    onDelete={async () => {
+                        setEditingCard(null);
+                        fetchData();
+                    }}
                     onSave={handleSaveEditCard}
                     initialData={editingCard}
                     epics={editingEpics}

@@ -264,6 +264,10 @@ export function BoardView() {
               setIsCardModalOpen(false);
               setIsStrategyModalOpen(true);
             }}
+            onDelete={async () => {
+              setIsCardModalOpen(false);
+              if (localBoardId) fetchBoard(localBoardId);
+            }}
             onSave={async (data) => {
               if (!localBoardId) return; 
               if (selectedCard) await updateCard(selectedCard.id, data); 

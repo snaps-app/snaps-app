@@ -366,6 +366,10 @@ export const ExecutionCockpit: React.FC = () => {
             <CardModal
                 isOpen={!!selectedCard}
                 onClose={() => setSelectedCard(null)}
+                onDelete={async (deletedCardId) => {
+                    setCards(prev => prev.filter(c => c.id !== deletedCardId));
+                    setSelectedCard(null);
+                }}
                 onSave={async (cardData) => {
                     if (selectedCard) {
                         const cardId = selectedCard.id;

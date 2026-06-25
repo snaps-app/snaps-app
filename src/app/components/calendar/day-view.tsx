@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, CalendarDays, Repeat } from 'lucide-react';
 import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
 import { ScrollArea } from '@/app/components/ui/scroll-area';
 import { DailyExecutionTimeline } from '@/app/components/execution/daily-execution-timeline';
+import { parseServerDate, formatServerTime } from '@/lib/date-utils';
 
 interface DayViewProps {
     currentDate: Date;
@@ -14,6 +15,7 @@ interface DayViewProps {
     routines?: RoutineWithStatus[];
     loading: boolean;
     onExecute?: (data: ExecuteTodayData) => void;
+    onEditScheduling?: (s: SchedulingWithProject) => void;
     onAddExecution?: () => void;
     onEditExecution?: (execution: DailyExecutionWithProject) => void;
     onCloneYesterday?: () => Promise<void>;
@@ -30,6 +32,7 @@ export function DayView({
     routines = [],
     loading,
     onExecute,
+    onEditScheduling,
     onAddExecution,
     onEditExecution,
     onCloneYesterday,
@@ -41,8 +44,8 @@ export function DayView({
     // Filter data for current day
     const daySchedulings = useMemo(() => {
         const daySchedulings = schedulings.filter(s => {
-            const sStart = new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
-            const sEnd = new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
+            const sStart = parseServerDate(s.start_date);
+            const sEnd = parseServerDate(s.end_date);
             sStart.setHours(0, 0, 0, 0);
             sEnd.setHours(23, 59, 59, 999);
             const d = new Date(currentDate);
@@ -74,24 +77,17 @@ export function DayView({
     }, [dailyExecutions, currentDate]);
 
     const activeCards = useMemo(() => {
-        // Filter "To Do" or "In Progress" (assuming statuses might be "To Do", "In Progress", "todo", "doing")
-        const relevant = cards.filter(c => {
-            const st = c.status?.toLowerCase() || '';
-            return st.includes('to do') || st.includes('todo') || st.includes('in progress') || st.includes('doing');
-        });
+        // All cards on team_kanban boards that are NOT Done (cards are already scoped to
+        // team_kanban boards upstream). "Done" matches any status containing "done".
+        const relevant = cards.filter(c => !(c.status?.toLowerCase() || '').includes('done'));
 
-        // 1. group with due date
-        const withDue = relevant.filter(c => c.due_date).sort((a, b) => {
-            const dateA = a.due_date!.substring(0, 10);
-            const dateB = b.due_date!.substring(0, 10);
-            return dateA.localeCompare(dateB);
-        });
-        // 2. group "in progress" no due date
-        const inProgressNoDue = relevant.filter(c => !c.due_date && (c.status?.toLowerCase().includes('in progress') || c.status?.toLowerCase().includes('doing')));
-        // 3. group "todo" no due date
-        const todoNoDue = relevant.filter(c => !c.due_date && (c.status?.toLowerCase().includes('to do') || c.status?.toLowerCase().includes('todo')));
+        // Cards with a due date first (earliest first), then the remaining ones.
+        const withDue = relevant
+            .filter(c => c.due_date)
+            .sort((a, b) => a.due_date!.substring(0, 10).localeCompare(b.due_date!.substring(0, 10)));
+        const noDue = relevant.filter(c => !c.due_date);
 
-        return [...withDue, ...inProgressNoDue, ...todoNoDue];
+        return [...withDue, ...noDue];
     }, [cards]);
 
     if (loading) {
@@ -121,16 +117,7 @@ export function DayView({
                             daySchedulings.map(s => (
                                 <div
                                     key={s.id}
-                                    onClick={() => onExecute?.({
-                                        type: 'scheduling',
-                                        id: s.id,
-                                        title: s.title,
-                                        description: s.description,
-                                        project_id: s.project_id,
-                                        epic_id: s.epic_id,
-                                        startTime: format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm'),
-                                        endTime: format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')
-                                    })}
+                                    onClick={() => onEditScheduling?.(s)}
                                     className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-2 hover:bg-white/10 transition-colors cursor-pointer group"
                                 >
                                     <div className="flex items-start justify-between">
@@ -155,7 +142,7 @@ export function DayView({
                                         <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-medium">
                                             <div className="flex items-center gap-1">
                                                 <Clock className="w-3 h-3" />
-                                                {format(new Date(s.start_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')} - {format(new Date(s.end_date.replace(/Z$|[+-]\d{2}:?\d{2}$/, '')), 'HH:mm')}
+                                                {formatServerTime(s.start_date)} - {formatServerTime(s.end_date)}
                                             </div>
                                             {s.recurrence && s.recurrence !== 'none' && (
                                                 <div className="flex items-center gap-1 text-purple-400/80 capitalize">

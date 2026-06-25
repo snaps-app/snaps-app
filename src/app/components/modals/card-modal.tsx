@@ -1,8 +1,8 @@
-import { getCard } from '@/services/cards';
+import { getCard, deleteCard } from '@/services/cards';
 import { createTask, deleteTask, updateTask } from '@/services/tasks';
 import type { Card, Epic, Sprint, Task } from '@/services/types';
 import { useState, useEffect, useRef } from 'react';
-import { X, Hash, Plus, Bot, Eye, Pencil, Paperclip, Loader2 } from 'lucide-react';
+import { X, Hash, Plus, Bot, Eye, Pencil, Paperclip, Loader2, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { uploadAttachment } from '@/services/storage';
@@ -18,6 +18,7 @@ interface CardModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (cardData: Partial<Card>) => void;
+    onDelete?: (cardId: string) => void;
     initialData?: Card | null;
     boardId?: string;
     epics?: Epic[];
@@ -32,6 +33,7 @@ export function CardModal({
     isOpen, 
     onClose, 
     onSave, 
+    onDelete,
     initialData, 
     epics = [], 
     sprints = [], 
@@ -59,6 +61,26 @@ export function CardModal({
     const [descMode, setDescMode] = useState<'edit' | 'preview'>('edit');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        if (!initialData?.id) return;
+        if (!window.confirm('Tem certeza que deseja excluir este card?')) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteCard(initialData.id);
+            if (onDelete) {
+                onDelete(initialData.id);
+            }
+            onClose();
+        } catch (error) {
+            console.error('Failed to delete card:', error);
+            alert('Falha ao excluir card.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink' | 'red' | 'yellow' | 'slate' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky' | 'fuchsia' | 'emerald' | 'amber'> =
         ['blue', 'orange', 'purple', 'green', 'pink', 'red', 'yellow', 'slate', 'teal', 'indigo', 'lime', 'rose', 'sky', 'fuchsia', 'emerald', 'amber'];
@@ -552,19 +574,45 @@ export function CardModal({
                                 </div>
 
                                 {/* Footer */}
-                                <div className="p-6 border-t border-white/10 flex justify-end gap-3 shrink-0">
-                                    <button
-                                        onClick={onClose}
-                                        className="px-6 py-2 rounded-xl text-white/60 hover:text-white hover:bg-white/5 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleSave}
-                                        className="px-6 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/25 transition-all"
-                                    >
-                                        {initialData ? 'Save Changes' : 'Create Card'}
-                                    </button>
+                                <div className="p-6 border-t border-white/10 flex justify-between items-center shrink-0">
+                                    <div>
+                                        {initialData?.id && (
+                                            <button
+                                                type="button"
+                                                onClick={handleDelete}
+                                                disabled={isDeleting}
+                                                className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 font-medium border border-red-500/30 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                {isDeleting ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        <span>Deletando...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Trash2 className="w-4 h-4" />
+                                                        <span>Delete</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={onClose}
+                                            className="px-6 py-2 rounded-xl text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSave}
+                                            className="px-6 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/25 transition-all"
+                                        >
+                                            {initialData ? 'Save Changes' : 'Create Card'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
