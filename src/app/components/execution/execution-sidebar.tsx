@@ -169,7 +169,13 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                     const prUrls: string[] = ctx.pr_urls ?? (ctx.pr_url ? [ctx.pr_url] : []);
                     const ciStatus = ctx.ci_status;
                     const retryCount = ctx.retry_count;
-                    if (!gitBranch && prUrls.length === 0 && !ciStatus) return null;
+                    const prs = ctx.prs;
+
+                    const hasPrsArray = Array.isArray(prs) && prs.length > 0;
+                    const hasLegacyGit = gitBranch || prUrls.length > 0;
+
+                    if (!hasPrsArray && !hasLegacyGit && !ciStatus) return null;
+
                     const ciBadge = ciStatus === 'success'
                         ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">CI: passed</span>
                         : (ciStatus === 'failed' || ciStatus === 'failure')
@@ -177,23 +183,68 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                         : ciStatus
                         ? <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300">CI: {ciStatus}</span>
                         : null;
+
                     return (
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] text-white/40">
-                            {gitBranch && (
-                                <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                    <GitBranch className="w-3 h-3 text-blue-400/60" />
-                                    <span className="font-mono text-blue-300/70">{gitBranch}</span>
+                        <div className="mt-3 space-y-2">
+                            {/* Structured PRs List */}
+                            {hasPrsArray ? (
+                                <div className="space-y-1 w-full">
+                                    <p className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1.5">Active Repos & PRs</p>
+                                    {prs.map((pr: any, i: number) => (
+                                        <div key={i} className="flex items-center justify-between gap-3 px-2.5 py-1.5 bg-white/[0.01] border border-white/5 rounded-lg hover:bg-white/[0.03] hover:border-white/10 transition-all group/pr">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <GitBranch className="w-3.5 h-3.5 text-blue-400/50 group-hover/pr:text-blue-400 transition-colors shrink-0" />
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-bold text-white/50 text-[9px] group-hover/pr:text-white/70 transition-colors truncate" title={pr.repo}>
+                                                        {pr.repo}
+                                                    </span>
+                                                    <span className="font-mono text-blue-300/60 text-[8px] truncate" title={pr.branch}>
+                                                        {pr.branch}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {pr.pr_url && (
+                                                <a 
+                                                    href={pr.pr_url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-[8px] font-bold text-purple-400 hover:text-white hover:bg-purple-500/20 transition-all shrink-0"
+                                                >
+                                                    <ExternalLink className="w-2 h-2" />
+                                                    <span>PR #{pr.pr_number || 'Link'}</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
+                            ) : (
+                                /* Legacy Fallback */
+                                hasLegacyGit && (
+                                    <div className="flex flex-wrap items-center gap-3 text-[9px] text-white/40">
+                                        {gitBranch && (
+                                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                                <GitBranch className="w-3 h-3 text-blue-400/60" />
+                                                <span className="font-mono text-blue-300/70">{gitBranch}</span>
+                                            </div>
+                                        )}
+                                        {prUrls.map((url, i) => (
+                                            <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-purple-300 transition-colors whitespace-nowrap">
+                                                <ExternalLink className="w-3 h-3 text-purple-400/60" />
+                                                <span>PR{prUrls.length > 1 ? ` #${i + 1}` : ' Link'}</span>
+                                            </a>
+                                        ))}
+                                    </div>
+                                )
                             )}
-                            {prUrls.map((url, i) => (
-                                <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-purple-300 transition-colors whitespace-nowrap">
-                                    <ExternalLink className="w-3 h-3 text-purple-400/60" />
-                                    <span>PR{prUrls.length > 1 ? ` #${i + 1}` : ' Link'}</span>
-                                </a>
-                            ))}
-                            {ciBadge}
-                            {retryCount !== undefined && retryCount > 0 && (
-                                <span className="text-[9px] text-white/30">Retries: {retryCount}</span>
+
+                            {/* CI Status & Retries */}
+                            {(ciBadge || (retryCount !== undefined && retryCount > 0)) && (
+                                <div className="flex items-center gap-2.5 pt-1">
+                                    {ciBadge}
+                                    {retryCount !== undefined && retryCount > 0 && (
+                                        <span className="text-[9px] text-white/30 font-medium">Retries: {retryCount}</span>
+                                    )}
+                                </div>
                             )}
                         </div>
                     );

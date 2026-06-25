@@ -138,6 +138,36 @@ export const AIExecutions = () => {
         retro: 'text-green-400 bg-green-500/10 border-green-500/20',
     };
 
+    const isExecutionStuck = (exec: AgentTaskExecution) => {
+        if (exec.status === 'done' || exec.status === 'failed') {
+            return false;
+        }
+        const updatedAtTime = new Date(exec.updated_at).getTime();
+        const now = Date.now();
+        const diffMs = now - updatedAtTime;
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        const isExecutionOrCiGate = exec.phase === 'execution' || exec.phase === 'ci_gate';
+        const thresholdHours = isExecutionOrCiGate ? 2 : 24;
+
+        return diffHours > thresholdHours;
+    };
+
+    const isBranchStuck = (allInBranch: AgentTaskExecution[]) => {
+        return allInBranch.some(exec => isExecutionStuck(exec));
+    };
+
+    const getStalenessDuration = (updatedAt: string) => {
+        const diffMs = Date.now() - new Date(updatedAt).getTime();
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const hours = Math.floor(diffMinutes / 60);
+        const minutes = diffMinutes % 60;
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        }
+        return `${minutes}m`;
+    };
+
     const filtered = executions.filter(exec =>
         getProjectName(exec.project_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
         (exec.agent_name || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -148,6 +178,18 @@ export const AIExecutions = () => {
     // For executions that have no root_id recorded as a separate root, also include them
     const getBranchChildren = (rootId: string) =>
         filtered.filter(e => e.root_id === rootId || (e.parent_id === rootId && !e.root_id));
+
+    const sortedRootExecs = [...rootExecs].sort((a, b) => {
+        const aChildren = getBranchChildren(a.id);
+        const bChildren = getBranchChildren(b.id);
+        const aStuck = isBranchStuck([a, ...aChildren]);
+        const bStuck = isBranchStuck([b, ...bChildren]);
+        
+        if (aStuck && !bStuck) return -1;
+        if (!aStuck && bStuck) return 1;
+        
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
     const branchPhaseOrder = ['macro_planning', 'micro_planning', 'execution', 'assurance', 'retro'];
     const getLatestPhase = (execs: AgentTaskExecution[]) => {
@@ -285,9 +327,9 @@ export const AIExecutions = () => {
                 )}
 
                 {/* Branch List */}
-                {rootExecs.length > 0 ? (
+                {sortedRootExecs.length > 0 ? (
                     <div className="space-y-3">
-                        {rootExecs.map((root) => {
+                        {sortedRootExecs.map((root) => {
                             const children = getBranchChildren(root.id);
                             const allInBranch = [root, ...children];
                             const latestPhase = getLatestPhase(allInBranch);
@@ -326,6 +368,16 @@ export const AIExecutions = () => {
                                                     <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${phaseColors[latestPhase] || 'text-white/30 bg-white/5 border-white/10'}`}>
                                                         {getDynamicPhaseLabel(latestPhase, root.workflow_template_id)}
                                                     </span>
+                                                    {isBranchStuck(allInBranch) && (
+                                                        <span 
+                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-400 border border-orange-500/30 text-[9px] font-black uppercase tracking-wider animate-pulse"
+                                                            title={`Uma ou mais execuções travadas na branch. Sem atividade há ${getStalenessDuration(
+                                                                [...allInBranch].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]?.updated_at
+                                                            )}`}
+                                                        >
+                                                            ⚠️ Travada
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-4 text-xs text-white/25">
                                                     <span className="flex items-center gap-1.5">
@@ -445,6 +497,14 @@ export const AIExecutions = () => {
                                                                         <p className="text-[10px] text-white/20 mt-0.5">{new Date(exec.created_at).toLocaleString()}</p>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 shrink-0">
+                                                                        {isExecutionStuck(exec) && (
+                                                                            <span 
+                                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-400 border border-orange-500/30 text-[9px] font-black uppercase tracking-wider"
+                                                                                title={`Sem atividade há ${getStalenessDuration(exec.updated_at)} (Última atividade: ${new Date(exec.updated_at).toLocaleString()})`}
+                                                                            >
+                                                                                ⚠️ Travada
+                                                                            </span>
+                                                                        )}
                                                                         <span className={`text-[10px] font-bold uppercase ${esc.color}`}>{exec.status.replace(/_/g, ' ')}</span>
                                                                         <ArrowRight className="w-3.5 h-3.5 text-white/10 group-hover:text-purple-400 transition-colors" />
                                                                     </div>

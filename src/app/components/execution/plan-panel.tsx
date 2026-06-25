@@ -1,3 +1,4 @@
+import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -8,7 +9,8 @@ import {
     Zap,
     RefreshCcw,
     Loader2,
-    Copy
+    Copy,
+    Lock
 } from 'lucide-react';
 import { Tag } from '@/app/components/shared/tag';
 import type { AgentTaskExecution, Sprint } from '@/services/types';
@@ -60,6 +62,13 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     updatePlanStatus,
     deletePlanFn
 }) => {
+    const rawPlans = execution.context_data?.plans || [];
+    const sortedPlans = [...rawPlans].sort((a, b) => {
+        const aOrder = a.execution_order !== undefined && a.execution_order !== null ? a.execution_order : 999999;
+        const bOrder = b.execution_order !== undefined && b.execution_order !== null ? b.execution_order : 999999;
+        return aOrder - bOrder;
+    });
+
     return (
         <div className="space-y-8">
             {execution.phase === 'plan_review' && (
@@ -79,16 +88,22 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                     </button>
                 </div>
             )}
-            {(execution.context_data?.plans || []).length > 0 ? (
-                (execution.context_data?.plans || []).map((plan: any) => {
+            {sortedPlans.length > 0 ? (
+                sortedPlans.map((plan: any, index: number) => {
                     const isWaiting = isPlanWaiting(plan);
+                    const isActive = plan.id === execution.plan_id;
+                    const tooltipText = isWaiting 
+                        ? `Aguardando Plano: ${currentPlan?.title || 'anterior'}` 
+                        : undefined;
+
                     return (
                         <div
                             key={plan.id}
-                            className={`p-8 rounded-3xl border relative overflow-hidden group/plan transition-all ${plan.id === execution.plan_id
-                                ? 'bg-blue-500/[0.05] border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.05)]'
+                            title={tooltipText}
+                            className={`p-8 rounded-3xl border relative overflow-hidden group/plan transition-all ${isActive
+                                ? 'bg-blue-500/[0.05] border-blue-500/30 border-l-4 border-l-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.05)]'
                                 : isWaiting
-                                    ? 'bg-white/[0.01] border-white/5 opacity-60'
+                                    ? 'bg-white/[0.01] border-white/5 opacity-60 cursor-not-allowed'
                                     : 'bg-white/[0.03] border-white/10'
                                 } hover:border-blue-500/40`}
                         >
@@ -110,11 +125,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                     ) : (
                                         <h2 className="text-xl font-bold text-white leading-tight truncate flex items-center gap-2">
                                             {plan.title}
-                                            {plan.execution_order !== undefined && plan.execution_order !== null && (
-                                                <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                                    #{plan.execution_order}
-                                                </span>
-                                            )}
+                                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30" title={`Ordem: ${index + 1} de ${sortedPlans.length}`}>
+                                                {index + 1}/{sortedPlans.length}
+                                            </span>
                                         </h2>
                                     )}
                                     {plan.sprint_id && (
@@ -147,9 +160,16 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                         <div className="flex items-center gap-4">
                                             {/* Status & Transitions */}
                                             <div className="flex items-center gap-2">
+                                                {isActive && (
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[10px] font-bold uppercase tracking-wider mr-2">
+                                                        <Zap className="w-3 h-3 text-blue-400 animate-pulse" />
+                                                        Plano Ativo
+                                                    </span>
+                                                )}
                                                 {isWaiting && (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-[10px] font-bold uppercase tracking-wider mr-2">
-                                                        ⏳ Aguardando plano anterior
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-500/15 border border-yellow-500/20 text-yellow-300 text-[10px] font-bold uppercase tracking-wider mr-2" title={tooltipText}>
+                                                        <Lock className="w-3 h-3 text-yellow-400" />
+                                                        Bloqueado
                                                     </span>
                                                 )}
                                                 {plan.status === 'draft' && (
