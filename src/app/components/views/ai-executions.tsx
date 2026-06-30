@@ -153,7 +153,18 @@ export const AIExecutions = () => {
         return diffHours > thresholdHours;
     };
 
+    const getBranchStatus = (execs: AgentTaskExecution[]) => {
+        if (!execs || execs.length === 0) return 'pending';
+        const sorted = [...execs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        const lastExec = sorted[sorted.length - 1];
+        return lastExec.status;
+    };
+
     const isBranchStuck = (allInBranch: AgentTaskExecution[]) => {
+        const branchStatus = getBranchStatus(allInBranch);
+        if (branchStatus === 'done' || branchStatus === 'completed' || branchStatus === 'failed') {
+            return false;
+        }
         return allInBranch.some(exec => isExecutionStuck(exec));
     };
 
@@ -218,12 +229,6 @@ export const AIExecutions = () => {
             }
         }
         return phaseLabels[phaseKey] || phaseKey.replace(/_/g, ' ').toUpperCase();
-    };
-    const getBranchStatus = (execs: AgentTaskExecution[]) => {
-        if (!execs || execs.length === 0) return 'pending';
-        const sorted = [...execs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        const lastExec = sorted[sorted.length - 1];
-        return lastExec.status;
     };
 
     const getSprintDisplay = (sprintIds?: string[]) => {
