@@ -82,9 +82,10 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
 
                 setCards(collected);
                 if (collected.length === 1) setSelectedCardId(collected[0].id);
-            } catch (err) {
+            } catch (err: any) {
                 console.error('[TimeTrackingModal] load error:', err);
-                setError('Não foi possível carregar os dados da sessão.');
+                const msg = err?.message || String(err);
+                setError(`Não foi possível carregar os dados: ${msg}`);
             } finally {
                 setIsLoading(false);
             }
