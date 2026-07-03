@@ -358,21 +358,39 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                                 </p>
                             </div>
                         )}
-                        <button
-                            onClick={execution.status === 'done' ? () => setIsTimeTrackingModalOpen(true) : handleAdvance}
-                            disabled={isAdvancing}
-                            className={`w-full h-12 ${execution.status === 'done' ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20'} text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50`}
-                        >
-                            {isAdvancing ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                                <>
-                                    {execution.status === 'done'
-                                        ? 'Execution Complete — Exit'
-                                        : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase')
-                                    }
-                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                </>
-                            )}
-                        </button>
+                        {execution.advance_conditions?.info && (
+                            <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 animate-in fade-in duration-500">
+                                <p className="text-[10px] text-blue-400 font-medium whitespace-pre-wrap">
+                                    {execution.advance_conditions.info}
+                                </p>
+                            </div>
+                        )}
+                        {(() => {
+                            const force = Object.values(manualOverrides).some(Boolean);
+                            const isCompleted = execution.status === 'completed';
+                            const isDone = execution.status === 'done';
+                            const disabled = isAdvancing || (isCompleted && !force);
+                            
+                            return (
+                                <button
+                                    onClick={isDone ? () => setIsTimeTrackingModalOpen(true) : handleAdvance}
+                                    disabled={disabled}
+                                    className={`w-full h-12 ${isDone ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : (isCompleted && !force) ? 'bg-blue-600 shadow-blue-900/20 opacity-50 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20'} text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50`}
+                                >
+                                    {isAdvancing ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                                        <>
+                                            {isDone
+                                                ? 'Execution Complete — Exit'
+                                                : (isCompleted && !force)
+                                                    ? 'Waiting for Siblings...' 
+                                                    : (force ? 'Force Advance to Next Phase' : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase'))
+                                            }
+                                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </>
+                                    )}
+                                </button>
+                            );
+                        })()}
                     </div>
                 </div>
             ) : (

@@ -31,8 +31,10 @@ export const ExecutionAgentContext: React.FC<ExecutionAgentContextProps> = ({
                             {execution.agent_name}
                         </h2>
                         <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-                            <span className="text-[8px] font-bold text-purple-400 uppercase tracking-tighter">Running</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${execution.status === 'completed' ? 'bg-blue-500' : 'bg-purple-500 animate-pulse'}`} />
+                            <span className={`text-[8px] font-bold uppercase tracking-tighter ${execution.status === 'completed' ? 'text-blue-400' : 'text-purple-400'}`}>
+                                {execution.status === 'completed' ? 'Waiting' : 'Running'}
+                            </span>
                         </div>
                     </div>
                 </div>

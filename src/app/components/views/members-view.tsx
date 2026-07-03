@@ -17,7 +17,6 @@ const ROLE_COLORS: Record<string, { bg: string; border: string; text: string }> 
 
 export function MembersView() {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
   const { can, loading: roleLoading, } = useProjectRole();
   
   const [members, setMembers] = useState<ProjectMember[]>([]);
@@ -26,12 +25,8 @@ export function MembersView() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
-  // Redirect if user doesn't have permission to view members (Admin or Owner only)
-  useEffect(() => {
-    if (!roleLoading && !can('manage_members')) {
-      navigate(`/project/${projectId}`);
-    }
-  }, [roleLoading, can, navigate, projectId]);
+  // Acesso read-only liberado para todos os membros (ADR-0020).
+  // Botões de ação e select de role estão protegidos individualmente no JSX via can('manage_members')
 
   const loadData = async () => {
     if (!projectId) return;
