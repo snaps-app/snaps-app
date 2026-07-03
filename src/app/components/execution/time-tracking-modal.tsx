@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { X, Clock, Plus, Trash2, ChevronDown, Loader2, CheckCircle } from 'lucide-react';
 import { getTimeDraft, createTimeLog } from '@/services/timeLogs';
-import { getCard, updateCard } from '@/services/cards';
+import { getCard, updateCard, createCard } from '@/services/cards';
 import { getProjectBoards } from '@/services/boards';
-import type { AgentTaskExecution, Card } from '@/services/types';
+import type { AgentTaskExecution, Card, Board } from '@/services/types';
 import type { DraftEntry, Participant } from '@/types/timeLogs';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -39,6 +39,13 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
     const [cards, setCards] = useState<Card[]>([]);
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    // On-the-fly card creation (peer review Fase 3.5): usuário escolhe o board, não fixo em "Roadmap".
+    const [cardMode, setCardMode] = useState<'existing' | 'new'>('existing');
+    const [projectBoards, setProjectBoards] = useState<Board[]>([]);
+    const [newCardTitle, setNewCardTitle] = useState('');
+    const [newCardBoardId, setNewCardBoardId] = useState<string | null>(null);
+    const [isCreatingCard, setIsCreatingCard] = useState(false);
 
     useEffect(() => {
         const load = async () => {
@@ -82,6 +89,13 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
 
                 setCards(collected);
                 if (collected.length === 1) setSelectedCardId(collected[0].id);
+
+                try {
+                    const fetchedBoards = await getProjectBoards(projectId);
+                    setProjectBoards(fetchedBoards);
+                } catch (boardsErr) {
+                    console.warn('[TimeTrackingModal] failed to load boards:', boardsErr);
+                }
             } catch (err: any) {
                 console.error('[TimeTrackingModal] load error:', err);
                 const msg = err?.message || String(err);
@@ -111,7 +125,13 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
     };
 
     const handleSubmit = async () => {
-        if (!selectedCardId) { setError('Selecione um card antes de confirmar.'); return; }
+        if (cardMode === 'new') {
+            if (!newCardTitle.trim()) { setError('Informe o título do novo card.'); return; }
+            if (!newCardBoardId) { setError('Selecione em qual board o card será criado.'); return; }
+        } else if (!selectedCardId) {
+            setError('Selecione um card antes de confirmar.');
+            return;
+        }
         const selectedParticipants = participants.filter((p) => p.selected);
         if (selectedParticipants.length === 0) { setError('Selecione ao menos um participante.'); return; }
         const activeDrafts = drafts.filter((d) => d.hours > 0);
@@ -120,13 +140,29 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
         setIsSubmitting(true);
         setError(null);
         try {
+            let targetCardId = selectedCardId;
+            if (cardMode === 'new') {
+                setIsCreatingCard(true);
+                try {
+                    const newCard = await createCard(newCardBoardId as string, {
+                        title: newCardTitle.trim(),
+                        status: 'todo',
+                    });
+                    targetCardId = newCard.id;
+                    setCards((prev) => [...prev, newCard]);
+                    setSelectedCardId(newCard.id);
+                } finally {
+                    setIsCreatingCard(false);
+                }
+            }
+
             const posts: Promise<any>[] = [];
             for (const participant of selectedParticipants) {
                 const pDrafts = activeDrafts.filter((d) => d.user_id === participant.user_id || d.user_id === '');
                 for (const draft of pDrafts) {
                     posts.push(createTimeLog(projectId, {
                         user_id: participant.user_id,
-                        card_id: selectedCardId,
+                        card_id: targetCardId as string,
                         agent_execution_id: execution.id,
                         date: draft.date,
                         hours: draft.hours,
@@ -138,14 +174,14 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
             await Promise.all(posts);
 
             try {
-                const selectedCard = cards.find(c => c.id === selectedCardId);
-                if (selectedCard) {
-                    const existingUserIds = selectedCard.user_ids || [];
+                const targetCard = cards.find(c => c.id === targetCardId);
+                if (targetCard) {
+                    const existingUserIds = targetCard.user_ids || [];
                     const newUserIds = selectedParticipants.map(p => p.user_id);
                     const mergedUserIds = Array.from(new Set([...existingUserIds, ...newUserIds]));
-                    
+
                     if (mergedUserIds.length > existingUserIds.length) {
-                        await updateCard(selectedCardId, { user_ids: mergedUserIds });
+                        await updateCard(targetCardId as string, { user_ids: mergedUserIds });
                     }
                 }
             } catch (cardErr) {
@@ -189,27 +225,74 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                     ) : (
                         <>
                             <div>
-                                <label className="block text-white/60 text-xs font-medium uppercase tracking-wider mb-2">Card relacionado</label>
-                                {cards.length === 0 ? (
-                                    <p className="text-white/30 text-sm italic">Nenhum card encontrado</p>
-                                ) : cards.length === 1 ? (
-                                    <div className="flex items-center gap-2 bg-white/5 border border-purple-500/20 rounded-lg px-4 py-2.5">
-                                        <CheckCircle className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                                        <span className="text-white text-sm">{cards[0].title}</span>
-                                    </div>
-                                ) : (
-                                    <div className="relative">
-                                        <select
-                                            value={selectedCardId ?? ''}
-                                            onChange={(e) => setSelectedCardId(e.target.value || null)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm appearance-none focus:outline-none focus:border-purple-500/50 pr-10"
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Card relacionado</label>
+                                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCardMode('existing')}
+                                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${cardMode === 'existing' ? 'bg-purple-500/20 text-purple-300' : 'text-white/40 hover:text-white/60'}`}
                                         >
-                                            <option value="">Selecione um card...</option>
-                                            {cards.map((c) => (
-                                                <option key={c.id} value={c.id}>{c.title}</option>
-                                            ))}
-                                        </select>
-                                        <ChevronDown className="w-4 h-4 text-white/30 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                            Selecionar existente
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCardMode('new')}
+                                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${cardMode === 'new' ? 'bg-purple-500/20 text-purple-300' : 'text-white/40 hover:text-white/60'}`}
+                                        >
+                                            Criar novo card
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {cardMode === 'existing' ? (
+                                    cards.length === 0 ? (
+                                        <p className="text-white/30 text-sm italic">Nenhum card encontrado</p>
+                                    ) : cards.length === 1 ? (
+                                        <div className="flex items-center gap-2 bg-white/5 border border-purple-500/20 rounded-lg px-4 py-2.5">
+                                            <CheckCircle className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                                            <span className="text-white text-sm">{cards[0].title}</span>
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <select
+                                                value={selectedCardId ?? ''}
+                                                onChange={(e) => setSelectedCardId(e.target.value || null)}
+                                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm appearance-none focus:outline-none focus:border-purple-500/50 pr-10"
+                                            >
+                                                <option value="">Selecione um card...</option>
+                                                {cards.map((c) => (
+                                                    <option key={c.id} value={c.id}>{c.title}</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="w-4 h-4 text-white/30 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="space-y-2">
+                                        <input
+                                            type="text"
+                                            value={newCardTitle}
+                                            onChange={(e) => setNewCardTitle(e.target.value)}
+                                            placeholder="Título do novo card..."
+                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-white/20"
+                                        />
+                                        <div className="relative">
+                                            <select
+                                                value={newCardBoardId ?? ''}
+                                                onChange={(e) => setNewCardBoardId(e.target.value || null)}
+                                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm appearance-none focus:outline-none focus:border-purple-500/50 pr-10"
+                                            >
+                                                <option value="">Selecione o board...</option>
+                                                {projectBoards.map((b) => (
+                                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="w-4 h-4 text-white/30 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                        </div>
+                                        {projectBoards.length === 0 && (
+                                            <p className="text-white/30 text-xs italic">Nenhum board encontrado neste projeto.</p>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -285,7 +368,11 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                     <button onClick={onSkip} className="text-white/40 hover:text-white/60 text-sm transition-colors" disabled={isSubmitting}>Pular</button>
                     <button onClick={handleSubmit} disabled={isSubmitting || isLoading}
                         className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
-                        {isSubmitting ? (<><Loader2 className="w-4 h-4 animate-spin" />Salvando...</>) : (<><CheckCircle className="w-4 h-4" />Confirmar apontamentos</>)}
+                        {isSubmitting ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" />{isCreatingCard ? 'Criando card...' : 'Salvando...'}</>
+                        ) : (
+                            <><CheckCircle className="w-4 h-4" />Confirmar apontamentos</>
+                        )}
                     </button>
                 </div>
             </div>
