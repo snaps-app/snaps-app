@@ -146,7 +146,7 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                 try {
                     const newCard = await createCard(newCardBoardId as string, {
                         title: newCardTitle.trim(),
-                        status: 'todo',
+                        status: 'done',
                     });
                     targetCardId = newCard.id;
                     setCards((prev) => [...prev, newCard]);
