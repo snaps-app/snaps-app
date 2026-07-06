@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Loader2 } from 'lucide-react';
-import { getProjectTimeLogs, createTimeLog } from '@/services/timeLogs';
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, Lock } from 'lucide-react';
+import { getProjectTimeLogs, createTimeLog, updateTimeLog } from '@/services/timeLogs';
 import { getProjectBoards } from '@/services/boards';
 import { createCard } from '@/services/cards';
 import { getSchedulings } from '@/services/schedulings';
@@ -25,12 +25,27 @@ function toISODate(d: Date): string {
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+interface RowKey {
+    type: 'card' | 'scheduling';
+    refId: string;
+}
+
+interface TimesheetRow extends RowKey {
+    key: string;
+    title: string;
+}
+
+function rowKeyOf(r: RowKey): string {
+    return `${r.type}:${r.refId}`;
+}
+
 export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
     const [logs, setLogs] = useState<TimeLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-    const [activeDay, setActiveDay] = useState<string | null>(null);
+    const [pendingRows, setPendingRows] = useState<TimesheetRow[]>([]);
+    const [isAddRowOpen, setIsAddRowOpen] = useState(false);
 
     const weekDays = useMemo(() => (
         Array.from({ length: 7 }, (_, i) => {
@@ -65,18 +80,71 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
 
     useEffect(() => { load(); }, [load]);
 
-    const logsByDay = useMemo(() => {
+    // Reseta linhas adicionadas manualmente (ainda sem apontamento) ao trocar de semana.
+    useEffect(() => { setPendingRows([]); }, [weekStart]);
+
+    const rows = useMemo(() => {
+        const map = new Map<string, TimesheetRow>();
+        for (const log of logs) {
+            const rk: RowKey = log.card_id
+                ? { type: 'card', refId: log.card_id }
+                : { type: 'scheduling', refId: log.scheduling_id as string };
+            const key = rowKeyOf(rk);
+            if (!map.has(key)) {
+                map.set(key, { ...rk, key, title: log.card_title ?? log.description ?? 'Apontamento' });
+            }
+        }
+        for (const pr of pendingRows) {
+            if (!map.has(pr.key)) map.set(pr.key, pr);
+        }
+        return Array.from(map.values());
+    }, [logs, pendingRows]);
+
+    const cellsByRowAndDate = useMemo(() => {
         const map = new Map<string, TimeLog[]>();
         for (const log of logs) {
-            const list = map.get(log.date) ?? [];
+            const rk: RowKey = log.card_id
+                ? { type: 'card', refId: log.card_id }
+                : { type: 'scheduling', refId: log.scheduling_id as string };
+            const cellKey = `${rowKeyOf(rk)}|${log.date}`;
+            const list = map.get(cellKey) ?? [];
             list.push(log);
-            map.set(log.date, list);
+            map.set(cellKey, list);
         }
         return map;
     }, [logs]);
 
+    const dayTotals = useMemo(() => {
+        const totals = new Map<string, number>();
+        for (const log of logs) totals.set(log.date, (totals.get(log.date) ?? 0) + log.hours);
+        return totals;
+    }, [logs]);
+
     const weekTotal = logs.reduce((acc, l) => acc + l.hours, 0);
     const todayISO = toISODate(new Date());
+
+    const handleCellCommit = async (row: TimesheetRow, iso: string, newValue: number) => {
+        const cellKey = `${row.key}|${iso}`;
+        const existing = cellsByRowAndDate.get(cellKey) ?? [];
+        if (existing.length > 1) return; // célula agregada de múltiplas entradas — não editável nesta versão
+
+        if (existing.length === 0) {
+            if (newValue <= 0) return;
+            await createTimeLog(projectId, {
+                user_id: currentUserId as string,
+                card_id: row.type === 'card' ? row.refId : undefined,
+                scheduling_id: row.type === 'scheduling' ? row.refId : undefined,
+                date: iso,
+                hours: newValue,
+                status: 'confirmed',
+            });
+        } else {
+            const log = existing[0];
+            if (newValue <= 0 || newValue === log.hours) return; // remover célula não é suportado nesta versão
+            await updateTimeLog(log.id, { hours: newValue });
+        }
+        await load();
+    };
 
     return (
         <div className="space-y-6">
@@ -115,75 +183,160 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                     <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
                 </div>
             ) : (
-                <div className="grid grid-cols-7 gap-3">
-                    {weekDays.map((d) => {
-                        const iso = toISODate(d);
-                        const dayLogs = logsByDay.get(iso) ?? [];
-                        const dayTotal = dayLogs.reduce((acc, l) => acc + l.hours, 0);
-                        const isToday = iso === todayISO;
-                        return (
-                            <div
-                                key={iso}
-                                className={`bg-[#0f1117] border rounded-xl p-3 min-h-[160px] flex flex-col ${isToday ? 'border-purple-500/40' : 'border-white/5'}`}
-                            >
-                                <div className="flex items-center justify-between mb-2">
-                                    <div>
-                                        <div className="text-white/40 text-[10px] uppercase tracking-wider">{WEEKDAY_LABELS[d.getDay()]}</div>
-                                        <div className="text-white text-sm font-medium">{d.getDate()}</div>
-                                    </div>
-                                    <button
-                                        onClick={() => setActiveDay(iso)}
-                                        className="text-white/30 hover:text-purple-400 transition-colors p-1 rounded"
-                                        title="Apontar horas"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                                <div className="flex-1 space-y-1.5">
-                                    {dayLogs.map((log) => (
-                                        <div key={log.id} className="bg-white/3 rounded-lg px-2 py-1.5">
-                                            <div className="text-white/70 text-xs truncate">{log.card_title ?? log.description ?? 'Apontamento'}</div>
-                                            <div className="text-purple-300 text-xs font-mono font-semibold">{log.hours.toFixed(1)}h</div>
-                                        </div>
-                                    ))}
-                                </div>
-                                {dayTotal > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-white/5 text-right">
-                                        <span className="text-white/30 text-[10px]">Total: </span>
-                                        <span className="text-white/70 text-xs font-mono font-semibold">{dayTotal.toFixed(1)}h</span>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                <div className="overflow-x-auto rounded-xl border border-white/5">
+                    <table className="w-full text-sm border-collapse">
+                        <thead>
+                            <tr className="bg-white/3">
+                                <th className="text-left px-4 py-3 text-white/40 text-xs font-medium uppercase tracking-wider min-w-[220px]">Tarefa</th>
+                                {weekDays.map((d) => {
+                                    const iso = toISODate(d);
+                                    const isToday = iso === todayISO;
+                                    return (
+                                        <th key={iso} className={`px-2 py-3 text-xs font-medium uppercase tracking-wider min-w-[64px] ${isToday ? 'text-purple-300' : 'text-white/40'}`}>
+                                            <div>{WEEKDAY_LABELS[d.getDay()]}</div>
+                                            <div className="font-mono normal-case">{d.getDate()}</div>
+                                        </th>
+                                    );
+                                })}
+                                <th className="px-4 py-3 text-white/40 text-xs font-medium uppercase tracking-wider text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={9} className="text-center py-10 text-white/30 text-sm">
+                                        Nenhuma tarefa nesta semana ainda. Use "Adicionar tarefa" abaixo.
+                                    </td>
+                                </tr>
+                            ) : (
+                                rows.map((row) => {
+                                    let rowTotal = 0;
+                                    return (
+                                        <tr key={row.key} className="border-t border-white/5">
+                                            <td className="px-4 py-2 text-white text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded ${row.type === 'card' ? 'bg-purple-500/10 text-purple-300' : 'bg-blue-500/10 text-blue-300'}`}>
+                                                        {row.type === 'card' ? 'Card' : 'Agend.'}
+                                                    </span>
+                                                    <span className="truncate">{row.title}</span>
+                                                </div>
+                                            </td>
+                                            {weekDays.map((d) => {
+                                                const iso = toISODate(d);
+                                                const cellLogs = cellsByRowAndDate.get(`${row.key}|${iso}`) ?? [];
+                                                const sum = cellLogs.reduce((acc, l) => acc + l.hours, 0);
+                                                rowTotal += sum;
+                                                const editable = cellLogs.length <= 1;
+                                                return (
+                                                    <td key={iso} className="px-1 py-1 text-center">
+                                                        {editable ? (
+                                                            <EditableCell value={sum} onCommit={(v) => handleCellCommit(row, iso, v)} />
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 text-white/50 text-xs font-mono" title="Múltiplos apontamentos neste dia — edite pela aba Relatório">
+                                                                <Lock className="w-2.5 h-2.5" />{sum.toFixed(1)}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="px-4 py-2 text-right text-purple-300 font-mono font-semibold text-sm">{rowTotal.toFixed(1)}h</td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                        {rows.length > 0 && (
+                            <tfoot>
+                                <tr className="border-t border-white/10 bg-white/3">
+                                    <td className="px-4 py-2 text-white/40 text-xs uppercase tracking-wider">Total do dia</td>
+                                    {weekDays.map((d) => {
+                                        const iso = toISODate(d);
+                                        const total = dayTotals.get(iso) ?? 0;
+                                        return (
+                                            <td key={iso} className="px-1 py-2 text-center text-white/70 text-xs font-mono font-semibold">
+                                                {total > 0 ? `${total.toFixed(1)}h` : '—'}
+                                            </td>
+                                        );
+                                    })}
+                                    <td className="px-4 py-2 text-right text-purple-300 font-mono font-bold text-sm">{weekTotal.toFixed(1)}h</td>
+                                </tr>
+                            </tfoot>
+                        )}
+                    </table>
                 </div>
             )}
 
-            {activeDay && currentUserId && (
-                <ManualEntryModal
+            <button
+                onClick={() => setIsAddRowOpen(true)}
+                className="flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
+            >
+                <Plus className="w-4 h-4" /> Adicionar tarefa
+            </button>
+
+            {isAddRowOpen && (
+                <AddRowModal
                     projectId={projectId}
-                    date={activeDay}
-                    userId={currentUserId}
-                    onClose={() => setActiveDay(null)}
-                    onSaved={() => { setActiveDay(null); load(); }}
+                    existingKeys={new Set(rows.map((r) => r.key))}
+                    onClose={() => setIsAddRowOpen(false)}
+                    onAdd={(row) => { setPendingRows((prev) => [...prev, row]); setIsAddRowOpen(false); }}
                 />
             )}
         </div>
     );
 }
 
-type ContextMode = 'card' | 'scheduling' | 'new_card';
-
-interface ManualEntryModalProps {
-    projectId: string;
-    date: string;
-    userId: string;
-    onClose: () => void;
-    onSaved: () => void;
+interface EditableCellProps {
+    value: number;
+    onCommit: (value: number) => void;
 }
 
-function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualEntryModalProps) {
-    const [mode, setMode] = useState<ContextMode>('card');
+function EditableCell({ value, onCommit }: EditableCellProps) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [draft, setDraft] = useState(value > 0 ? String(value) : '');
+
+    useEffect(() => { if (!isEditing) setDraft(value > 0 ? String(value) : ''); }, [value, isEditing]);
+
+    const commit = () => {
+        setIsEditing(false);
+        const parsed = parseFloat(draft);
+        if (!Number.isNaN(parsed) && parsed !== value) onCommit(parsed);
+    };
+
+    if (!isEditing) {
+        return (
+            <button
+                onClick={() => setIsEditing(true)}
+                className={`w-14 h-8 rounded-md text-xs font-mono font-semibold transition-colors ${value > 0 ? 'text-purple-300 bg-purple-500/5 hover:bg-purple-500/10' : 'text-white/20 hover:bg-white/5 hover:text-white/40'}`}
+            >
+                {value > 0 ? value.toFixed(2) : '+'}
+            </button>
+        );
+    }
+
+    return (
+        <input
+            autoFocus
+            type="number" min="0" step="0.25"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setIsEditing(false); }}
+            className="w-14 h-8 bg-white/10 border border-purple-500/40 rounded-md text-white text-xs font-mono text-center focus:outline-none"
+        />
+    );
+}
+
+interface AddRowModalProps {
+    projectId: string;
+    existingKeys: Set<string>;
+    onClose: () => void;
+    onAdd: (row: TimesheetRow) => void;
+}
+
+type AddRowMode = 'card' | 'scheduling' | 'new_card';
+
+function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalProps) {
+    const [mode, setMode] = useState<AddRowMode>('card');
     const [cards, setCards] = useState<Card[]>([]);
     const [schedulings, setSchedulings] = useState<Scheduling[]>([]);
     const [boards, setBoards] = useState<Board[]>([]);
@@ -191,8 +344,6 @@ function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualE
     const [selectedSchedulingId, setSelectedSchedulingId] = useState('');
     const [newCardTitle, setNewCardTitle] = useState('');
     const [newCardBoardId, setNewCardBoardId] = useState('');
-    const [hours, setHours] = useState(1);
-    const [description, setDescription] = useState('');
     const [isLoadingOptions, setIsLoadingOptions] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -209,7 +360,7 @@ function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualE
                 setCards(projectBoards.flatMap((b) => b.cards ?? []));
                 setSchedulings(projectSchedulings);
             } catch (err) {
-                console.error('[ManualEntryModal] failed to load options:', err);
+                console.error('[AddRowModal] failed to load options:', err);
             } finally {
                 setIsLoadingOptions(false);
             }
@@ -218,36 +369,29 @@ function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualE
     }, [projectId]);
 
     const handleSubmit = async () => {
-        // Espelha a constraint dual-reference do ADR-0019 no client antes de chamar o backend.
         if (mode === 'card' && !selectedCardId) { setError('Selecione um card.'); return; }
         if (mode === 'scheduling' && !selectedSchedulingId) { setError('Selecione um agendamento.'); return; }
         if (mode === 'new_card' && (!newCardTitle.trim() || !newCardBoardId)) { setError('Informe o título e o board do novo card.'); return; }
-        if (hours <= 0) { setError('Informe uma quantidade de horas válida.'); return; }
+
+        if (mode === 'card' && existingKeys.has(`card:${selectedCardId}`)) { setError('Esse card já está na lista desta semana.'); return; }
+        if (mode === 'scheduling' && existingKeys.has(`scheduling:${selectedSchedulingId}`)) { setError('Esse agendamento já está na lista desta semana.'); return; }
 
         setIsSubmitting(true);
         setError(null);
         try {
-            let cardId: string | undefined = mode === 'card' ? selectedCardId : undefined;
-            const schedulingId: string | undefined = mode === 'scheduling' ? selectedSchedulingId : undefined;
-
             if (mode === 'new_card') {
                 const newCard = await createCard(newCardBoardId, { title: newCardTitle.trim(), status: 'todo' });
-                cardId = newCard.id;
+                onAdd({ key: `card:${newCard.id}`, type: 'card', refId: newCard.id, title: newCard.title });
+            } else if (mode === 'card') {
+                const card = cards.find((c) => c.id === selectedCardId)!;
+                onAdd({ key: `card:${card.id}`, type: 'card', refId: card.id, title: card.title });
+            } else {
+                const scheduling = schedulings.find((s) => s.id === selectedSchedulingId)!;
+                onAdd({ key: `scheduling:${scheduling.id}`, type: 'scheduling', refId: scheduling.id, title: scheduling.title });
             }
-
-            await createTimeLog(projectId, {
-                user_id: userId,
-                card_id: cardId,
-                scheduling_id: schedulingId,
-                date,
-                hours,
-                description: description || undefined,
-                status: 'confirmed',
-            });
-            onSaved();
         } catch (err: any) {
-            console.error('[ManualEntryModal] submit error:', err);
-            setError(err?.response?.data?.detail || 'Erro ao salvar o apontamento.');
+            console.error('[AddRowModal] submit error:', err);
+            setError(err?.response?.data?.detail || 'Erro ao adicionar tarefa.');
         } finally {
             setIsSubmitting(false);
         }
@@ -257,9 +401,7 @@ function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualE
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-[#0f1117] border border-purple-500/20 rounded-2xl w-full max-w-md shadow-2xl shadow-purple-900/20">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-                    <h3 className="text-white font-semibold text-sm">
-                        Apontar horas — {new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR')}
-                    </h3>
+                    <h3 className="text-white font-semibold text-sm">Adicionar tarefa à semana</h3>
                     <button onClick={onClose} className="text-white/30 hover:text-white/60 transition-colors">
                         <X className="w-4 h-4" />
                     </button>
@@ -273,7 +415,7 @@ function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualE
                     ) : (
                         <>
                             <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
-                                {(['card', 'scheduling', 'new_card'] as ContextMode[]).map((m) => (
+                                {(['card', 'scheduling', 'new_card'] as AddRowMode[]).map((m) => (
                                     <button
                                         key={m}
                                         type="button"
@@ -335,24 +477,6 @@ function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualE
                                 </div>
                             )}
 
-                            <div>
-                                <label className="block text-white/40 text-xs mb-1">Horas</label>
-                                <input
-                                    type="number" min="0.25" step="0.25" value={hours}
-                                    onChange={(e) => setHours(parseFloat(e.target.value) || 0)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-white/40 text-xs mb-1">Descrição (opcional)</label>
-                                <input
-                                    type="text" value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="O que foi feito..."
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-white/20"
-                                />
-                            </div>
-
                             {error && (
                                 <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
                             )}
@@ -370,7 +494,7 @@ function ManualEntryModal({ projectId, date, userId, onClose, onSaved }: ManualE
                         className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
                     >
                         {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Salvar
+                        Adicionar
                     </button>
                 </div>
             </div>

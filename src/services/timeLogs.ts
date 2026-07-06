@@ -26,6 +26,11 @@ export const createTimeLog = async (projectId: string, data: TimeLogCreate): Pro
     return response.data;
 };
 
+export const updateTimeLog = async (logId: string, data: { hours?: number; description?: string; date?: string }): Promise<TimeLog> => {
+    const response = await api.patch(`/time-logs/${logId}`, data);
+    return response.data;
+};
+
 export const getProjectTimeLogs = async (projectId: string, params?: TimeLogFilters): Promise<TimeLog[]> => {
     const response = await api.get(`/projects/${projectId}/time-logs/`, { params });
     return response.data;
