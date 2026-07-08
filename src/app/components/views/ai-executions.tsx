@@ -162,7 +162,7 @@ export const AIExecutions = () => {
 
     const isBranchStuck = (allInBranch: AgentTaskExecution[]) => {
         const branchStatus = getBranchStatus(allInBranch);
-        if (branchStatus === 'done' || branchStatus === 'completed' || branchStatus === 'failed') {
+        if (branchStatus === 'done' || branchStatus === 'failed') {
             return false;
         }
         return allInBranch.some(exec => isExecutionStuck(exec));
