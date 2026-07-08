@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import { Sidebar } from '@/app/components/layout/sidebar';
 import { BottomNav } from '@/app/components/layout/bottom-nav';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useParams } from 'react-router-dom';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { ContextSidebar } from '@/app/components/layout/context-sidebar';
+import { ProjectRoleProvider } from '@/contexts/project-role-context';
 
 export function MainLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  // Layout routes receive descendant params, so this is set on /project/:projectId/*
+  // and undefined on global routes — the provider handles both.
+  const { projectId } = useParams();
 
   return (
+    <ProjectRoleProvider projectId={projectId}>
     <div className="flex h-screen w-full relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
       {/* Global Background */}
       <NeuralBackground />
@@ -32,5 +37,6 @@ export function MainLayout() {
 
       <BottomNav />
     </div>
+    </ProjectRoleProvider>
   );
 }

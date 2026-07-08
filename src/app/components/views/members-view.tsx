@@ -26,9 +26,11 @@ export function MembersView() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
-  // Redirect if user doesn't have permission to view members (Admin or Owner only)
+  // View gate: owner/admin/visualizer may open this screen; member may not.
+  // Editing controls below stay gated on 'manage_members' (owner/admin), so
+  // visualizer sees the list read-only.
   useEffect(() => {
-    if (!roleLoading && !can('manage_members')) {
+    if (!roleLoading && !can('view_members')) {
       navigate(`/project/${projectId}`);
     }
   }, [roleLoading, can, navigate, projectId]);
