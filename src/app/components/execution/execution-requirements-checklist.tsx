@@ -245,6 +245,60 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
                     </span>
                 </button>
             )}
+
+            {activeRules.peer_review_generated && (
+                <button
+                    onClick={() => toggleRequirement('peer_review_generated')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {manualRequirements['peer_review_generated'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
+                            <Check className="w-2.5 h-2.5 text-green-400" />
+                        </div>
+                    ) : (
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
+                    )}
+                    <span className={`text-[11px] ${manualRequirements['peer_review_generated'] ? 'text-white/60' : 'text-white/30'}`}>
+                        Peer Review Report Generated
+                    </span>
+                </button>
+            )}
+
+            {activeRules.sprint_closed && (
+                <button
+                    onClick={() => toggleRequirement('sprint_closed')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {manualRequirements['sprint_closed'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
+                            <Check className="w-2.5 h-2.5 text-green-400" />
+                        </div>
+                    ) : (
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
+                    )}
+                    <span className={`text-[11px] ${manualRequirements['sprint_closed'] ? 'text-white/60' : 'text-white/30'}`}>
+                        Sprint Closed (status = done)
+                    </span>
+                </button>
+            )}
+
+            {activeRules.sprint_branch_merged && (
+                <button
+                    onClick={() => toggleRequirement('sprint_branch_merged')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
+                    {execution.context_data?.sprint_branch_merged || manualRequirements['sprint_branch_merged'] ? (
+                        <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
+                            <Check className="w-2.5 h-2.5 text-green-400" />
+                        </div>
+                    ) : (
+                        <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
+                    )}
+                    <span className={`text-[11px] ${execution.context_data?.sprint_branch_merged || manualRequirements['sprint_branch_merged'] ? 'text-white/60' : 'text-white/30'}`}>
+                        Sprint Branch Merged to Main
+                    </span>
+                </button>
+            )}
         </div>
     );
 };

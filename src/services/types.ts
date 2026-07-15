@@ -486,7 +486,7 @@ export interface WorkflowTemplateCreate {
 export interface AgentTaskExecution {
     id: string;
     project_id: string;
-    status: 'pending' | 'in_progress' | 'awaiting_advance' | 'done' | 'failed';
+    status: 'pending' | 'in_progress' | 'awaiting_advance' | 'done' | 'failed' | 'completed';
     phase: string;
     sprint_ids: string[];
     card_ids: string[];

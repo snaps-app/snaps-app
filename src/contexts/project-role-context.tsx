@@ -36,12 +36,17 @@ export function ProjectRoleProvider({
   projectId,
 }: {
   children: ReactNode;
-  projectId: string;
+  projectId?: string;
 }) {
   const [role, setRole] = useState<ProjectRole>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!projectId) {
+      setRole(null);
+      setLoading(false);
+      return;
+    }
     let isMounted = true;
     const loadRole = async () => {
       setLoading(true);
