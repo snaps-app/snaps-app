@@ -10,6 +10,7 @@ export interface TimeLog {
     description: string | null;
     status: 'draft' | 'confirmed';
     card_title?: string;
+    scheduling_title?: string;
     user_display_name?: string;
     project_name?: string;
     created_at?: string;

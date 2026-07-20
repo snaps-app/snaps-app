@@ -92,7 +92,7 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                 : { type: 'scheduling', refId: log.scheduling_id as string };
             const key = rowKeyOf(rk);
             if (!map.has(key)) {
-                map.set(key, { ...rk, key, title: log.card_title ?? log.description ?? 'Apontamento' });
+                map.set(key, { ...rk, key, title: log.card_title ?? log.scheduling_title ?? log.description ?? 'Apontamento' });
             }
         }
         for (const pr of pendingRows) {
