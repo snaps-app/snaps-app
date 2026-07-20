@@ -23,6 +23,48 @@ function toISODate(d: Date): string {
     return d.toISOString().split('T')[0];
 }
 
+function startOfDay(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+interface SchedulingOccurrence {
+    scheduling: Scheduling;
+    iso: string;
+    label: string;
+}
+
+// Expand a scheduling into its selectable occurrences. A recurring scheduling
+// (daily/weekly/monthly) yields one option per occurrence from its start date up
+// to and including today — never a future occurrence. Non-recurring schedulings
+// yield a single option. Mirrors the recurrence rules used by the calendar views.
+function expandSchedulingOccurrences(s: Scheduling, today: Date): SchedulingOccurrence[] {
+    const start = startOfDay(new Date(s.start_date));
+    const todayDay = startOfDay(today);
+    const dm = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const occ: SchedulingOccurrence[] = [];
+    const push = (d: Date, n: number) => occ.push({
+        scheduling: s,
+        iso: toISODate(d),
+        label: n === 1 ? `${s.title} (${dm(d)})` : `${s.title} ${n} (${dm(d)})`,
+    });
+
+    const rec = s.recurrence;
+    if (!rec || rec === 'none' || (rec !== 'daily' && rec !== 'weekly' && rec !== 'monthly')) {
+        push(start, 1);
+        return occ;
+    }
+
+    const cursor = new Date(start);
+    // Cap iterations defensively so a bad date can never spin forever.
+    for (let n = 1; n <= 1000 && startOfDay(cursor) <= todayDay; n++) {
+        push(new Date(cursor), n);
+        if (rec === 'daily') cursor.setDate(cursor.getDate() + 1);
+        else if (rec === 'weekly') cursor.setDate(cursor.getDate() + 7);
+        else cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return occ;
+}
+
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 interface RowKey {
@@ -124,7 +166,7 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     const weekTotal = logs.reduce((acc, l) => acc + l.hours, 0);
     const todayISO = toISODate(new Date());
 
-    const handleAddRow = async (row: TimesheetRow, scheduling?: Scheduling) => {
+    const handleAddRow = async (row: TimesheetRow, scheduling?: Scheduling, occurrenceIso?: string) => {
         setIsAddRowOpen(false);
 
         // Cards have no inherent date/duration — they become an empty row for the
@@ -135,9 +177,12 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
             return;
         }
 
+        // Log at the chosen occurrence's date (for a recurring scheduling), falling
+        // back to the scheduling's own start date.
         const start = new Date(scheduling.start_date);
         const end = new Date(scheduling.end_date);
         const hours = Math.round(((end.getTime() - start.getTime()) / 3600000) * 100) / 100;
+        const logDate = occurrenceIso ?? toISODate(start);
         if (!(hours > 0)) {
             setPendingRows((prev) => [...prev, row]);
             return;
@@ -147,13 +192,13 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
             await createTimeLog(projectId, {
                 user_id: currentUserId as string,
                 scheduling_id: scheduling.id,
-                date: toISODate(start),
+                date: logDate,
                 hours,
                 status: 'confirmed',
             });
-            // Jump to the scheduling's week so the new entry is actually visible;
+            // Jump to the occurrence's week so the new entry is actually visible;
             // this also re-runs load() via the weekStart dependency.
-            setWeekStart(startOfWeek(start));
+            setWeekStart(startOfWeek(new Date(`${logDate}T12:00:00`)));
         } catch (err) {
             console.error('[ProjectTimesheetView] failed to log scheduling:', err);
             setPendingRows((prev) => [...prev, row]);
@@ -369,7 +414,8 @@ interface AddRowModalProps {
     onClose: () => void;
     // A scheduling carries its own date and duration, so it is handed back to the
     // parent to log immediately instead of becoming an empty row to fill in by hand.
-    onAdd: (row: TimesheetRow, scheduling?: Scheduling) => void;
+    // occurrenceIso pins which occurrence of a recurring scheduling was picked.
+    onAdd: (row: TimesheetRow, scheduling?: Scheduling, occurrenceIso?: string) => void;
 }
 
 type AddRowMode = 'card' | 'scheduling' | 'new_card';
@@ -413,7 +459,8 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
         if (mode === 'new_card' && (!newCardTitle.trim() || !newCardBoardId)) { setError('Informe o título e o board do novo card.'); return; }
 
         if (mode === 'card' && existingKeys.has(`card:${selectedCardId}`)) { setError('Esse card já está na lista desta semana.'); return; }
-        if (mode === 'scheduling' && existingKeys.has(`scheduling:${selectedSchedulingId}`)) { setError('Esse agendamento já está na lista desta semana.'); return; }
+        // No existingKeys guard for schedulings: distinct occurrences of a recurring
+        // scheduling share one scheduling_id but log to different dates.
 
         setIsSubmitting(true);
         setError(null);
@@ -425,10 +472,13 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                 const card = cards.find((c) => c.id === selectedCardId)!;
                 onAdd({ key: `card:${card.id}`, type: 'card', refId: card.id, title: card.title });
             } else {
-                const scheduling = schedulings.find((s) => s.id === selectedSchedulingId)!;
+                // selectedSchedulingId is a composite "<schedulingId>::<occurrenceIso>".
+                const [schedulingId, occurrenceIso] = selectedSchedulingId.split('::');
+                const scheduling = schedulings.find((s) => s.id === schedulingId)!;
                 onAdd(
                     { key: `scheduling:${scheduling.id}`, type: 'scheduling', refId: scheduling.id, title: scheduling.title },
                     scheduling,
+                    occurrenceIso,
                 );
             }
         } catch (err: any) {
@@ -494,7 +544,9 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                                         className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50"
                                     >
                                         <option value="">Selecione um agendamento...</option>
-                                        {schedulings.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                                        {schedulings.flatMap((s) => expandSchedulingOccurrences(s, new Date())).map((o) => (
+                                            <option key={`${o.scheduling.id}::${o.iso}`} value={`${o.scheduling.id}::${o.iso}`}>{o.label}</option>
+                                        ))}
                                     </select>
                                 )
                             )}
