@@ -8,19 +8,32 @@ import { ProjectTimesheetView } from './ProjectTimesheetView';
 
 type ViewTab = 'report' | 'timesheet';
 
-interface CardGroup {
-    card_id: string | null;
-    card_title: string;
+interface LogGroup {
+    key: string;
+    label: string;
     logs: TimeLog[];
     totalHours: number;
 }
 
-function groupByCard(logs: TimeLog[]): CardGroup[] {
-    const map = new Map<string, CardGroup>();
+// Group logs by their reference: a card, a scheduling (so recurring/scheduled
+// time is no longer lumped into "Sem card"), or neither.
+function groupLogs(logs: TimeLog[]): LogGroup[] {
+    const map = new Map<string, LogGroup>();
     for (const log of logs) {
-        const key = log.card_id ?? '__none__';
+        let key: string;
+        let label: string;
+        if (log.card_id) {
+            key = `card:${log.card_id}`;
+            label = log.card_title ?? 'Card';
+        } else if (log.scheduling_id) {
+            key = `scheduling:${log.scheduling_id}`;
+            label = log.scheduling_title ?? 'Agendamento';
+        } else {
+            key = '__none__';
+            label = 'Sem card';
+        }
         if (!map.has(key)) {
-            map.set(key, { card_id: log.card_id, card_title: log.card_title ?? 'Sem card', logs: [], totalHours: 0 });
+            map.set(key, { key, label, logs: [], totalHours: 0 });
         }
         const g = map.get(key)!;
         g.logs.push(log);
@@ -83,7 +96,7 @@ export function ProjectTimeView() {
         setExpandedCards((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
     };
 
-    const groups = groupByCard(logs);
+    const groups = groupLogs(logs);
     const totalHours = logs.reduce((acc, l) => acc + l.hours, 0);
     const uniqueUsers = [...new Set(logs.map((l) => l.user_display_name).filter(Boolean))];
 
@@ -145,7 +158,7 @@ export function ProjectTimeView() {
                                 <div className="text-purple-300 text-2xl font-bold font-mono">{totalHours.toFixed(1)}h</div>
                             </div>
                             <div className="bg-white/3 border border-white/5 rounded-xl px-5 py-3">
-                                <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Cards</div>
+                                <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Itens</div>
                                 <div className="text-white text-2xl font-bold">{groups.length}</div>
                             </div>
                             <div className="bg-white/3 border border-white/5 rounded-xl px-5 py-3">
@@ -164,14 +177,14 @@ export function ProjectTimeView() {
                         ) : (
                             <div className="space-y-3">
                                 {groups.map((group) => {
-                                    const key = group.card_id ?? '__none__';
+                                    const key = group.key;
                                     const isExpanded = expandedCards.has(key);
                                     return (
                                         <div key={key} className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden">
                                             <button onClick={() => toggleCard(key)} className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/2 transition-colors">
                                                 <div className="flex items-center gap-3">
                                                     {isExpanded ? <ChevronDown className="w-4 h-4 text-white/30" /> : <ChevronRight className="w-4 h-4 text-white/30" />}
-                                                    <span className="text-white text-sm font-medium">{group.card_title}</span>
+                                                    <span className="text-white text-sm font-medium">{group.label}</span>
                                                     <span className="text-white/30 text-xs">{group.logs.length} apontamento{group.logs.length !== 1 ? 's' : ''}</span>
                                                 </div>
                                                 <span className="text-purple-300 font-mono font-semibold text-sm">{group.totalHours.toFixed(1)}h</span>
