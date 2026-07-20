@@ -17,16 +17,24 @@ const ROLE_COLORS: Record<string, { bg: string; border: string; text: string }> 
 
 export function MembersView() {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const { can, loading: roleLoading, } = useProjectRole();
-  
+
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
-  // Acesso read-only liberado para todos os membros (ADR-0020).
-  // Botões de ação e select de role estão protegidos individualmente no JSX via can('manage_members')
+
+  // View gate: owner/admin/visualizer may open this screen; a plain member may
+  // not (managing members isn't one of a member's "specific things"). Edit
+  // controls below stay gated on can('manage_members') so visualizer is
+  // read-only. NOTE: this narrows the blanket read-only access from ADR-0020.
+  useEffect(() => {
+    if (!roleLoading && !can('view_members')) {
+      navigate(`/project/${projectId}`);
+    }
+  }, [roleLoading, can, navigate, projectId]);
 
   const loadData = async () => {
     if (!projectId) return;

@@ -4,7 +4,7 @@ import { getProject } from '@/services/projects';
 import { supabase } from '@/lib/supabaseClient';
 
 type ProjectRole = 'owner' | 'admin' | 'member' | 'visualizer' | null;
-type ActionType = 'write' | 'manage_members' | 'delete';
+type ActionType = 'write' | 'manage_members' | 'view_members' | 'delete';
 
 interface ProjectRoleContextValue {
   role: ProjectRole;
@@ -19,11 +19,18 @@ const ROLE_LEVELS: Record<string, number> = {
   owner: 3,
 };
 
-const CAN_MAP: Record<ActionType, number> = {
-  write: 1,       // member e acima
-  manage_members: 2, // admin e acima
-  delete: 3,      // owner apenas
+// Level-based abilities encode the general philosophy: visualizer (0) sees
+// everything but edits nothing (write starts at member); admin/owner manage.
+const CAN_MAP: Record<Exclude<ActionType, 'view_members'>, number> = {
+  write: 1,          // member e acima (visualizer é read-only)
+  manage_members: 2, // admin e owner editam membros
+  delete: 3,         // owner apenas
 };
+
+// Members management is NOT one of a member's "specific things", so member is
+// excluded from viewing entirely — this is non-hierarchical (visualizer, level
+// 0, may view while member, level 1, may not), so it's matched by explicit role.
+const VIEW_MEMBERS_ROLES = new Set(['owner', 'admin', 'visualizer']);
 
 const ProjectRoleContext = createContext<ProjectRoleContextValue>({
   role: null,
@@ -91,6 +98,7 @@ export function ProjectRoleProvider({
 
   const can = (action: ActionType): boolean => {
     if (!role) return false;
+    if (action === 'view_members') return VIEW_MEMBERS_ROLES.has(role);
     const userLevel = ROLE_LEVELS[role] ?? -1;
     const requiredLevel = CAN_MAP[action];
     return userLevel >= requiredLevel;
