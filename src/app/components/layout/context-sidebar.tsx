@@ -68,7 +68,9 @@ export function ContextSidebar() {
     { label: 'Chat', icon: MessageSquare, path: `/project/${projectId}/chat` },
   ];
 
-  projectNavItems.push({ label: 'Members', icon: Users, path: `/project/${projectId}/members` });
+  if (can('view_members')) {
+    projectNavItems.push({ label: 'Members', icon: Users, path: `/project/${projectId}/members` });
+  }
 
   projectNavItems.push({ label: 'Settings', icon: Settings, path: `/project/${projectId}/edit` });
 

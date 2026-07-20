@@ -65,10 +65,11 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
         if (!currentUserId) return;
         setIsLoading(true);
         try {
+            // No user_id filter: the backend scopes visibility by project role
+            // (owner/admin/visualizer see everyone; member sees only their own).
             const data = await getProjectTimeLogs(projectId, {
                 start_date: toISODate(weekStart),
                 end_date: toISODate(weekEnd),
-                user_id: currentUserId,
             });
             setLogs(data);
         } catch (err) {
@@ -122,6 +123,42 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
 
     const weekTotal = logs.reduce((acc, l) => acc + l.hours, 0);
     const todayISO = toISODate(new Date());
+
+    const handleAddRow = async (row: TimesheetRow, scheduling?: Scheduling) => {
+        setIsAddRowOpen(false);
+
+        // Cards have no inherent date/duration — they become an empty row for the
+        // user to fill in. A scheduling does, so log it at its own date rather than
+        // in whichever week happens to be on screen.
+        if (!scheduling) {
+            setPendingRows((prev) => [...prev, row]);
+            return;
+        }
+
+        const start = new Date(scheduling.start_date);
+        const end = new Date(scheduling.end_date);
+        const hours = Math.round(((end.getTime() - start.getTime()) / 3600000) * 100) / 100;
+        if (!(hours > 0)) {
+            setPendingRows((prev) => [...prev, row]);
+            return;
+        }
+
+        try {
+            await createTimeLog(projectId, {
+                user_id: currentUserId as string,
+                scheduling_id: scheduling.id,
+                date: toISODate(start),
+                hours,
+                status: 'confirmed',
+            });
+            // Jump to the scheduling's week so the new entry is actually visible;
+            // this also re-runs load() via the weekStart dependency.
+            setWeekStart(startOfWeek(start));
+        } catch (err) {
+            console.error('[ProjectTimesheetView] failed to log scheduling:', err);
+            setPendingRows((prev) => [...prev, row]);
+        }
+    };
 
     const handleCellCommit = async (row: TimesheetRow, iso: string, newValue: number) => {
         const cellKey = `${row.key}|${iso}`;
@@ -278,7 +315,7 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                     projectId={projectId}
                     existingKeys={new Set(rows.map((r) => r.key))}
                     onClose={() => setIsAddRowOpen(false)}
-                    onAdd={(row) => { setPendingRows((prev) => [...prev, row]); setIsAddRowOpen(false); }}
+                    onAdd={handleAddRow}
                 />
             )}
         </div>
@@ -330,7 +367,9 @@ interface AddRowModalProps {
     projectId: string;
     existingKeys: Set<string>;
     onClose: () => void;
-    onAdd: (row: TimesheetRow) => void;
+    // A scheduling carries its own date and duration, so it is handed back to the
+    // parent to log immediately instead of becoming an empty row to fill in by hand.
+    onAdd: (row: TimesheetRow, scheduling?: Scheduling) => void;
 }
 
 type AddRowMode = 'card' | 'scheduling' | 'new_card';
@@ -387,7 +426,10 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                 onAdd({ key: `card:${card.id}`, type: 'card', refId: card.id, title: card.title });
             } else {
                 const scheduling = schedulings.find((s) => s.id === selectedSchedulingId)!;
-                onAdd({ key: `scheduling:${scheduling.id}`, type: 'scheduling', refId: scheduling.id, title: scheduling.title });
+                onAdd(
+                    { key: `scheduling:${scheduling.id}`, type: 'scheduling', refId: scheduling.id, title: scheduling.title },
+                    scheduling,
+                );
             }
         } catch (err: any) {
             console.error('[AddRowModal] submit error:', err);
