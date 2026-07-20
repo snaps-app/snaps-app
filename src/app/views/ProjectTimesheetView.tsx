@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X, Loader2, Lock } from 'lucide-react';
 import { getProjectTimeLogs, createTimeLog, updateTimeLog } from '@/services/timeLogs';
-import { getProjectBoards } from '@/services/boards';
+import { getProjectBoards, getBoard } from '@/services/boards';
 import { createCard } from '@/services/cards';
 import { getSchedulings } from '@/services/schedulings';
 import { supabase } from '@/lib/supabaseClient';
@@ -442,8 +442,19 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                     getSchedulings(projectId).catch(() => []),
                 ]);
                 setBoards(projectBoards);
-                setCards(projectBoards.flatMap((b) => b.cards ?? []));
                 setSchedulings(projectSchedulings);
+
+                // The boards list endpoint returns summaries without nested cards, so
+                // fetch the Team Kanban board's detail (which includes cards). Fall back
+                // to all boards if this project has no Team Kanban. Newest cards first.
+                const teamKanban = projectBoards.find((b) => b.board_type === 'team_kanban');
+                const sourceBoards = teamKanban ? [teamKanban] : projectBoards;
+                const detailed = await Promise.all(
+                    sourceBoards.map((b) => getBoard(b.id).catch(() => null)),
+                );
+                const allCards = detailed.flatMap((b) => b?.cards ?? []);
+                allCards.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                setCards(allCards);
             } catch (err) {
                 console.error('[AddRowModal] failed to load options:', err);
             } finally {
