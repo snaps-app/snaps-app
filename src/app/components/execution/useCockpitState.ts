@@ -222,6 +222,10 @@ export const useCockpitState = (
                 const savedIds = data.context_data?.selected_test_plan_ids;
                 if (Array.isArray(savedIds)) setSelectedTestPlanIds(savedIds);
 
+                if (data.status === 'done') {
+                    setIsTimeTrackingModalOpen(true);
+                }
+
             } catch (error) {
                 console.error('Failed to fetch execution:', error);
             } finally {
