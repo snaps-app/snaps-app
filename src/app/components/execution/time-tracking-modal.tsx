@@ -4,7 +4,7 @@ import { getTimeDraft, createTimeLog } from '@/services/timeLogs';
 import { getCard, updateCard, createCard } from '@/services/cards';
 import { getProjectBoards } from '@/services/boards';
 import type { AgentTaskExecution, Card, Board } from '@/services/types';
-import type { DraftEntry, Participant } from '@/types/timeLogs';
+import type { Participant } from '@/types/timeLogs';
 import { supabase } from '@/lib/supabaseClient';
 
 interface TimeTrackingModalProps {
@@ -16,13 +16,14 @@ interface TimeTrackingModalProps {
     onSkip: () => void;
 }
 
-interface EditableDraft extends DraftEntry {
+// Each daily entry carries its own participants and date. On confirm, one time_log
+// is created per (entry × participant), each with the entry's full hours.
+interface EditableDraft {
     _key: string;
-}
-
-interface ParticipantState extends Participant {
-    selected: boolean;
+    date: string;
     hours: number;
+    description: string;
+    participantIds: string[];
 }
 
 export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
@@ -35,7 +36,8 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [drafts, setDrafts] = useState<EditableDraft[]>([]);
-    const [participants, setParticipants] = useState<ParticipantState[]>([]);
+    const [participants, setParticipants] = useState<Participant[]>([]);
+    const [currentUserId, setCurrentUserId] = useState<string>('');
     const [cards, setCards] = useState<Card[]>([]);
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -51,24 +53,22 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
         const load = async () => {
             setIsLoading(true);
             try {
-                // Get current user
                 const { data: { user: currentUser } } = await supabase.auth.getUser();
-                const currentUserId = currentUser?.id;
+                const uid = currentUser?.id ?? '';
+                setCurrentUserId(uid);
 
                 const draft = await getTimeDraft(execution.id);
 
+                // Each draft starts assigned to its own session owner (or the current user).
                 setDrafts(draft.drafts.map((d, i) => ({
-                    ...d,
                     _key: `${d.date}-${d.user_id}-${i}`,
+                    date: d.date,
+                    hours: Math.round(d.hours * 100) / 100,
+                    description: d.description,
+                    participantIds: [String(d.user_id) || uid].filter(Boolean),
                 })));
 
-                // Pre-select current user; only select current user if they have drafts
-                setParticipants(draft.participants.map((p) => {
-                    const pDrafts = draft.drafts.filter((d) => d.user_id === p.user_id);
-                    const totalH = pDrafts.reduce((acc, d) => acc + d.hours, 0);
-                    const isCurrentUser = p.user_id.toString() === currentUserId;
-                    return { ...p, selected: isCurrentUser || pDrafts.length > 0, hours: Math.round(totalH * 10) / 10 };
-                }));
+                setParticipants(draft.participants);
 
                 // Prefer the cockpit's already-loaded card list (includes the sprint macrocard,
                 // loaded via getCardsBySprint). Fall back to fetching by card_ids / board.
@@ -107,8 +107,16 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
         load();
     }, [execution.id, projectId]);
 
-    const updateDraftField = (key: string, field: 'hours' | 'description', value: string | number) => {
+    const updateDraftField = (key: string, field: 'hours' | 'description' | 'date', value: string | number) => {
         setDrafts((prev) => prev.map((d) => (d._key === key ? { ...d, [field]: value } : d)));
+    };
+
+    const toggleParticipant = (key: string, userId: string) => {
+        setDrafts((prev) => prev.map((d) => {
+            if (d._key !== key) return d;
+            const on = d.participantIds.includes(userId);
+            return { ...d, participantIds: on ? d.participantIds.filter((id) => id !== userId) : [...d.participantIds, userId] };
+        }));
     };
 
     const removeDraft = (key: string) => {
@@ -117,10 +125,11 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
 
     const addManualEntry = () => {
         const today = new Date().toISOString().split('T')[0];
-        const firstParticipant = participants.find((p) => p.selected);
+        const defaultParticipant = participants.find((p) => String(p.user_id) === currentUserId)?.user_id
+            ?? participants[0]?.user_id;
         setDrafts((prev) => [
             ...prev,
-            { _key: `manual-${Date.now()}`, date: today, hours: 1, description: '', user_id: firstParticipant?.user_id ?? '' },
+            { _key: `manual-${Date.now()}`, date: today, hours: 1, description: '', participantIds: defaultParticipant ? [String(defaultParticipant)] : [] },
         ]);
     };
 
@@ -132,10 +141,12 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
             setError('Selecione um card antes de confirmar.');
             return;
         }
-        const selectedParticipants = participants.filter((p) => p.selected);
-        if (selectedParticipants.length === 0) { setError('Selecione ao menos um participante.'); return; }
         const activeDrafts = drafts.filter((d) => d.hours > 0);
         if (activeDrafts.length === 0) { setError('Adicione ao menos um apontamento de horas.'); return; }
+        if (activeDrafts.some((d) => d.participantIds.length === 0)) {
+            setError('Cada entrada precisa de ao menos um participante.');
+            return;
+        }
 
         setIsSubmitting(true);
         setError(null);
@@ -156,12 +167,14 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                 }
             }
 
+            // One time_log per (entry × participant), each getting the entry's full hours.
             const posts: Promise<any>[] = [];
-            for (const participant of selectedParticipants) {
-                const pDrafts = activeDrafts.filter((d) => d.user_id === participant.user_id || d.user_id === '');
-                for (const draft of pDrafts) {
+            const allParticipantIds = new Set<string>();
+            for (const draft of activeDrafts) {
+                for (const userId of draft.participantIds) {
+                    allParticipantIds.add(userId);
                     posts.push(createTimeLog(projectId, {
-                        user_id: participant.user_id,
+                        user_id: userId,
                         card_id: targetCardId as string,
                         agent_execution_id: execution.id,
                         date: draft.date,
@@ -177,9 +190,7 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                 const targetCard = cards.find(c => c.id === targetCardId);
                 if (targetCard) {
                     const existingUserIds = targetCard.user_ids || [];
-                    const newUserIds = selectedParticipants.map(p => p.user_id);
-                    const mergedUserIds = Array.from(new Set([...existingUserIds, ...newUserIds]));
-
+                    const mergedUserIds = Array.from(new Set([...existingUserIds, ...allParticipantIds]));
                     if (mergedUserIds.length > existingUserIds.length) {
                         await updateCard(targetCardId as string, { user_ids: mergedUserIds });
                     }
@@ -309,53 +320,62 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                                 ) : (
                                     <div className="space-y-2">
                                         {drafts.map((draft) => (
-                                            <div key={draft._key} className="flex items-center gap-3 bg-white/3 border border-white/5 rounded-lg px-3 py-2">
-                                                <span className="text-white/40 text-xs w-24 flex-shrink-0 font-mono">{draft.date}</span>
-                                                <input
-                                                    type="number" min="0" step="0.5" value={draft.hours}
-                                                    onChange={(e) => updateDraftField(draft._key, 'hours', parseFloat(e.target.value) || 0)}
-                                                    className="w-20 bg-transparent border border-white/10 rounded px-2 py-1 text-white text-sm text-center focus:outline-none focus:border-purple-500/50"
-                                                />
-                                                <span className="text-white/30 text-xs">h</span>
-                                                <input
-                                                    type="text" value={draft.description}
-                                                    onChange={(e) => updateDraftField(draft._key, 'description', e.target.value)}
-                                                    placeholder="Descrição..."
-                                                    className="flex-1 bg-transparent border border-white/10 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-white/20"
-                                                />
-                                                <button onClick={() => removeDraft(draft._key)} className="text-white/20 hover:text-red-400/70 transition-colors">
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
+                                            <div key={draft._key} className="bg-white/3 border border-white/5 rounded-lg px-3 py-2 space-y-2">
+                                                <div className="flex items-center gap-3">
+                                                    <input
+                                                        type="date" value={draft.date}
+                                                        onChange={(e) => updateDraftField(draft._key, 'date', e.target.value)}
+                                                        className="w-36 bg-transparent border border-white/10 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]"
+                                                    />
+                                                    <input
+                                                        type="number" min="0" step="0.5" value={draft.hours}
+                                                        onChange={(e) => updateDraftField(draft._key, 'hours', parseFloat(e.target.value) || 0)}
+                                                        className="w-20 bg-transparent border border-white/10 rounded px-2 py-1 text-white text-sm text-center focus:outline-none focus:border-purple-500/50"
+                                                    />
+                                                    <span className="text-white/30 text-xs">h</span>
+                                                    <input
+                                                        type="text" value={draft.description}
+                                                        onChange={(e) => updateDraftField(draft._key, 'description', e.target.value)}
+                                                        placeholder="Descrição..."
+                                                        className="flex-1 bg-transparent border border-white/10 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-white/20"
+                                                    />
+                                                    <button onClick={() => removeDraft(draft._key)} className="text-white/20 hover:text-red-400/70 transition-colors">
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                                {participants.length > 0 && (
+                                                    <div className="flex items-center gap-1.5 flex-wrap pl-1">
+                                                        {participants.map((p) => {
+                                                            const on = draft.participantIds.includes(String(p.user_id));
+                                                            return (
+                                                                <button
+                                                                    key={p.user_id}
+                                                                    type="button"
+                                                                    onClick={() => toggleParticipant(draft._key, String(p.user_id))}
+                                                                    className={`flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full text-[11px] border transition-colors ${on ? 'bg-purple-500/20 border-purple-500/40 text-purple-200' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'}`}
+                                                                    title={p.display_name}
+                                                                >
+                                                                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${on ? 'bg-purple-500/30 text-purple-100' : 'bg-white/10 text-white/50'}`}>
+                                                                        {p.display_name.charAt(0).toUpperCase()}
+                                                                    </span>
+                                                                    {p.display_name}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
                                 )}
-                                <div className="mt-3 text-right">
-                                    <span className="text-white/40 text-xs">Total: </span>
-                                    <span className="text-purple-300 text-sm font-semibold font-mono">{totalHours.toFixed(1)}h</span>
-                                </div>
-                            </div>
-
-                            {participants.length > 0 && (
-                                <div>
-                                    <label className="block text-white/60 text-xs font-medium uppercase tracking-wider mb-2">Participantes</label>
-                                    <div className="space-y-2">
-                                        {participants.map((p) => (
-                                            <div key={p.user_id} className="flex items-center gap-3 bg-white/3 border border-white/5 rounded-lg px-3 py-2">
-                                                <input type="checkbox" checked={p.selected}
-                                                    onChange={(e) => setParticipants((prev) => prev.map((pp) => pp.user_id === p.user_id ? { ...pp, selected: e.target.checked } : pp))}
-                                                    className="w-4 h-4 accent-purple-500"
-                                                />
-                                                <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                                                    <span className="text-purple-300 text-xs font-bold">{p.display_name.charAt(0).toUpperCase()}</span>
-                                                </div>
-                                                <span className="text-white text-sm flex-1">{p.display_name}</span>
-                                                <span className="text-white/30 text-xs">{p.sessions_count} sessão{p.sessions_count !== 1 ? 'ões' : ''}</span>
-                                            </div>
-                                        ))}
+                                <div className="mt-3 flex items-center justify-between">
+                                    <span className="text-white/30 text-[11px]">Cada participante recebe as horas cheias da entrada.</span>
+                                    <div>
+                                        <span className="text-white/40 text-xs">Total: </span>
+                                        <span className="text-purple-300 text-sm font-semibold font-mono">{totalHours.toFixed(1)}h</span>
                                     </div>
                                 </div>
-                            )}
+                            </div>
 
                             {error && (
                                 <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2">{error}</p>
