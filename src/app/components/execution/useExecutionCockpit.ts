@@ -29,6 +29,7 @@ export const useExecutionCockpit = () => {
     const [agentInstructions, setAgentInstructions] = useState<string | null>(null);
     const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
     const [isTimeTrackingModalOpen, setIsTimeTrackingModalOpen] = useState(false);
+    const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'cockpit' | 'branches'>('cockpit');
     const [selectedCard, setSelectedCard] = useState<Card | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -586,5 +587,7 @@ export const useExecutionCockpit = () => {
         handleToggleScenario,
         isTimeTrackingModalOpen,
         setIsTimeTrackingModalOpen,
+        isSessionManagerOpen,
+        setIsSessionManagerOpen,
     };
 };

@@ -1,3 +1,13 @@
+export interface ExecutionSession {
+    id: string;
+    agent_execution_id: string;
+    user_id: string;
+    user_display_name: string;
+    started_at: string;
+    ended_at: string | null;
+    duration_hours: number;
+}
+
 export interface TimeLog {
     id: string;
     project_id: string;

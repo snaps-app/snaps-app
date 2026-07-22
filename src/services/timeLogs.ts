@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { TimeLog, TimeLogCreate, TimeLogFilters, TimeDraftResponse } from '@/types/timeLogs';
+import type { TimeLog, TimeLogCreate, TimeLogFilters, TimeDraftResponse, ExecutionSession } from '@/types/timeLogs';
 
 export const startExecutionSession = async (executionId: string): Promise<{ session_id: string; started_at: string }> => {
     const response = await api.post(`/agent-executions/${executionId}/sessions/start`);
@@ -14,6 +14,25 @@ export const saveSessionHeartbeat = async (executionId: string, sessionId: strin
     await api.patch(`/agent-executions/${executionId}/sessions/${sessionId}/heartbeat`, {
         elapsed_seconds: elapsedSeconds
     });
+};
+
+export const listExecutionSessions = async (executionId: string): Promise<ExecutionSession[]> => {
+    const response = await api.get(`/agent-executions/${executionId}/sessions`);
+    return response.data;
+};
+
+export const createExecutionSession = async (executionId: string, data: { started_at: string; ended_at: string; user_id?: string }): Promise<ExecutionSession> => {
+    const response = await api.post(`/agent-executions/${executionId}/sessions`, data);
+    return response.data;
+};
+
+export const updateExecutionSession = async (executionId: string, sessionId: string, data: { started_at?: string; ended_at?: string; user_id?: string }): Promise<ExecutionSession> => {
+    const response = await api.patch(`/agent-executions/${executionId}/sessions/${sessionId}`, data);
+    return response.data;
+};
+
+export const deleteExecutionSession = async (executionId: string, sessionId: string): Promise<void> => {
+    await api.delete(`/agent-executions/${executionId}/sessions/${sessionId}`);
 };
 
 export const getTimeDraft = async (executionId: string): Promise<TimeDraftResponse> => {
