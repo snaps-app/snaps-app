@@ -6,10 +6,13 @@ import {
     updateExecutionSession,
     deleteExecutionSession,
 } from '@/services/timeLogs';
+import { getProjectMembers, type ProjectMember } from '@/services/members';
+import { supabase } from '@/lib/supabaseClient';
 import type { ExecutionSession } from '@/types/timeLogs';
 
 interface SessionManagerModalProps {
     executionId: string;
+    projectId: string;
     onClose: () => void;
     // Called after any change so the caller can refresh downstream state (e.g. the time draft).
     onChanged?: () => void;
@@ -40,14 +43,18 @@ function fmtDuration(hours: number): string {
 const inputCls =
     'bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]';
 
-export function SessionManagerModal({ executionId, onClose, onChanged }: SessionManagerModalProps) {
+export function SessionManagerModal({ executionId, projectId, onClose, onChanged }: SessionManagerModalProps) {
     const [sessions, setSessions] = useState<ExecutionSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [newStart, setNewStart] = useState('');
     const [newEnd, setNewEnd] = useState('');
+    const [newUserId, setNewUserId] = useState('');
     const [isCreating, setIsCreating] = useState(false);
+    // Owner/admin may reassign a session to another member; others see the owner as read-only text.
+    const [members, setMembers] = useState<ProjectMember[]>([]);
+    const [canReassign, setCanReassign] = useState(false);
 
     const load = useCallback(async () => {
         setIsLoading(true);
@@ -62,6 +69,43 @@ export function SessionManagerModal({ executionId, onClose, onChanged }: Session
     }, [executionId]);
 
     useEffect(() => { load(); }, [load]);
+
+    // Load members + resolve whether the current user may reassign (owner/admin).
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const [ms, { data: { user } }] = await Promise.all([
+                    getProjectMembers(projectId).catch(() => [] as ProjectMember[]),
+                    supabase.auth.getUser(),
+                ]);
+                if (!active) return;
+                setMembers(ms);
+                setNewUserId(user?.id ?? '');
+                const me = ms.find((m) => m.user_id === user?.id);
+                setCanReassign(!!me && (me.role === 'owner' || me.role === 'admin'));
+            } catch (err) {
+                console.warn('[SessionManagerModal] members load failed:', err);
+            }
+        })();
+        return () => { active = false; };
+    }, [projectId]);
+
+    const handleReassign = async (session: ExecutionSession, userId: string) => {
+        if (!userId || userId === session.user_id) return;
+        setError(null);
+        setBusyId(session.id);
+        try {
+            const updated = await updateExecutionSession(executionId, session.id, { user_id: userId });
+            setSessions((prev) => prev.map((s) => (s.id === session.id ? updated : s)));
+            notifyChanged();
+        } catch (err: any) {
+            setError(err?.response?.data?.detail || 'Erro ao reatribuir a sessão.');
+            load();
+        } finally {
+            setBusyId(null);
+        }
+    };
 
     const notifyChanged = () => { if (onChanged) onChanged(); };
 
@@ -105,6 +149,8 @@ export function SessionManagerModal({ executionId, onClose, onChanged }: Session
             const created = await createExecutionSession(executionId, {
                 started_at: localInputToIso(newStart),
                 ended_at: localInputToIso(newEnd),
+                // Owner/admin may log the session for another member; ignored otherwise (backend defaults to caller).
+                user_id: canReassign && newUserId ? newUserId : undefined,
             });
             setSessions((prev) => [created, ...prev]);
             setNewStart('');
@@ -150,7 +196,24 @@ export function SessionManagerModal({ executionId, onClose, onChanged }: Session
                                 const active = !s.ended_at;
                                 return (
                                     <div key={s.id} className="flex items-center gap-3 flex-wrap bg-white/[0.02] border border-white/5 rounded-lg px-3 py-2">
-                                        <span className="text-white/60 text-xs w-32 truncate" title={s.user_display_name}>{s.user_display_name}</span>
+                                        {canReassign ? (
+                                            <select
+                                                value={s.user_id}
+                                                onChange={(e) => handleReassign(s, e.target.value)}
+                                                disabled={busyId === s.id}
+                                                className={`${inputCls} w-40`}
+                                                title="Atribuir a outro membro"
+                                            >
+                                                {members.some((m) => m.user_id === s.user_id) ? null : (
+                                                    <option value={s.user_id}>{s.user_display_name}</option>
+                                                )}
+                                                {members.map((m) => (
+                                                    <option key={m.user_id} value={m.user_id}>{m.email}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <span className="text-white/60 text-xs w-32 truncate" title={s.user_display_name}>{s.user_display_name}</span>
+                                        )}
                                         <div className="flex items-center gap-1.5 text-xs text-white/40">
                                             <span>Início</span>
                                             <input
@@ -198,6 +261,16 @@ export function SessionManagerModal({ executionId, onClose, onChanged }: Session
                                 Fim
                                 <input type="datetime-local" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} className={inputCls} />
                             </label>
+                            {canReassign && members.length > 0 && (
+                                <label className="flex flex-col gap-1 text-[10px] text-white/40">
+                                    Usuário
+                                    <select value={newUserId} onChange={(e) => setNewUserId(e.target.value)} className={`${inputCls} w-40`}>
+                                        {members.map((m) => (
+                                            <option key={m.user_id} value={m.user_id}>{m.email}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
                             <button
                                 onClick={handleCreate}
                                 disabled={isCreating}

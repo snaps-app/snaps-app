@@ -21,12 +21,12 @@ export const listExecutionSessions = async (executionId: string): Promise<Execut
     return response.data;
 };
 
-export const createExecutionSession = async (executionId: string, data: { started_at: string; ended_at: string }): Promise<ExecutionSession> => {
+export const createExecutionSession = async (executionId: string, data: { started_at: string; ended_at: string; user_id?: string }): Promise<ExecutionSession> => {
     const response = await api.post(`/agent-executions/${executionId}/sessions`, data);
     return response.data;
 };
 
-export const updateExecutionSession = async (executionId: string, sessionId: string, data: { started_at?: string; ended_at?: string }): Promise<ExecutionSession> => {
+export const updateExecutionSession = async (executionId: string, sessionId: string, data: { started_at?: string; ended_at?: string; user_id?: string }): Promise<ExecutionSession> => {
     const response = await api.patch(`/agent-executions/${executionId}/sessions/${sessionId}`, data);
     return response.data;
 };

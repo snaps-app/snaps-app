@@ -456,6 +456,7 @@ export const ExecutionCockpit: React.FC = () => {
             {isSessionManagerOpen && (
                 <SessionManagerModal
                     executionId={execution.id}
+                    projectId={projectId!}
                     onClose={() => setIsSessionManagerOpen(false)}
                 />
             )}
