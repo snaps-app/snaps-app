@@ -9,7 +9,6 @@ import {
 import { getProjectMembers, type ProjectMember } from '@/services/members';
 import { supabase } from '@/lib/supabaseClient';
 import type { ExecutionSession } from '@/types/timeLogs';
-
 interface SessionManagerModalProps {
     executionId: string;
     projectId: string;
@@ -43,7 +42,6 @@ function fmtDuration(hours: number): string {
 const inputCls =
     'bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]';
 
-<<<<<<< HEAD
 export function SessionManagerModal({ executionId, projectId, onClose, onChanged }: SessionManagerModalProps) {
     const [sessions, setSessions] = useState<ExecutionSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
