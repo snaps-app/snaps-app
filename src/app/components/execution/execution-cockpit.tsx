@@ -188,7 +188,6 @@ export const ExecutionCockpit: React.FC = () => {
                 manualOverrides={manualOverrides}
                 setManualOverride={setManualOverride}
                 setIsTimeTrackingModalOpen={setIsTimeTrackingModalOpen}
-                setIsSessionManagerOpen={setIsSessionManagerOpen}
                 handleRollback={handleRollback}
                 setIsAgentModalOpen={setIsAgentModalOpen}
                 setIsToolsModalOpen={setIsToolsModalOpen}
@@ -450,7 +449,7 @@ export const ExecutionCockpit: React.FC = () => {
 
             {/* Live Session Timer — fixed bottom-right, hidden when execution is done */}
             {execution.status !== 'done' && (
-                <ExecutionTimer executionId={execution.id} projectId={projectId!} />
+                <ExecutionTimer executionId={execution.id} projectId={projectId!} onManageSessions={() => setIsSessionManagerOpen(true)} />
             )}
 
             {/* Session Manager — manage execution_sessions from the cockpit before finalizing */}

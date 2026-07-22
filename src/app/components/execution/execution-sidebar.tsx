@@ -44,7 +44,6 @@ interface ExecutionSidebarProps {
     manualOverrides: Record<string, boolean>;
     setManualOverride: (key: string, value: boolean) => void;
     setIsTimeTrackingModalOpen: (open: boolean) => void;
-    setIsSessionManagerOpen: (open: boolean) => void;
     handleRollback: (targetPhase?: string) => Promise<void>;
     setIsAgentModalOpen: (open: boolean) => void;
     setIsToolsModalOpen: (open: boolean) => void;
@@ -73,7 +72,6 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     manualOverrides,
     setManualOverride,
     setIsTimeTrackingModalOpen,
-    setIsSessionManagerOpen,
     handleRollback,
     setIsAgentModalOpen,
     setIsToolsModalOpen
@@ -306,15 +304,6 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                             manualOverrides={manualOverrides}
                             onRequirementToggle={handleRequirementToggle}
                         />
-
-                        <button
-                            onClick={() => setIsSessionManagerOpen(true)}
-                            className="w-full h-10 mb-2 rounded-xl bg-white/[0.05] border border-white/10 text-white/50 hover:text-white hover:bg-white/[0.1] transition-all flex items-center justify-center gap-2"
-                            title="Gerenciar sessões de tempo desta execução"
-                        >
-                            <Clock className="w-4 h-4" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Gerenciar Sessões</span>
-                        </button>
 
                         <div className="flex gap-2 mb-4">
                             <button

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Timer, Minus, X, Play, Square } from 'lucide-react';
+import { Timer, Minus, X, Play, Square, ListChecks } from 'lucide-react';
 import { startExecutionSession, endExecutionSession, saveSessionHeartbeat } from '@/services/timeLogs';
 
 interface ExecutionTimerProps {
     executionId: string;
     projectId: string;
+    onManageSessions?: () => void;
 }
 
 function formatElapsed(seconds: number): string {
@@ -14,7 +15,7 @@ function formatElapsed(seconds: number): string {
     return `${h}:${m}:${s}`;
 }
 
-export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) => {
+export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onManageSessions }) => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [startedAt, setStartedAt] = useState<Date | null>(null);
     const [elapsed, setElapsed] = useState(0);
@@ -206,6 +207,16 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId }) =
                             </button>
                         )}
                     </div>
+
+                    {onManageSessions && (
+                        <button
+                            onClick={onManageSessions}
+                            className="mt-2 w-full flex items-center justify-center gap-1.5 text-white/40 hover:text-white/80 hover:bg-white/5 text-[11px] font-medium py-1.5 rounded-md transition-colors"
+                            title="Listar, criar, editar e excluir sessões desta execução"
+                        >
+                            <ListChecks className="w-3.5 h-3.5" /> Gerenciar sessões
+                        </button>
+                    )}
                 </div>
             )}
         </div>
