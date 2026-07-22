@@ -1,18 +1,14 @@
-import { getCard, deleteCard } from '@/services/cards';
-import { createTask, deleteTask, updateTask } from '@/services/tasks';
-import type { Card, Epic, Sprint, Task } from '@/services/types';
-import { useState, useEffect, useRef } from 'react';
-import { X, Hash, Plus, Bot, Eye, Pencil, Paperclip, Loader2, Trash2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { uploadAttachment } from '@/services/storage';
+import type { Card, Epic, Sprint } from '@/services/types';
+import { Loader2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Tag } from '@/app/components/shared/tag';
-import { formatToISODateOnly, parseDateForStorage } from '@/lib/date-utils';
 import { ExecutionWizardModal } from '@/app/components/modals/execution-wizard-modal';
 import { Spinner } from '@/app/components/ui/spinner';
 import { CardTasksPanel } from '@/app/components/modals/card-tasks-panel';
 import { CardBddPanel } from '@/app/components/modals/card-bdd-panel';
+import { useCardModal } from '@/app/components/modals/useCardModal';
+import { CardModalHeader } from '@/app/components/modals/CardModalHeader';
+import { CardModalDescription } from '@/app/components/modals/CardModalDescription';
+import { CardModalSidebar } from '@/app/components/modals/CardModalSidebar';
 
 interface CardModalProps {
     isOpen: boolean;
@@ -25,611 +21,265 @@ interface CardModalProps {
     sprints?: Sprint[];
     columns?: { id: string; title: string }[];
     repoNames?: string[];
-    /** If provided, the "AI Execute Task" button calls this (e.g. open the Strategy Configurator) instead of the inline execution wizard. */
     onAiExecute?: () => void;
 }
 
-export function CardModal({ 
-    isOpen, 
-    onClose, 
-    onSave, 
+export function CardModal({
+    isOpen,
+    onClose,
+    onSave,
     onDelete,
-    initialData, 
-    epics = [], 
-    sprints = [], 
+    initialData,
+    epics = [],
+    sprints = [],
     columns,
     repoNames = [],
     onAiExecute
 }: CardModalProps) {
     const safeColumns = columns || [];
 
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [status, setStatus] = useState<string>('todo');
-    const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
-    const [cardType, setCardType] = useState<any>('feature');
-    const [dueDate, setDueDate] = useState('');
-    const [tags, setTags] = useState<string[]>([]);
-    const [tagInput, setTagInput] = useState('');
-    const [epicId, setEpicId] = useState<string>('');
-    const [sprintId, setSprintId] = useState<string>('');
-    const [repoName, setRepoName] = useState<string>('');
-    const [bddScenarios, setBddScenarios] = useState<any[]>([]);
-    const [bddValidated, setBddValidated] = useState<boolean>(false);
-    const [isWizardOpen, setIsWizardOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [descMode, setDescMode] = useState<'edit' | 'preview'>('edit');
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const handleDelete = async () => {
-        if (!initialData?.id) return;
-        if (!window.confirm('Tem certeza que deseja excluir este card?')) return;
-
-        setIsDeleting(true);
-        try {
-            await deleteCard(initialData.id);
-            if (onDelete) {
-                onDelete(initialData.id);
-            }
-            onClose();
-        } catch (error) {
-            console.error('Failed to delete card:', error);
-            alert('Falha ao excluir card.');
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
-    const tagVariants: Array<'blue' | 'orange' | 'purple' | 'green' | 'pink' | 'red' | 'yellow' | 'slate' | 'teal' | 'indigo' | 'lime' | 'rose' | 'sky' | 'fuchsia' | 'emerald' | 'amber'> =
-        ['blue', 'orange', 'purple', 'green', 'pink', 'red', 'yellow', 'slate', 'teal', 'indigo', 'lime', 'rose', 'sky', 'fuchsia', 'emerald', 'amber'];
-
-    // Tasks state
-    const [tasks, setTasks] = useState<Task[]>([]);
-
-    const STATUS_ALIASES: Record<string, string[]> = {
-        'backlog': ['backlog'],
-        'planning': ['planning'],
-        'todo': ['todo'],
-        'in_progress': ['doing', 'in_progress', 'inprogress'],
-        'assurance': ['assurance', 'review'],
-        'done': ['done', 'checked']
-    };
-
-    const getEffectiveStatus = (s: string) => {
-        const lower = s.toLowerCase();
-        for (const [key, aliases] of Object.entries(STATUS_ALIASES)) {
-            if (aliases.includes(lower)) return key;
-        }
-        return lower;
-    };
-
-    // Reset or load data when opening
-    useEffect(() => {
-        const loadData = async () => {
-            if (isOpen) {
-                if (initialData?.id) {
-                    setIsLoading(true);
-                    try {
-                        const fullCard = await getCard(initialData.id);
-                        setTitle(fullCard.title);
-                        setDescription(fullCard.description || '');
-                        setDescMode(fullCard.description ? 'preview' : 'edit');
-                        setStatus(getEffectiveStatus(fullCard.status));
-                        setPriority(fullCard.priority || 'Medium');
-                        setCardType(fullCard.card_type || 'feature');
-                        setDueDate(formatToISODateOnly(fullCard.due_date));
-                        setTags(fullCard.labels || []);
-                        setTasks(fullCard.tasks || []);
-                        setEpicId(fullCard.epic_id || '');
-                        setSprintId(fullCard.sprint_id || '');
-                        setRepoName(fullCard.repo_name || '');
-                        setBddScenarios(fullCard.bdd_scenarios || []);
-                        setBddValidated(fullCard.bdd_validated || false);
-                    } catch (error) {
-                        console.error('Failed to fetch card details:', error);
-                    } finally {
-                        setIsLoading(false);
-                    }
-                } else if (initialData) {
-                    setTitle(initialData.title);
-                    setDescription(initialData.description || '');
-                    setDescMode(initialData.description ? 'preview' : 'edit');
-                    setStatus(getEffectiveStatus(initialData.status));
-                    setPriority(initialData.priority || 'Medium');
-                    setCardType(initialData.card_type || 'feature');
-                    setDueDate(formatToISODateOnly(initialData.due_date));
-                    setTags(initialData.labels || []);
-                    setTasks(initialData.tasks || []);
-                    setEpicId(initialData.epic_id || '');
-                    setSprintId(initialData.sprint_id || '');
-                    setRepoName(initialData.repo_name || '');
-                    setBddScenarios(initialData.bdd_scenarios || []);
-                    setBddValidated(initialData.bdd_validated || false);
-                } else {
-                    // Reset for new card
-                    setTitle('');
-                    setDescription('');
-                    setDescMode('edit');
-                    setStatus(safeColumns.length > 0 ? safeColumns[0].id : 'todo');
-                    setPriority('Medium');
-                    setCardType('feature');
-                    setDueDate('');
-                    setTags([]);
-                    setTasks([]);
-                    setEpicId('');
-                    setSprintId('');
-                    setRepoName('');
-                    setBddScenarios([]);
-                    setBddValidated(false);
-                }
-            }
-        };
-        loadData();
-    }, [isOpen, initialData, safeColumns, repoNames]);
-
-    const handleSave = () => {
-        if (title.trim()) {
-            onSave({
-                ...initialData,
-                title,
-                description,
-                status,
-                priority,
-                card_type: cardType as any,
-                due_date: parseDateForStorage(dueDate),
-                epic_id: epicId || undefined,
-                sprint_id: sprintId || undefined,
-                repo_name: repoName || undefined,
-                labels: tags,
-                bdd_scenarios: bddScenarios,
-                bdd_validated: bddValidated,
-            });
-            onClose();
-        }
-    };
-
-    const handleUploadFiles = async (files: FileList | null) => {
-        if (!files || files.length === 0) return;
-        setIsUploading(true);
-        try {
-            const snippets: string[] = [];
-            for (const file of Array.from(files)) {
-                const { url } = await uploadAttachment(file);
-                const isImg = file.type.startsWith('image/');
-                snippets.push(isImg ? `![${file.name}](${url})` : `[${file.name}](${url})`);
-            }
-            const block = snippets.join('\n');
-            setDescription(prev => (prev?.trim() ? `${prev}\n\n${block}` : block));
-            setDescMode('preview');
-        } catch (error) {
-            console.error('Upload failed:', error);
-            alert('Falha ao enviar anexo.');
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    const handleAddTask = async (taskTitle: string) => {
-        if (!initialData?.id) return;
-        try {
-            const task = await createTask(initialData.id, taskTitle);
-            setTasks([...tasks, task]);
-        } catch (error) {
-            console.error('Failed to add task:', error);
-        }
-    };
-
-    const handleToggleTask = async (task: Task) => {
-        try {
-            const updated = await updateTask(task.id, { completed: !task.completed });
-            setTasks(tasks.map(t => t.id === task.id ? updated : t));
-        } catch (error) {
-            console.error('Failed to update task:', error);
-        }
-    };
-
-    const handleDeleteTask = async (taskId: string) => {
-        try {
-            await deleteTask(taskId);
-            setTasks(tasks.filter(t => t.id !== taskId));
-        } catch (error) {
-            console.error('Failed to delete task:', error);
-        }
-    };
-
-    const handleAddTag = () => {
-        if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-            setTags([...tags, tagInput.trim()]);
-            setTagInput('');
-        }
-    };
-
-    const removeTag = (tag: string) => {
-        setTags(tags.filter(t => t !== tag));
-    };
+    const {
+        title,
+        setTitle,
+        description,
+        setDescription,
+        status,
+        setStatus,
+        priority,
+        setPriority,
+        cardType,
+        setCardType,
+        dueDate,
+        setDueDate,
+        tags,
+        tagInput,
+        setTagInput,
+        epicId,
+        setEpicId,
+        sprintId,
+        setSprintId,
+        repoName,
+        setRepoName,
+        bddScenarios,
+        setBddScenarios,
+        bddValidated,
+        setBddValidated,
+        isWizardOpen,
+        setIsWizardOpen,
+        isLoading,
+        descMode,
+        setDescMode,
+        isUploading,
+        fileInputRef,
+        isDeleting,
+        tasks,
+        handleDelete,
+        handleSave,
+        handleUploadFiles,
+        handleAddTask,
+        handleToggleTask,
+        handleDeleteTask,
+        handleAddTag,
+        removeTag,
+    } = useCardModal({
+        isOpen,
+        initialData,
+        safeColumns,
+        repoNames,
+        onSave,
+        onClose,
+        onDelete,
+    });
 
     return (
-    <>
-        <AnimatePresence>
-            {isOpen && (
-                <>
-                    {/* Backdrop */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                        className="fixed inset-0 z-50"
-                        style={{
-                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                            backdropFilter: 'blur(20px)'
-                        }}
-                    />
-
-                    {/* Modal */}
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <>
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        {/* Backdrop */}
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                            className="w-full max-w-4xl pointer-events-auto relative flex flex-col max-h-[90vh]"
-                        >
-                            <div
-                                className="rounded-2xl backdrop-blur-[40px] flex flex-col h-full overflow-hidden"
-                                style={{
-                                    background: 'rgba(10, 10, 10, 0.95)',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)'
-                                }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={onClose}
+                            className="fixed inset-0 z-50"
+                            style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                backdropFilter: 'blur(20px)'
+                            }}
+                        />
+
+                        {/* Modal */}
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                                className="w-full max-w-4xl pointer-events-auto relative flex flex-col max-h-[90vh]"
                             >
-                                {/* Header */}
-                                <div className="p-6 border-b border-white/10 flex justify-between items-start shrink-0">
-                                    <div className="flex-1 mr-8">
-                                        <input
-                                            type="text"
-                                            value={title}
-                                            onChange={(e) => setTitle(e.target.value)}
-                                            placeholder="Card Title"
-                                            className="w-full bg-transparent text-2xl font-bold focus:outline-none mb-2"
-                                            style={{ color: 'var(--snaps-text-primary)' }}
-                                        />
-                                        <div className="flex gap-4 text-sm items-center">
-                                            <select
-                                                value={status}
-                                                onChange={(e) => setStatus(e.target.value)}
-                                                className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none"
-                                                style={{ color: 'var(--snaps-text-secondary)' }}
-                                            >
-                                                {safeColumns.length > 0 ? (
-                                                    safeColumns.map(col => (
-                                                        <option key={col.id} value={col.id}>{col.title}</option>
-                                                    ))
-                                                ) : (
-                                                    <>
-                                                        <option value="todo">To Do</option>
-                                                        <option value="inprogress">In Progress</option>
-                                                        <option value="done">Done</option>
-                                                    </>
-                                                )}
-                                            </select>
-                                            <select
-                                                value={priority}
-                                                onChange={(e) => setPriority(e.target.value as any)}
-                                                className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none"
-                                                style={{ color: 'var(--snaps-text-secondary)' }}
-                                            >
-                                                <option value="Low">Low</option>
-                                                <option value="Medium">Medium</option>
-                                                <option value="High">High</option>
-                                            </select>
-                                            <select
-                                                value={cardType}
-                                                onChange={(e) => setCardType(e.target.value as any)}
-                                                className="bg-transparent border border-white/10 rounded px-2 py-1 focus:outline-none"
-                                                style={{ color: 'var(--snaps-text-secondary)' }}
-                                            >
-                                                <option value="feature">Feature</option>
-                                                <option value="bug">Bug</option>
-                                                <option value="support">Support</option>
-                                                <option value="tech-debt">Tech Debt</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        {initialData?.code && (
-                                            <div className="text-white/50 text-sm font-mono border border-white/10 px-2 py-1 rounded bg-white/5">
-                                                {initialData.code}
-                                            </div>
-                                        )}
-                                        <motion.button
-                                            whileHover={{ rotate: 90 }}
-                                            onClick={onClose}
-                                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                                        >
-                                            <X className="w-6 h-6 text-white/50" />
-                                        </motion.button>
-                                    </div>
-                                </div>
+                                <div
+                                    className="rounded-2xl backdrop-blur-[40px] flex flex-col h-full overflow-hidden"
+                                    style={{
+                                        background: 'rgba(10, 10, 10, 0.95)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)'
+                                    }}
+                                >
+                                    {/* Header */}
+                                    <CardModalHeader
+                                        title={title}
+                                        setTitle={setTitle}
+                                        status={status}
+                                        setStatus={setStatus}
+                                        priority={priority}
+                                        setPriority={setPriority}
+                                        cardType={cardType}
+                                        setCardType={setCardType}
+                                        safeColumns={safeColumns}
+                                        initialData={initialData}
+                                        onClose={onClose}
+                                    />
 
-                                {/* Content */}
-                                <div className="flex-1 overflow-y-auto p-6 flex gap-8 relative min-h-[400px]">
-                                    <AnimatePresence mode="wait">
-                                        {isLoading && (
-                                            <motion.div 
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md z-[60]"
-                                            >
-                                                <Spinner size="lg" color="#00D4FF" />
-                                                <motion.p 
-                                                    initial={{ opacity: 0, y: 5 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    className="mt-4 text-[10px] font-black tracking-[0.2em] uppercase text-blue-400/60"
+                                    {/* Content */}
+                                    <div className="flex-1 overflow-y-auto p-6 flex gap-8 relative min-h-[400px]">
+                                        <AnimatePresence mode="wait">
+                                            {isLoading && (
+                                                <motion.div
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md z-[60]"
                                                 >
-                                                    Carregando Dados
-                                                </motion.p>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-
-                                    {!isLoading && (
-                                        <>
-                                            {/* Main Left Column */}
-                                            <div className="flex-1 space-y-6">
-                                                {/* Description */}
-                                                <div>
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <label className="block text-sm font-medium text-white/50">Description</label>
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                ref={fileInputRef}
-                                                                type="file"
-                                                                multiple
-                                                                className="hidden"
-                                                                onChange={(e) => { handleUploadFiles(e.target.files); e.target.value = ''; }}
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => fileInputRef.current?.click()}
-                                                                disabled={isUploading}
-                                                                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
-                                                                title="Anexar arquivo (imagem, PDF, etc.) — embute como Markdown"
-                                                            >
-                                                                {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
-                                                                Anexar
-                                                            </button>
-                                                            <div className="flex rounded-lg border border-white/10 overflow-hidden">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setDescMode('edit')}
-                                                                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 transition-colors ${descMode === 'edit' ? 'bg-blue-500/20 text-blue-300' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-                                                                >
-                                                                    <Pencil className="w-3.5 h-3.5" /> Editar
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setDescMode('preview')}
-                                                                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 transition-colors ${descMode === 'preview' ? 'bg-blue-500/20 text-blue-300' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-                                                                >
-                                                                    <Eye className="w-3.5 h-3.5" /> Preview
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {descMode === 'edit' ? (
-                                                        <textarea
-                                                            value={description}
-                                                            onChange={(e) => setDescription(e.target.value)}
-                                                            placeholder="Add a more detailed description... (Markdown suportado)"
-                                                            className="w-full h-48 bg-white/5 rounded-xl p-4 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50 font-mono text-sm"
-                                                            style={{ color: 'var(--snaps-text-primary)' }}
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full min-h-[8rem] bg-white/5 rounded-xl p-4 prose prose-invert prose-sm max-w-none prose-img:rounded-lg prose-img:border prose-img:border-white/10 prose-img:max-h-80 prose-img:w-auto prose-img:object-contain prose-a:text-blue-400">
-                                                            {description?.trim() ? (
-                                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
-                                                            ) : (
-                                                                <p className="text-white/30 italic !mt-0">Sem descrição.</p>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Tasks Section */}
-                                                <CardTasksPanel
-                                                    initialData={initialData}
-                                                    tasks={tasks}
-                                                    onAddTask={handleAddTask}
-                                                    onToggleTask={handleToggleTask}
-                                                    onDeleteTask={handleDeleteTask}
-                                                />
-
-                                                {/* BDD Specifications Panel */}
-                                                <CardBddPanel
-                                                    cardType={cardType as any}
-                                                    bddValidated={bddValidated}
-                                                    setBddValidated={setBddValidated}
-                                                    bddScenarios={bddScenarios}
-                                                    setBddScenarios={setBddScenarios}
-                                                />
-                                            </div>
-
-                                            {/* Sidebar Right Column */}
-                                            <div className="w-64 space-y-6">
-                                                {/* AI Actions */}
-                                                <div>
-                                                    <label className="block text-sm font-medium mb-2 text-white/50">AI Actions</label>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!initialData?.id) return;
-                                                            if (onAiExecute) onAiExecute();
-                                                            else setIsWizardOpen(true);
-                                                        }}
-                                                        disabled={!initialData?.id}
-                                                        className="w-full py-2 px-4 rounded-xl flex items-center justify-center gap-2 font-medium transition-all group overflow-hidden relative disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        style={{
-                                                            background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
-                                                            boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)'
-                                                        }}
+                                                    <Spinner size="lg" color="#00D4FF" />
+                                                    <motion.p
+                                                        initial={{ opacity: 0, y: 5 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        className="mt-4 text-[10px] font-black tracking-[0.2em] uppercase text-blue-400/60"
                                                     >
-                                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                                                        <Bot className="w-4 h-4" />
-                                                        <span>AI Execute Task</span>
-                                                    </button>
+                                                        Carregando Dados
+                                                    </motion.p>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+
+                                        {!isLoading && (
+                                            <>
+                                                {/* Main Left Column */}
+                                                <div className="flex-1 space-y-6">
+                                                    {/* Description */}
+                                                    <CardModalDescription
+                                                        description={description}
+                                                        setDescription={setDescription}
+                                                        descMode={descMode}
+                                                        setDescMode={setDescMode}
+                                                        isUploading={isUploading}
+                                                        fileInputRef={fileInputRef}
+                                                        handleUploadFiles={handleUploadFiles}
+                                                    />
+
+                                                    {/* Tasks Section */}
+                                                    <CardTasksPanel
+                                                        initialData={initialData}
+                                                        tasks={tasks}
+                                                        onAddTask={handleAddTask}
+                                                        onToggleTask={handleToggleTask}
+                                                        onDeleteTask={handleDeleteTask}
+                                                    />
+
+                                                    {/* BDD Specifications Panel */}
+                                                    <CardBddPanel
+                                                        cardType={cardType as any}
+                                                        bddValidated={bddValidated}
+                                                        setBddValidated={setBddValidated}
+                                                        bddScenarios={bddScenarios}
+                                                        setBddScenarios={setBddScenarios}
+                                                    />
                                                 </div>
 
-                                                {/* Tags */}
-                                                <div>
-                                                    <label className="block text-sm font-medium mb-2 text-white/50">Tags</label>
-                                                    <div className="flex flex-wrap gap-2 mb-2">
-                                                        {tags.map((tag, index) => (
-                                                            <Tag key={tag} variant={tagVariants[index % tagVariants.length]}>
-                                                                <Hash className="w-3 h-3" />
-                                                                {tag}
-                                                                <button onClick={() => removeTag(tag)} className="ml-1 hover:text-white"><X className="w-3 h-3" /></button>
-                                                            </Tag>
-                                                        ))}
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            value={tagInput}
-                                                            onChange={(e) => setTagInput(e.target.value)}
-                                                            onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                                                            placeholder="Add tag"
-                                                            className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-sm focus:outline-none"
-                                                            style={{ color: 'var(--snaps-text-primary)' }}
-                                                        />
-                                                        <button onClick={handleAddTag} className="p-1 bg-white/10 rounded hover:bg-white/20"><Plus className="w-4 h-4" /></button>
-                                                    </div>
-                                                </div>
+                                                {/* Sidebar Right Column */}
+                                                <CardModalSidebar
+                                                    initialData={initialData}
+                                                    onAiExecute={onAiExecute}
+                                                    setIsWizardOpen={setIsWizardOpen}
+                                                    tags={tags}
+                                                    tagInput={tagInput}
+                                                    setTagInput={setTagInput}
+                                                    handleAddTag={handleAddTag}
+                                                    removeTag={removeTag}
+                                                    epicId={epicId}
+                                                    setEpicId={setEpicId}
+                                                    sprintId={sprintId}
+                                                    setSprintId={setSprintId}
+                                                    repoName={repoName}
+                                                    setRepoName={setRepoName}
+                                                    dueDate={dueDate}
+                                                    setDueDate={setDueDate}
+                                                    epics={epics}
+                                                    sprints={sprints}
+                                                    repoNames={repoNames}
+                                                />
+                                            </>
+                                        )}
+                                    </div>
 
-                                                {/* Properties */}
-                                                <div className="space-y-4 pt-4 border-t border-white/10">
-                                                    <div>
-                                                        <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Epic</label>
-                                                        <select
-                                                            value={epicId}
-                                                            onChange={(e) => setEpicId(e.target.value)}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                                                            style={{ color: 'var(--snaps-text-primary)' }}
-                                                        >
-                                                            <option value="">No Epic</option>
-                                                            {epics.map(epic => (
-                                                                <option key={epic.id} value={epic.id}>{epic.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Sprint</label>
-                                                        <select
-                                                            value={sprintId}
-                                                            onChange={(e) => setSprintId(e.target.value)}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                                                            style={{ color: 'var(--snaps-text-primary)' }}
-                                                        >
-                                                            <option value="">No Sprint</option>
-                                                            {sprints.map(sprint => (
-                                                                <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Repository</label>
-                                                        <select
-                                                            value={repoName}
-                                                            onChange={(e) => setRepoName(e.target.value)}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                                                            style={{ color: 'var(--snaps-text-primary)' }}
-                                                        >
-                                                            <option value="">Default (First Repo)</option>
-                                                            {repoNames?.map(repo => (
-                                                                <option key={repo} value={repo}>{repo}</option>
-                                                            ))}
-                                                        </select>
-                                                        {repoNames?.length === 0 && (
-                                                            <div className="text-[10px] text-yellow-500/70 mt-1">Configure GitHub integration in project settings.</div>
-                                                        )}
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="block text-xs font-medium mb-1 text-white/40 uppercase tracking-wider">Due Date</label>
-                                                        <input
-                                                            type="date"
-                                                            value={dueDate}
-                                                            onChange={(e) => setDueDate(e.target.value)}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                                                            style={{ color: 'var(--snaps-text-secondary)', colorScheme: 'dark' }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* Footer */}
-                                <div className="p-6 border-t border-white/10 flex justify-between items-center shrink-0">
-                                    <div>
-                                        {initialData?.id && (
+                                    {/* Footer */}
+                                    <div className="p-6 border-t border-white/10 flex justify-between items-center shrink-0">
+                                        <div>
+                                            {initialData?.id && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDelete}
+                                                    disabled={isDeleting}
+                                                    className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 font-medium border border-red-500/30 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                >
+                                                    {isDeleting ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                            <span>Deletando...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Trash2 className="w-4 h-4" />
+                                                            <span>Delete</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-3">
                                             <button
                                                 type="button"
-                                                onClick={handleDelete}
-                                                disabled={isDeleting}
-                                                className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 font-medium border border-red-500/30 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                onClick={onClose}
+                                                className="px-6 py-2 rounded-xl text-white/60 hover:text-white hover:bg-white/5 transition-colors"
                                             >
-                                                {isDeleting ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                        <span>Deletando...</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Trash2 className="w-4 h-4" />
-                                                        <span>Delete</span>
-                                                    </>
-                                                )}
+                                                Cancel
                                             </button>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={onClose}
-                                            className="px-6 py-2 rounded-xl text-white/60 hover:text-white hover:bg-white/5 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleSave}
-                                            className="px-6 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/25 transition-all"
-                                        >
-                                            {initialData ? 'Save Changes' : 'Create Card'}
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleSave}
+                                                className="px-6 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/25 transition-all"
+                                            >
+                                                {initialData ? 'Save Changes' : 'Create Card'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                </>
-            )}
-        </AnimatePresence>
+                            </motion.div>
+                        </div>
+                    </>
+                )}
+            </AnimatePresence>
 
-        {initialData?.id && (
-            <ExecutionWizardModal
-                isOpen={isWizardOpen}
-                onClose={() => setIsWizardOpen(false)}
-                entityId={initialData.id}
-                entityType="card"
-                entityTitle={initialData.title}
-            />
-        )}
-    </>
+            {initialData?.id && (
+                <ExecutionWizardModal
+                    isOpen={isWizardOpen}
+                    onClose={() => setIsWizardOpen(false)}
+                    entityId={initialData.id}
+                    entityType="card"
+                    entityTitle={initialData.title}
+                />
+            )}
+        </>
     );
 }

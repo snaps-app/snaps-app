@@ -1,79 +1,27 @@
-import { createProject } from '@/services/projects';
-import { useState } from 'react';
 import { Sparkles, ArrowLeft, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
-import { useNavigate } from 'react-router-dom';
 import { Spinner } from '@/app/components/ui/spinner';
-
-const templates = [
-  { id: 'free', name: 'Free Template', description: 'Start from scratch with no constraints' },
-  { id: 'zettelkasten', name: 'Zettelkasten', description: 'Atomic notes with bidirectional linking' },
-  { id: 'para', name: 'PARA Method', description: 'Projects, Areas, Resources, Archives' },
-  { id: 'second-brain', name: 'Second Brain', description: 'Progressive summarization workflow' }
-];
+import { useNewProject, templates } from '@/app/components/project/useNewProject';
 
 export function NewProject() {
-  const navigate = useNavigate();
-  const [projectName, setProjectName] = useState('');
-  const [description, setDescription] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('free');
-  const [isImprovingDescription, setIsImprovingDescription] = useState(false);
-  const [isImprovingInstructions, setIsImprovingInstructions] = useState(false);
-  const [sparks, setSparks] = useState<Array<{ id: number; x: number; y: number }>>([]);
-  const [isCreating, setIsCreating] = useState(false);
-
-  const handleImprove = (field: 'description' | 'instructions', targetRef: HTMLTextAreaElement | null) => {
-    if (!targetRef) return;
-
-    const isDescription = field === 'description';
-    const setter = isDescription ? setIsImprovingDescription : setIsImprovingInstructions;
-    setter(true);
-
-    // Generate sparks
-    const newSparks = Array.from({ length: 12 }, (_, i) => ({
-      id: Date.now() + i,
-      x: Math.random() * 100 - 50,
-      y: Math.random() * 100 - 50
-    }));
-    setSparks(newSparks);
-
-    // Simulate AI improvement
-    setTimeout(() => {
-      if (isDescription) {
-        setDescription(prev => {
-          if (!prev) return 'A comprehensive knowledge management system designed to enhance thinking and creativity through structured note-taking and intelligent connections.';
-          return prev + ' Enhanced with AI suggestions for clarity and impact.';
-        });
-      } else {
-        setInstructions(prev => {
-          if (!prev) return 'Use atomic note principles. Each note should contain one clear idea. Create bidirectional links between related concepts. Apply progressive summarization to surface key insights.';
-          return prev + ' Optimized for better AI collaboration and context retention.';
-        });
-      }
-      setter(false);
-      setSparks([]);
-    }, 2000);
-  };
-
-  const handleCreate = async () => {
-    if (!projectName) return;
-    setIsCreating(true);
-    try {
-      const newProject = await createProject({
-        name: projectName,
-        description,
-        instructions,
-        template: selectedTemplate
-      });
-      navigate(`/project/${newProject.id}`);
-    } catch (error) {
-      console.error('Failed to create project:', error);
-    } finally {
-      setIsCreating(false);
-    }
-  };
+  const {
+    navigate,
+    projectName,
+    setProjectName,
+    description,
+    setDescription,
+    instructions,
+    setInstructions,
+    selectedTemplate,
+    setSelectedTemplate,
+    isImprovingDescription,
+    isImprovingInstructions,
+    sparks,
+    isCreating,
+    handleImprove,
+    handleCreate
+  } = useNewProject();
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
@@ -89,10 +37,9 @@ export function NewProject() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Very Active Neural Network Background */}
+
       <div className="absolute inset-0">
         <NeuralBackground />
-        {/* Extra overlay for "birthing" effect */}
         <motion.div
           className="absolute inset-0"
           style={{
@@ -110,7 +57,6 @@ export function NewProject() {
         />
       </div>
 
-      {/* Back Button - Top Left */}
       <motion.button
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
@@ -128,7 +74,6 @@ export function NewProject() {
         <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
       </motion.button>
 
-      {/* Main Content */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -136,7 +81,6 @@ export function NewProject() {
           transition={{ duration: 0.6, ease: 'easeOut' }}
           className="w-full max-w-3xl"
         >
-          {/* Form Container */}
           <div
             className="rounded-3xl backdrop-blur-[40px] p-8 relative overflow-hidden"
             style={{
@@ -145,7 +89,6 @@ export function NewProject() {
               boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 80px rgba(0, 212, 255, 0.1)'
             }}
           >
-            {/* Glow Effect */}
             <div
               className="absolute inset-0 opacity-30 pointer-events-none"
               style={{
@@ -153,7 +96,6 @@ export function NewProject() {
               }}
             />
 
-            {/* Header */}
             <div className="relative z-10 mb-8">
               <motion.h1
                 className="text-4xl font-bold mb-2"
@@ -180,7 +122,6 @@ export function NewProject() {
               </motion.p>
             </div>
 
-            {/* Form Fields */}
             <div className="relative z-10 space-y-6">
               {/* Project Name */}
               <motion.div
@@ -251,7 +192,6 @@ export function NewProject() {
                     <Sparkles className="w-3.5 h-3.5" />
                     {isImprovingDescription ? 'Improving...' : 'Improve with AI'}
 
-                    {/* Sparks Animation */}
                     <AnimatePresence>
                       {isImprovingDescription && sparks.map((spark) => (
                         <motion.div
@@ -336,7 +276,6 @@ export function NewProject() {
                     <Sparkles className="w-3.5 h-3.5" />
                     {isImprovingInstructions ? 'Improving...' : 'Improve'}
 
-                    {/* Sparks Animation */}
                     <AnimatePresence>
                       {isImprovingInstructions && sparks.map((spark) => (
                         <motion.div

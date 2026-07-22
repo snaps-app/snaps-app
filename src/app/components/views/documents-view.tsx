@@ -1,245 +1,57 @@
-import { useState, useEffect } from 'react';
 import { ArrowLeft, FileText, Download, File, Plus, Upload, Map } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
-import { useParams, useNavigate } from 'react-router-dom';
-import { getGovernanceDocs, createGovernanceDoc, updateGovernanceDoc, deleteGovernanceDoc, processGovernanceDoc } from '@/services/governance';
-import { getProject } from '@/services/projects';
-import type { GovernanceDoc } from '@/services/types';
 import { PrdImportModal } from '@/app/components/modals/prd-import-modal';
 import { Spinner } from '@/app/components/ui/spinner';
 
 import { DocEditorModal } from '@/app/components/documents/doc-editor-modal';
 import { DocViewerModal } from '@/app/components/documents/doc-viewer-modal';
-import { DocCard, FileDocument } from '@/app/components/documents/doc-card';
-
-const mockDocuments: FileDocument[] = [
-  {
-    id: '1',
-    name: 'Zettelkasten Method Guide',
-    type: 'generated',
-    format: 'md',
-    size: '24 KB',
-    date: '2h ago'
-  },
-  {
-    id: '2',
-    name: 'Second Brain Framework Overview',
-    type: 'generated',
-    format: 'pdf',
-    size: '156 KB',
-    date: '5h ago'
-  },
-  {
-    id: '3',
-    name: 'PARA Method Explained',
-    type: 'generated',
-    format: 'docx',
-    size: '48 KB',
-    date: '1d ago'
-  },
-  {
-    id: '4',
-    name: 'Research Paper - Knowledge Management',
-    type: 'imported',
-    format: 'pdf',
-    size: '2.4 MB',
-    date: '2d ago'
-  },
-  {
-    id: '5',
-    name: 'Meeting Notes 2024',
-    type: 'imported',
-    format: 'txt',
-    size: '12 KB',
-    date: '3d ago'
-  },
-  {
-    id: '6',
-    name: 'Project Roadmap',
-    type: 'imported',
-    format: 'xlsx',
-    size: '86 KB',
-    date: '4d ago'
-  }
-];
+import { DocCard } from '@/app/components/documents/doc-card';
+import { useDocumentsView } from '@/app/components/views/useDocumentsView';
 
 export function DocumentsView() {
-  const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'generated' | 'imported' | 'governance'>('governance');
-  const [project, setProject] = useState<any>(null);
-
-  // Governance State
-  const [govDocs, setGovDocs] = useState<GovernanceDoc[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  // View modal
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [viewDoc, setViewDoc] = useState<GovernanceDoc | null>(null);
-
-  // Import modal
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Bridge Ingest state
-  const [ingestingId, setIngestingId] = useState<string | null>(null);
-  const [ingestResult, setIngestResult] = useState<{ docId: string; sprints: number; cards: number } | null>(null);
-
-  // Form state
-  const [docName, setDocName] = useState('');
-  const [docType, setDocType] = useState<string>('prd');
-  const [docContent, setDocContent] = useState('');
-  const [docPublicVisible, setDocPublicVisible] = useState(false);
-
-  const handleIngest = async (doc: GovernanceDoc, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (ingestingId) return;
-    if (!confirm(`Ingerir "${doc.name}" como Roadmap? Isso criará Sprints e Cards automaticamente.`)) return;
-    setIngestingId(doc.id);
-    setIngestResult(null);
-    try {
-      const result = await processGovernanceDoc(doc.id);
-      setIngestResult({ docId: doc.id, sprints: result.sprints_created.length, cards: result.cards_created.length });
-      setTimeout(() => setIngestResult(null), 6000);
-    } catch (err) {
-      console.error('Ingest failed:', err);
-      alert('Falha ao ingerir o roadmap. Verifique se o documento está no formato correto.');
-    } finally {
-      setIngestingId(null);
-    }
-  };
-
-  const downloadTemplate = (type: 'prd' | 'roadmap') => {
-    const templates = {
-      prd: {
-        filename: 'prd-template.md',
-        content: `# PRD — [Nome do Produto] (Agent-Centric SSoT)
-
-## 1. Visão Geral (Overview)
-Descreva a proposta de valor, persona e o problema central que o produto resolve.
-
-## 2. Arquitetura Técnica e Stack (Source of Truth)
-Liste as tecnologias base (Ex: Next.js 16, Tailwind, Supabase) e padrões de projeto essenciais exigidos para os agentes de desenvolvimento.
-
-## 3. Estrutura de Navegação (Navigation Topology)
-Mapeie a topologia geral: Layouts principais, barras de navegação (Top Bar, Bottom Nav) e hierarquia de rotas.
-
-## 4. Detalhamento das Páginas e Rotas
-Liste as páginas/rotas de forma exaustiva. Para cada página, defina os componentes React (ex: \`HomeClient.tsx\`, \`HeroSearch.tsx\`) que a compõem e a lógica de UI correspondente.
-
-## 5. System Intents e Inteligência
-Como a IA/Agente se comporta neste sistema? Quais metadados e "intents" o sistema deve emitir para suportar uma interação autônoma?
-
-## 6. Modelagem e Glossário de Dados
-Liste as principais tabelas, views e RPCs (PostgreSQL) que compõem a base de dados desta aplicação.
-
-## 7. Requisitos de Segurança e Autenticação
-Descreva regras de RLS (Row Level Security), métodos de login (Ex: Magic Link, OTP) e controle de acesso.
-
-## 8. Gaps Conhecidos e Fora de Escopo
-O que explicitamente NÃO será construído nesta iteração.
-`,
-      },
-      roadmap: {
-        filename: 'roadmap-template.md',
-        content: `# Roadmap — [Nome do Projeto]
-
-## Sprint 1.0: [Título da Sprint]
-**Objetivo:** Descreva o objetivo principal desta sprint.
-### Cards
-- Card 1
-- Card 2
-- Card 3
-
-## Sprint 1.1: [Título da Sprint]
-**Objetivo:** Descreva o objetivo principal desta sprint.
-### Cards
-- Card 1
-- Card 2
-
-## Sprint 2.0: [Título da Sprint]
-**Objetivo:** Descreva o objetivo principal desta sprint.
-### Cards
-- Card 1
-- Card 2
-- Card 3
-`,
-      },
-    };
-
-    const { filename, content } = templates[type];
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const fetchDocs = async () => {
-    try {
-      const all = await getGovernanceDocs();
-      setGovDocs(all.filter((d: any) => d.project_id === projectId));
-    } catch (e) { console.error(e); }
-  };
-
-  useEffect(() => {
-    const loadData = async () => {
-      if (!projectId) return;
-      setIsLoading(true);
-      try {
-        await Promise.all([
-          getProject(projectId).then(setProject),
-          fetchDocs()
-        ]);
-      } catch (error) {
-        console.error('Failed to load documents:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, [projectId]);
-
-  const resetForm = () => {
-    setEditingId(null);
-    setDocName(''); setDocType('prd'); setDocContent(''); setDocPublicVisible(false);
-  };
-
-  const openCreate = () => { resetForm(); setModalOpen(true); };
-
-  const openEdit = (item: GovernanceDoc) => {
-    setEditingId(item.id);
-    setDocName(item.name); setDocType(item.type); setDocContent(item.content);
-    setDocPublicVisible(!!item.public_visible);
-    setModalOpen(true);
-  };
-
-  const handleSave = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    try {
-      const data = { name: docName, type: docType as any, scope: 'project' as any, project_id: projectId, content: docContent, public_visible: docPublicVisible };
-      editingId ? await updateGovernanceDoc(editingId, data) : await createGovernanceDoc(data);
-      setModalOpen(false); resetForm(); fetchDocs();
-    } catch (e) { console.error(e); }
-    finally { setIsSaving(false); }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this document?')) return;
-    try { await deleteGovernanceDoc(id); fetchDocs(); } catch (e) { console.error(e); }
-  };
-
-  const filteredDocuments = mockDocuments.filter(doc => doc.type === activeTab);
+  const {
+    projectId,
+    navigate,
+    activeTab,
+    setActiveTab,
+    project,
+    govDocs,
+    modalOpen,
+    setModalOpen,
+    isSaving,
+    editingId,
+    viewModalOpen,
+    setViewModalOpen,
+    viewDoc,
+    setViewDoc,
+    importModalOpen,
+    setImportModalOpen,
+    isLoading,
+    ingestingId,
+    ingestResult,
+    docName,
+    setDocName,
+    docType,
+    setDocType,
+    docContent,
+    setDocContent,
+    docPublicVisible,
+    setDocPublicVisible,
+    fetchDocs,
+    handleIngest,
+    downloadTemplate,
+    resetForm,
+    openCreate,
+    openEdit,
+    handleSave,
+    handleDelete,
+    filteredDocuments,
+    mockDocuments
+  } = useDocumentsView();
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
-      {/* Neural Network Background */}
       <NeuralBackground />
 
       <AnimatePresence>
@@ -255,7 +67,6 @@ O que explicitamente NÃO será construído nesta iteração.
         )}
       </AnimatePresence>
 
-      {/* Back Button */}
       <motion.button
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
@@ -273,7 +84,6 @@ O que explicitamente NÃO será construído nesta iteração.
         <ArrowLeft className="w-5 h-5" style={{ color: 'var(--snaps-accent-orange)' }} />
       </motion.button>
 
-      {/* Main Content */}
       <div className="relative z-10 min-h-screen p-6 pt-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

@@ -1,15 +1,12 @@
-import { updateCard } from '@/services/cards';
-import { getCardsBySprint, getSprints } from '@/services/sprints';
-import { getTroubleReport } from '@/services/testPlans';
-import type { Card, Sprint, TroubleReport } from '@/services/types';
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import type { Card } from '@/services/types';
+import { useState } from 'react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { ArrowLeft, ShieldCheck, AlertCircle, FileText, CheckCircle2, XCircle, ChevronDown, ChevronRight, FlaskConical, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Spinner } from '@/app/components/ui/spinner';
+import { useQaView } from '@/app/components/views/useQaView';
 
 const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-white';
 
@@ -131,95 +128,28 @@ function CardBddRow({ card, onUpdateCard }: { card: Card, onUpdateCard: (cardId:
 }
 
 export function QAView() {
-  const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
-
-  const [activeTab, setActiveTab] = useState<'plans' | 'reports'>('plans');
-  const [copied, setCopied] = useState(false);
-  const [sprints, setSprints] = useState<Sprint[]>([]);
-  const [selectedSprintId, setSelectedSprintId] = useState<string>('');
-  const [sprintCards, setSprintCards] = useState<Card[]>([]);
-  const [troubleReport, setTroubleReport] = useState<TroubleReport | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCardsLoading, setIsCardsLoading] = useState(false);
-
-  useEffect(() => {
-    if (projectId) {
-      fetchSprints();
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    if (selectedSprintId) {
-      fetchSprintCards(selectedSprintId);
-      if (activeTab === 'reports') fetchTroubleReport();
-    }
-  }, [selectedSprintId]);
-
-  useEffect(() => {
-    if (activeTab === 'reports' && selectedSprintId) {
-      fetchTroubleReport();
-    }
-  }, [activeTab]);
-
-  const fetchSprints = async () => {
-    setIsLoading(true);
-    try {
-      const sprintsData = await getSprints(projectId!);
-      setSprints(sprintsData);
-      if (sprintsData.length > 0) {
-        setSelectedSprintId(sprintsData[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to fetch sprints:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchSprintCards = async (sprintId: string) => {
-    setIsCardsLoading(true);
-    try {
-      const cards = await getCardsBySprint(sprintId);
-      setSprintCards(cards);
-    } catch (error) {
-      console.error('Failed to fetch sprint cards:', error);
-      setSprintCards([]);
-    } finally {
-      setIsCardsLoading(false);
-    }
-  };
-
-  const handleUpdateCard = async (cardId: string, updates: Partial<Card>) => {
-    try {
-      const updatedCard = await updateCard(cardId, updates);
-      setSprintCards(prev => prev.map(c => c.id === cardId ? updatedCard : c));
-    } catch (error) {
-      console.error('Failed to update card:', error);
-    }
-  };
-
-  const fetchTroubleReport = async () => {
-    if (!projectId || !selectedSprintId) return;
-    setIsLoading(true);
-    try {
-      const report = await getTroubleReport(projectId, selectedSprintId);
-      setTroubleReport(report);
-    } catch (error) {
-      console.error('Failed to fetch trouble report:', error);
-      setTroubleReport(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const selectedSprint = sprints.find(s => s.id === selectedSprintId);
-
-  // Aggregated stats for plans tab
-  const totalCards = sprintCards.length;
-  const cardsWithBdd = sprintCards.filter(c => c.bdd_scenarios && c.bdd_scenarios.length > 0).length;
-  const validatedCards = sprintCards.filter(c => c.bdd_validated).length;
-  const pendingCards = cardsWithBdd - validatedCards;
+  const {
+    projectId,
+    navigate,
+    activeTab,
+    setActiveTab,
+    copied,
+    setCopied,
+    sprints,
+    selectedSprintId,
+    setSelectedSprintId,
+    sprintCards,
+    troubleReport,
+    isLoading,
+    isCardsLoading,
+    handleUpdateCard,
+    fetchTroubleReport,
+    selectedSprint,
+    totalCards,
+    cardsWithBdd,
+    validatedCards,
+    pendingCards
+  } = useQaView();
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
@@ -267,7 +197,7 @@ export function QAView() {
           </div>
         </motion.div>
 
-        {/* Sprint selector (shared between tabs) */}
+        {/* Sprint selector */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1">
             <label className="block text-xs font-medium text-gray-500 mb-1">Select Sprint</label>

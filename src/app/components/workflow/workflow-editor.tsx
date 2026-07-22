@@ -1,427 +1,65 @@
 import React from 'react';
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ReactFlow, 
   Background, 
   Controls, 
   MiniMap, 
-  useNodesState, 
-  useEdgesState, 
-  MarkerType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { 
   Bot, 
   Settings, 
   Plus, 
-  Save, 
   Sparkles, 
   X,
-  Trash2
 } from 'lucide-react';
-import {
-  createWorkflowTemplate,
-  deleteWorkflowTemplate,
-  getWorkflowTemplates,
-  getWorkflowTemplatesMetadata,
-  updateWorkflowTemplate
-} from '@/services/workflowTemplates';
-import type { 
-  WorkflowTemplate, 
-  PhaseConfigItem, 
-  WorkflowTemplateCreate 
-} from '@/services/types';
+import type { PhaseConfigItem } from '@/services/types';
 
 import { CustomPhaseNode } from '@/app/components/workflow/custom-phase-node';
 import { WorkflowSidebar } from '@/app/components/workflow/workflow-sidebar';
 import { WorkflowCreateModal } from '@/app/components/workflow/workflow-create-modal';
+import { useWorkflowEditor } from '@/app/components/workflow/useWorkflowEditor';
+import { WorkflowEditorHeader } from '@/app/components/workflow/WorkflowEditorHeader';
 
 const nodeTypes = {
   phase: CustomPhaseNode,
 };
 
 export function WorkflowEditorCanvas() {
-  const { templateId } = useParams<{ templateId?: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<WorkflowTemplate | null>(null);
-  const [metadata, setMetadata] = useState<{
-    available_tools: string[];
-    available_skills: string[];
-    available_agents: string[];
-  }>({ available_tools: [], available_skills: [], available_agents: [] });
-
-  const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-
-  // Loading and action state
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [templateName, setTemplateName] = useState('');
-
-  // Modal State for New Template configuration
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [modalTemplateName, setModalTemplateName] = useState('');
-  const [modalSourceTemplateId, setModalSourceTemplateId] = useState('scratch');
-
-  useEffect(() => {
-    fetchMetadataAndTemplates();
-  }, [templateId]);
-
-  const fetchMetadataAndTemplates = async () => {
-    setLoading(true);
-    try {
-      const [meta, tmpls] = await Promise.all([
-        getWorkflowTemplatesMetadata(),
-        getWorkflowTemplates()
-      ]);
-      setMetadata(meta);
-      setTemplates(tmpls);
-
-      if (templateId) {
-        if (templateId === 'new') {
-          const stateName = (location.state as any)?.name || 'New Workflow Template';
-          const sourceId = (location.state as any)?.sourceTemplateId || 'scratch';
-          
-          let initialPhases: PhaseConfigItem[] = [];
-          
-          if (sourceId !== 'scratch') {
-            const sourceTmpl = tmpls.find(t => t.id === sourceId);
-            if (sourceTmpl) {
-              initialPhases = sourceTmpl.phases.map(p => ({
-                ...p,
-                tools: p.tools ? [...p.tools] : [],
-                skills: p.skills ? [...p.skills] : []
-              }));
-            }
-          }
-          
-          if (initialPhases.length === 0) {
-            initialPhases = [
-              {
-                key: 'planning',
-                label: 'Planning Phase',
-                agent: meta.available_agents[0] || '',
-                tools: meta.available_tools ? [...meta.available_tools] : [],
-                skills: meta.available_skills ? [...meta.available_skills] : [],
-                entry_prompt: null,
-                exit_prompt: null,
-                branching_strategy: null,
-                join_strategy: null
-              }
-            ];
-          }
-
-          const newTemplate: WorkflowTemplate = {
-            id: '',
-            name: stateName,
-            phases: initialPhases,
-            default_agents: [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          setSelectedTemplate(newTemplate);
-          setTemplateName(newTemplate.name);
-          setSelectedNodeId(null);
-          
-          buildFlowFromPhases(initialPhases);
-        } else {
-          const matched = tmpls.find(t => t.id === templateId);
-          if (matched) {
-            setSelectedTemplate(matched);
-            setTemplateName(matched.name);
-            setSelectedNodeId(null);
-            
-            const newNodes = matched.phases.map((phase, index) => ({
-              id: phase.key,
-              type: 'phase',
-              position: { x: index * 280 + 50, y: 180 },
-              data: {
-                ...phase,
-                tools: phase.tools || [],
-                skills: phase.skills || [],
-              },
-            }));
-            
-            const newEdges = [];
-            for (let i = 0; i < matched.phases.length - 1; i++) {
-              const source = matched.phases[i];
-              const target = matched.phases[i + 1];
-              const isBranch = source.branching_strategy && source.branching_strategy !== 'None' && source.branching_strategy !== '';
-              newEdges.push({
-                id: `edge-${source.key}-${target.key}`,
-                source: source.key,
-                target: target.key,
-                animated: !isBranch,
-                style: { 
-                  stroke: isBranch ? '#3b82f6' : '#a855f7',
-                  strokeWidth: 2
-                },
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  color: isBranch ? '#3b82f6' : '#a855f7'
-                }
-              });
-            }
-            
-            setNodes(newNodes);
-            setEdges(newEdges);
-          }
-        }
-      } else {
-        setSelectedTemplate(null);
-        setTemplateName('');
-        setSelectedNodeId(null);
-      }
-    } catch (e) {
-      printError('Failed to load workflow data: ' + e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const printError = (msg: string) => {
-    console.error(msg);
-  };
-
-  const handleSelectTemplate = (template: WorkflowTemplate) => {
-    setSelectedTemplate(template);
-    setTemplateName(template.name);
-    setSelectedNodeId(null);
-    buildFlowFromPhases(template.phases);
-  };
-
-  // Synchronize React Flow nodes/edges layout whenever phases metadata changes
-  const buildFlowFromPhases = (phases: PhaseConfigItem[]) => {
-    const newNodes = phases.map((phase, index) => {
-      // Find existing coordinates from nodes state if present, to prevent layout jumping
-      const existingNode = nodes.find(n => n.id === phase.key);
-      const position = existingNode ? existingNode.position : { x: index * 280 + 50, y: 180 };
-      
-      return {
-        id: phase.key,
-        type: 'phase',
-        position,
-        data: {
-          ...phase,
-          tools: phase.tools || [],
-          skills: phase.skills || [],
-        },
-      };
-    });
-
-    const newEdges = [];
-    for (let i = 0; i < phases.length - 1; i++) {
-      const source = phases[i];
-      const target = phases[i + 1];
-      const isBranch = source.branching_strategy && source.branching_strategy !== 'None' && source.branching_strategy !== '';
-      
-      newEdges.push({
-        id: `edge-${source.key}-${target.key}`,
-        source: source.key,
-        target: target.key,
-        animated: !isBranch,
-        style: { 
-          stroke: isBranch ? '#3b82f6' : '#a855f7',
-          strokeWidth: 2
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: isBranch ? '#3b82f6' : '#a855f7'
-        }
-      });
-    }
-
-    setNodes(newNodes);
-    setEdges(newEdges);
-  };
-
-  // Node Selection Handler
-  const handleNodeClick = (_event: React.MouseEvent, node: any) => {
-    setSelectedNodeId(node.id);
-  };
-
-  // Drag Handler: update position coords of node in memory (doesn't trigger save yet)
-  const handleNodeDragStop = (_event: React.MouseEvent, node: any) => {
-    setNodes(prev => prev.map(n => n.id === node.id ? { ...n, position: node.position } : n));
-  };
-
-  // Properties form callback - updates local states
-  const handleUpdateNodeData = (updatedPhase: PhaseConfigItem) => {
-    if (!selectedTemplate) return;
-    
-    // Find index of the updated phase
-    const index = selectedTemplate.phases.findIndex(p => p.key === selectedNodeId);
-    if (index === -1) return;
-
-    const updatedPhases = [...selectedTemplate.phases];
-    updatedPhases[index] = updatedPhase;
-
-    // Update node details inside React Flow directly
-    setNodes(prev => prev.map(n => {
-      if (n.id === selectedNodeId) {
-        return {
-          ...n,
-          id: updatedPhase.key, // Update ID if key changed
-          data: {
-            ...updatedPhase,
-          }
-        };
-      }
-      return n;
-    }));
-
-    // If key changed, update edges also
-    if (updatedPhase.key !== selectedNodeId) {
-      setEdges(prev => prev.map(e => {
-        let updatedEdge = { ...e };
-        if (e.source === selectedNodeId) updatedEdge.source = updatedPhase.key;
-        if (e.target === selectedNodeId) updatedEdge.target = updatedPhase.key;
-        return updatedEdge;
-      }));
-      setSelectedNodeId(updatedPhase.key);
-    }
-
-    setSelectedTemplate({
-      ...selectedTemplate,
-      phases: updatedPhases
-    });
-  };
-
-  // Modal Open Trigger
-  const openCreateModal = () => {
-    setModalTemplateName('');
-    setModalSourceTemplateId('scratch');
-    setShowCreateModal(true);
-  };
-
-  const handleConfirmCreate = () => {
-    setShowCreateModal(false);
-    navigate('/workflow-editor/new', { 
-      state: { 
-        name: modalTemplateName,
-        sourceTemplateId: modalSourceTemplateId
-      } 
-    });
-  };
-
-  // Append new phase to workflow
-  const handleAddPhase = () => {
-    if (!selectedTemplate) return;
-
-    const key = `phase_${selectedTemplate.phases.length + 1}`;
-    const newPhase: PhaseConfigItem = {
-      key,
-      label: `New Phase ${selectedTemplate.phases.length + 1}`,
-      agent: metadata.available_agents[0] || '',
-      tools: [...metadata.available_tools],
-      skills: [...metadata.available_skills],
-      entry_prompt: null,
-      exit_prompt: null,
-      branching_strategy: null,
-      join_strategy: null
-    };
-
-    const updatedPhases = [...selectedTemplate.phases, newPhase];
-    const newTemplate = {
-      ...selectedTemplate,
-      phases: updatedPhases
-    };
-    
-    setSelectedTemplate(newTemplate);
-    buildFlowFromPhases(updatedPhases);
-    setSelectedNodeId(key);
-  };
-
-  // Delete selected phase
-  const handleDeletePhase = (key: string) => {
-    if (!selectedTemplate) return;
-    if (selectedTemplate.phases.length <= 1) {
-      alert('A workflow must have at least one phase.');
-      return;
-    }
-
-    const updatedPhases = selectedTemplate.phases.filter(p => p.key !== key);
-    const newTemplate = {
-      ...selectedTemplate,
-      phases: updatedPhases
-    };
-
-    setSelectedTemplate(newTemplate);
-    setSelectedNodeId(null);
-    buildFlowFromPhases(updatedPhases);
-  };
-
-  // Save the workflow template in the database
-  const handleSaveTemplate = async () => {
-    if (!selectedTemplate || !templateName.trim()) return;
-    setSaving(true);
-    
-    try {
-      const payload: WorkflowTemplateCreate = {
-        name: templateName,
-        phases: selectedTemplate.phases,
-        default_agents: selectedTemplate.phases.map(p => p.agent).filter(Boolean)
-      };
-
-      let result: WorkflowTemplate;
-      if (!selectedTemplate.id) {
-        result = await createWorkflowTemplate(payload);
-      } else {
-        result = await updateWorkflowTemplate(selectedTemplate.id, payload);
-      }
-
-      const tmpls = await getWorkflowTemplates();
-      setTemplates(tmpls);
-      
-      const saved = tmpls.find(t => t.name === result.name) || result;
-      if (templateId === 'new' && saved.id) {
-        navigate(`/workflow-editor/${saved.id}`);
-      } else {
-        handleSelectTemplate(saved);
-      }
-      alert('Workflow template saved successfully!');
-    } catch (e) {
-      console.error('Error saving template:', e);
-      alert('Error saving workflow template.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Delete the template from the database
-  const handleDeleteTemplate = async () => {
-    if (!selectedTemplate) return;
-    if (!selectedTemplate.id) {
-      setSelectedTemplate(null);
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to delete template "${selectedTemplate.name}"?`)) return;
-    
-    try {
-      await deleteWorkflowTemplate(selectedTemplate.id);
-      const tmpls = await getWorkflowTemplates();
-      setTemplates(tmpls);
-      if (templateId) {
-        navigate('/governance?tab=workflows');
-      } else {
-        setSelectedTemplate(null);
-      }
-      alert('Template deleted successfully.');
-    } catch (e) {
-      console.error('Error deleting template:', e);
-      alert('Error deleting template.');
-    }
-  };
-
-  const selectedNode = selectedNodeId 
-    ? nodes.find(n => n.id === selectedNodeId) 
-    : null;
+  const {
+    templateId,
+    navigate,
+    templates,
+    selectedTemplate,
+    metadata,
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    selectedNodeId,
+    setSelectedNodeId,
+    loading,
+    saving,
+    templateName,
+    setTemplateName,
+    showCreateModal,
+    setShowCreateModal,
+    modalTemplateName,
+    setModalTemplateName,
+    modalSourceTemplateId,
+    setModalSourceTemplateId,
+    handleSelectTemplate,
+    handleNodeClick,
+    handleNodeDragStop,
+    handleUpdateNodeData,
+    openCreateModal,
+    handleConfirmCreate,
+    handleAddPhase,
+    handleDeletePhase,
+    handleSaveTemplate,
+    handleDeleteTemplate,
+    selectedNode
+  } = useWorkflowEditor();
 
   return (
     <>
@@ -523,72 +161,18 @@ export function WorkflowEditorCanvas() {
       ) : (
         <div className={`flex flex-col bg-[#0a0a0c] overflow-hidden ${templateId ? 'absolute inset-0 z-50 rounded-none border-none' : 'h-[70vh] relative border border-white/10 rounded-2xl'}`}>
           {/* Top Header Panel */}
-          <div className="p-4 bg-white/[0.02] border-b border-white/10 flex flex-wrap items-center justify-between gap-4 z-10">
-            <div className="flex items-center gap-3 animate-fade-in">
-              <button
-                onClick={() => navigate('/governance?tab=workflows')}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-black/40 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/30 text-gray-300 hover:text-purple-300 transition-all duration-300 cursor-pointer mr-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
-              >
-                ← Back to Templates
-              </button>
-              <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
-                <Sparkles className="w-5 h-5 animate-pulse" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Workflow Engine</span>
-                <input
-                  type="text"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder="Template Name"
-                  className="bg-transparent text-white font-bold text-lg focus:outline-none border-b border-transparent focus:border-purple-500/50 transition-all w-60 text-left"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedTemplate?.id || ''}
-                onChange={(e) => {
-                  const matched = templates.find(t => t.id === e.target.value);
-                  if (matched) handleSelectTemplate(matched);
-                }}
-                className="bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 min-w-[200px]"
-              >
-                <option value="" disabled>Select template...</option>
-                {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-
-              <button
-                onClick={handleAddPhase}
-                disabled={!selectedTemplate}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 font-bold hover:bg-violet-500/20 transition-all disabled:opacity-40"
-                title="Append Phase Node"
-              >
-                <Plus className="w-4 h-4 text-violet-400" /> Phase
-              </button>
-
-              <button
-                onClick={handleSaveTemplate}
-                disabled={!selectedTemplate || saving || !templateName.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 text-purple-300 font-bold hover:from-purple-500/30 hover:to-blue-500/30 transition-all disabled:opacity-40"
-              >
-                <Save className="w-4 h-4 text-purple-400" />
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-
-              <button
-                onClick={handleDeleteTemplate}
-                disabled={!selectedTemplate}
-                className="p-2 rounded-xl border border-red-500/20 hover:bg-red-500/10 text-red-400 transition-all disabled:opacity-40"
-                title="Delete Template"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+          <WorkflowEditorHeader
+            navigate={navigate}
+            templateName={templateName}
+            setTemplateName={setTemplateName}
+            selectedTemplate={selectedTemplate}
+            templates={templates}
+            handleSelectTemplate={handleSelectTemplate}
+            handleAddPhase={handleAddPhase}
+            handleSaveTemplate={handleSaveTemplate}
+            handleDeleteTemplate={handleDeleteTemplate}
+            saving={saving}
+          />
 
           {/* Main Split Layout: Canvas + Drawer */}
           <div className="flex-1 flex overflow-hidden">
