@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Plus, X, Loader2, Lock } from 'lucide-react'
 import { getProjectTimeLogs, createTimeLog, updateTimeLog } from '@/services/timeLogs';
 import { getProjectBoards, getBoard } from '@/services/boards';
 import { createCard } from '@/services/cards';
-import { getSchedulings } from '@/services/schedulings';
+import { getSchedulings, createScheduling } from '@/services/schedulings';
 import { supabase } from '@/lib/supabaseClient';
 import type { Board, Card, Scheduling } from '@/services/types';
 import type { TimeLog } from '@/types/timeLogs';
@@ -21,6 +21,11 @@ function startOfWeek(d: Date): Date {
 
 function toISODate(d: Date): string {
     return d.toISOString().split('T')[0];
+}
+
+// datetime-local value (local time) -> ISO (UTC) string for the API.
+function localDateTimeToIso(val: string): string {
+    return new Date(val).toISOString();
 }
 
 function startOfDay(d: Date): Date {
@@ -418,10 +423,12 @@ interface AddRowModalProps {
     onAdd: (row: TimesheetRow, scheduling?: Scheduling, occurrenceIso?: string) => void;
 }
 
-type AddRowMode = 'card' | 'scheduling' | 'new_card';
+type AddRowMode = 'card' | 'scheduling';
 
 function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalProps) {
     const [mode, setMode] = useState<AddRowMode>('card');
+    // Within each tab: pick an existing item or create a new one ("Novo card"/"Novo agendamento").
+    const [isNew, setIsNew] = useState(false);
     const [cards, setCards] = useState<Card[]>([]);
     const [schedulings, setSchedulings] = useState<Scheduling[]>([]);
     const [boards, setBoards] = useState<Board[]>([]);
@@ -429,9 +436,15 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
     const [selectedSchedulingId, setSelectedSchedulingId] = useState('');
     const [newCardTitle, setNewCardTitle] = useState('');
     const [newCardBoardId, setNewCardBoardId] = useState('');
+    const [newSchedTitle, setNewSchedTitle] = useState('');
+    const [newSchedStart, setNewSchedStart] = useState('');
+    const [newSchedEnd, setNewSchedEnd] = useState('');
     const [isLoadingOptions, setIsLoadingOptions] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Switch tab: reset the existing/new sub-mode and any error.
+    const switchMode = (m: AddRowMode) => { setMode(m); setIsNew(false); setError(null); };
 
     useEffect(() => {
         const loadOptions = async () => {
@@ -465,23 +478,38 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
     }, [projectId]);
 
     const handleSubmit = async () => {
-        if (mode === 'card' && !selectedCardId) { setError('Selecione um card.'); return; }
-        if (mode === 'scheduling' && !selectedSchedulingId) { setError('Selecione um agendamento.'); return; }
-        if (mode === 'new_card' && (!newCardTitle.trim() || !newCardBoardId)) { setError('Informe o título e o board do novo card.'); return; }
-
-        if (mode === 'card' && existingKeys.has(`card:${selectedCardId}`)) { setError('Esse card já está na lista desta semana.'); return; }
+        // Validation per tab × existing/new.
+        if (mode === 'card' && isNew && (!newCardTitle.trim() || !newCardBoardId)) { setError('Informe o título e o board do novo card.'); return; }
+        if (mode === 'card' && !isNew && !selectedCardId) { setError('Selecione um card.'); return; }
+        if (mode === 'card' && !isNew && existingKeys.has(`card:${selectedCardId}`)) { setError('Esse card já está na lista desta semana.'); return; }
+        if (mode === 'scheduling' && isNew && !newSchedTitle.trim()) { setError('Informe o título do novo agendamento.'); return; }
+        if (mode === 'scheduling' && isNew && (!newSchedStart || !newSchedEnd)) { setError('Informe início e fim do agendamento.'); return; }
+        if (mode === 'scheduling' && isNew && new Date(newSchedEnd) <= new Date(newSchedStart)) { setError('O fim deve ser depois do início.'); return; }
+        if (mode === 'scheduling' && !isNew && !selectedSchedulingId) { setError('Selecione um agendamento.'); return; }
         // No existingKeys guard for schedulings: distinct occurrences of a recurring
         // scheduling share one scheduling_id but log to different dates.
 
         setIsSubmitting(true);
         setError(null);
         try {
-            if (mode === 'new_card') {
+            if (mode === 'card' && isNew) {
                 const newCard = await createCard(newCardBoardId, { title: newCardTitle.trim(), status: 'todo' });
                 onAdd({ key: `card:${newCard.id}`, type: 'card', refId: newCard.id, title: newCard.title });
             } else if (mode === 'card') {
                 const card = cards.find((c) => c.id === selectedCardId)!;
                 onAdd({ key: `card:${card.id}`, type: 'card', refId: card.id, title: card.title });
+            } else if (mode === 'scheduling' && isNew) {
+                // Create the scheduling, then log it immediately at its start date (like an existing one).
+                const created = await createScheduling(projectId, {
+                    title: newSchedTitle.trim(),
+                    start_date: localDateTimeToIso(newSchedStart),
+                    end_date: localDateTimeToIso(newSchedEnd),
+                });
+                onAdd(
+                    { key: `scheduling:${created.id}`, type: 'scheduling', refId: created.id, title: created.title },
+                    created,
+                    toISODate(new Date(newSchedStart)),
+                );
             } else {
                 // selectedSchedulingId is a composite "<schedulingId>::<occurrenceIso>".
                 const [schedulingId, occurrenceIso] = selectedSchedulingId.split('::');
@@ -517,20 +545,40 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                         </div>
                     ) : (
                         <>
+                            {/* Two tabs: Card / Agendamento */}
                             <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
-                                {(['card', 'scheduling', 'new_card'] as AddRowMode[]).map((m) => (
+                                {(['card', 'scheduling'] as AddRowMode[]).map((m) => (
                                     <button
                                         key={m}
                                         type="button"
-                                        onClick={() => setMode(m)}
+                                        onClick={() => switchMode(m)}
                                         className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${mode === m ? 'bg-purple-500/20 text-purple-300' : 'text-white/40 hover:text-white/60'}`}
                                     >
-                                        {m === 'card' ? 'Card' : m === 'scheduling' ? 'Agendamento' : 'Novo card'}
+                                        {m === 'card' ? 'Card' : 'Agendamento'}
                                     </button>
                                 ))}
                             </div>
 
-                            {mode === 'card' && (
+                            {/* Within the tab: pick existing or create new */}
+                            <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsNew(false); setError(null); }}
+                                    className={`flex-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${!isNew ? 'bg-white/10 text-white/80' : 'text-white/40 hover:text-white/60'}`}
+                                >
+                                    Selecionar existente
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsNew(true); setError(null); }}
+                                    className={`flex-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${isNew ? 'bg-white/10 text-white/80' : 'text-white/40 hover:text-white/60'}`}
+                                >
+                                    {mode === 'card' ? 'Novo card' : 'Novo agendamento'}
+                                </button>
+                            </div>
+
+                            {/* Card: existing */}
+                            {mode === 'card' && !isNew && (
                                 cards.length === 0 ? (
                                     <p className="text-white/30 text-sm italic">Nenhum card encontrado neste projeto.</p>
                                 ) : (
@@ -545,24 +593,8 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                                 )
                             )}
 
-                            {mode === 'scheduling' && (
-                                schedulings.length === 0 ? (
-                                    <p className="text-white/30 text-sm italic">Nenhum agendamento encontrado neste projeto.</p>
-                                ) : (
-                                    <select
-                                        value={selectedSchedulingId}
-                                        onChange={(e) => setSelectedSchedulingId(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50"
-                                    >
-                                        <option value="">Selecione um agendamento...</option>
-                                        {schedulings.flatMap((s) => expandSchedulingOccurrences(s, new Date())).map((o) => (
-                                            <option key={`${o.scheduling.id}::${o.iso}`} value={`${o.scheduling.id}::${o.iso}`}>{o.label}</option>
-                                        ))}
-                                    </select>
-                                )
-                            )}
-
-                            {mode === 'new_card' && (
+                            {/* Card: new */}
+                            {mode === 'card' && isNew && (
                                 <div className="space-y-2">
                                     <input
                                         type="text"
@@ -579,6 +611,49 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                                         <option value="">Selecione o board...</option>
                                         {boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                                     </select>
+                                </div>
+                            )}
+
+                            {/* Scheduling: existing */}
+                            {mode === 'scheduling' && !isNew && (
+                                schedulings.length === 0 ? (
+                                    <p className="text-white/30 text-sm italic">Nenhum agendamento encontrado neste projeto.</p>
+                                ) : (
+                                    <select
+                                        value={selectedSchedulingId}
+                                        onChange={(e) => setSelectedSchedulingId(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50"
+                                    >
+                                        <option value="">Selecione um agendamento...</option>
+                                        {schedulings.flatMap((s) => expandSchedulingOccurrences(s, new Date())).map((o) => (
+                                            <option key={`${o.scheduling.id}::${o.iso}`} value={`${o.scheduling.id}::${o.iso}`}>{o.label}</option>
+                                        ))}
+                                    </select>
+                                )
+                            )}
+
+                            {/* Scheduling: new */}
+                            {mode === 'scheduling' && isNew && (
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={newSchedTitle}
+                                        onChange={(e) => setNewSchedTitle(e.target.value)}
+                                        placeholder="Título do novo agendamento..."
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-white/20"
+                                    />
+                                    <div className="flex gap-2">
+                                        <label className="flex-1 flex flex-col gap-1 text-[10px] text-white/40">
+                                            Início
+                                            <input type="datetime-local" value={newSchedStart} onChange={(e) => setNewSchedStart(e.target.value)}
+                                                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]" />
+                                        </label>
+                                        <label className="flex-1 flex flex-col gap-1 text-[10px] text-white/40">
+                                            Fim
+                                            <input type="datetime-local" value={newSchedEnd} onChange={(e) => setNewSchedEnd(e.target.value)}
+                                                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]" />
+                                        </label>
+                                    </div>
                                 </div>
                             )}
 
