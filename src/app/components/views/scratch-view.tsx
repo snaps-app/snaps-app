@@ -68,6 +68,7 @@ export const ScratchView: React.FC = () => {
         try {
             const newScratch = await createSnap({
                 project_id: projectId,
+                agent_execution_id: executionId,
                 name: 'New Scratch',
                 content: '',
                 description: 'Scratch note',
