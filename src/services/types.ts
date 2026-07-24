@@ -30,6 +30,8 @@ export interface Snap {
     name: string;
     description: string;
     content: string;
+    sprint_id?: string;
+    agent_execution_id?: string;
     snadds?: {
         group_id?: string;
         labels?: string[];
@@ -45,6 +47,8 @@ export interface SnapCreate {
     name: string;
     description: string;
     content: string;
+    sprint_id?: string;
+    agent_execution_id?: string;
     snadds?: {
         group_id?: string;
         labels?: string[];
