@@ -75,16 +75,23 @@ const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 interface RowKey {
     type: 'card' | 'scheduling';
     refId: string;
+    userId: string;
 }
 
 interface TimesheetRow extends RowKey {
     key: string;
     title: string;
+    userLabel: string;
 }
 
+// Rows are grouped per task AND per collaborator, so a privileged viewer sees
+// who logged what (owner/admin/visualizer see everyone; member only their own).
 function rowKeyOf(r: RowKey): string {
-    return `${r.type}:${r.refId}`;
+    return `${r.type}:${r.refId}:${r.userId}`;
 }
+
+// Base row emitted by the add-row modal — the collaborator is filled in by the parent.
+type NewRowInput = { type: 'card' | 'scheduling'; refId: string; title: string };
 
 export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
@@ -131,15 +138,23 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     // Reseta linhas adicionadas manualmente (ainda sem apontamento) ao trocar de semana.
     useEffect(() => { setPendingRows([]); }, [weekStart]);
 
+    const rowKeyForLog = (log: TimeLog): RowKey => ({
+        type: log.card_id ? 'card' : 'scheduling',
+        refId: (log.card_id ?? log.scheduling_id) as string,
+        userId: log.user_id,
+    });
+
     const rows = useMemo(() => {
         const map = new Map<string, TimesheetRow>();
         for (const log of logs) {
-            const rk: RowKey = log.card_id
-                ? { type: 'card', refId: log.card_id }
-                : { type: 'scheduling', refId: log.scheduling_id as string };
+            const rk = rowKeyForLog(log);
             const key = rowKeyOf(rk);
             if (!map.has(key)) {
-                map.set(key, { ...rk, key, title: log.card_title ?? log.scheduling_title ?? log.description ?? 'Apontamento' });
+                map.set(key, {
+                    ...rk, key,
+                    title: log.card_title ?? log.scheduling_title ?? log.description ?? 'Apontamento',
+                    userLabel: log.user_display_name ?? '',
+                });
             }
         }
         for (const pr of pendingRows) {
@@ -151,16 +166,16 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     const cellsByRowAndDate = useMemo(() => {
         const map = new Map<string, TimeLog[]>();
         for (const log of logs) {
-            const rk: RowKey = log.card_id
-                ? { type: 'card', refId: log.card_id }
-                : { type: 'scheduling', refId: log.scheduling_id as string };
-            const cellKey = `${rowKeyOf(rk)}|${log.date}`;
+            const cellKey = `${rowKeyOf(rowKeyForLog(log))}|${log.date}`;
             const list = map.get(cellKey) ?? [];
             list.push(log);
             map.set(cellKey, list);
         }
         return map;
     }, [logs]);
+
+    // Show the collaborator on each row only when more than one person is in view.
+    const showCollaborator = useMemo(() => new Set(logs.map((l) => l.user_id)).size > 1, [logs]);
 
     const dayTotals = useMemo(() => {
         const totals = new Map<string, number>();
@@ -171,14 +186,20 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     const weekTotal = logs.reduce((acc, l) => acc + l.hours, 0);
     const todayISO = toISODate(new Date());
 
-    const handleAddRow = async (row: TimesheetRow, scheduling?: Scheduling, occurrenceIso?: string) => {
+    const handleAddRow = async (base: NewRowInput, scheduling?: Scheduling, occurrenceIso?: string) => {
         setIsAddRowOpen(false);
+        const uid = currentUserId as string;
+        // A manually-added row always belongs to the current user.
+        const pendingRow: TimesheetRow = {
+            type: base.type, refId: base.refId, userId: uid,
+            key: `${base.type}:${base.refId}:${uid}`, title: base.title, userLabel: 'Você',
+        };
 
         // Cards have no inherent date/duration — they become an empty row for the
         // user to fill in. A scheduling does, so log it at its own date rather than
         // in whichever week happens to be on screen.
         if (!scheduling) {
-            setPendingRows((prev) => [...prev, row]);
+            setPendingRows((prev) => [...prev, pendingRow]);
             return;
         }
 
@@ -189,7 +210,7 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
         const hours = Math.round(((end.getTime() - start.getTime()) / 3600000) * 100) / 100;
         const logDate = occurrenceIso ?? toISODate(start);
         if (!(hours > 0)) {
-            setPendingRows((prev) => [...prev, row]);
+            setPendingRows((prev) => [...prev, pendingRow]);
             return;
         }
 
@@ -206,7 +227,7 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
             setWeekStart(startOfWeek(new Date(`${logDate}T12:00:00`)));
         } catch (err) {
             console.error('[ProjectTimesheetView] failed to log scheduling:', err);
-            setPendingRows((prev) => [...prev, row]);
+            setPendingRows((prev) => [...prev, pendingRow]);
         }
     };
 
@@ -218,7 +239,9 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
         if (existing.length === 0) {
             if (newValue <= 0) return;
             await createTimeLog(projectId, {
-                user_id: currentUserId as string,
+                // Log for the row's collaborator (their own row for a member; any member
+                // for a privileged viewer editing someone else's row).
+                user_id: row.userId || (currentUserId as string),
                 card_id: row.type === 'card' ? row.refId : undefined,
                 scheduling_id: row.type === 'scheduling' ? row.refId : undefined,
                 date: iso,
@@ -306,6 +329,14 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                                                         {row.type === 'card' ? 'Card' : 'Agend.'}
                                                     </span>
                                                     <span className="truncate">{row.title}</span>
+                                                    {showCollaborator && row.userLabel && (
+                                                        <span className="flex items-center gap-1 text-[10px] text-white/40 whitespace-nowrap">
+                                                            <span className="w-3.5 h-3.5 rounded-full bg-purple-500/20 text-purple-200 flex items-center justify-center text-[8px] font-bold">
+                                                                {row.userLabel.charAt(0).toUpperCase()}
+                                                            </span>
+                                                            {row.userLabel}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
                                             {weekDays.map((d) => {
@@ -363,7 +394,7 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
             {isAddRowOpen && (
                 <AddRowModal
                     projectId={projectId}
-                    existingKeys={new Set(rows.map((r) => r.key))}
+                    existingKeys={new Set(rows.filter((r) => r.userId === currentUserId).map((r) => `${r.type}:${r.refId}`))}
                     onClose={() => setIsAddRowOpen(false)}
                     onAdd={handleAddRow}
                 />
@@ -420,7 +451,7 @@ interface AddRowModalProps {
     // A scheduling carries its own date and duration, so it is handed back to the
     // parent to log immediately instead of becoming an empty row to fill in by hand.
     // occurrenceIso pins which occurrence of a recurring scheduling was picked.
-    onAdd: (row: TimesheetRow, scheduling?: Scheduling, occurrenceIso?: string) => void;
+    onAdd: (row: NewRowInput, scheduling?: Scheduling, occurrenceIso?: string) => void;
 }
 
 type AddRowMode = 'card' | 'scheduling';
@@ -494,10 +525,10 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
         try {
             if (mode === 'card' && isNew) {
                 const newCard = await createCard(newCardBoardId, { title: newCardTitle.trim(), status: 'todo' });
-                onAdd({ key: `card:${newCard.id}`, type: 'card', refId: newCard.id, title: newCard.title });
+                onAdd({ type: 'card', refId: newCard.id, title: newCard.title });
             } else if (mode === 'card') {
                 const card = cards.find((c) => c.id === selectedCardId)!;
-                onAdd({ key: `card:${card.id}`, type: 'card', refId: card.id, title: card.title });
+                onAdd({ type: 'card', refId: card.id, title: card.title });
             } else if (mode === 'scheduling' && isNew) {
                 // Create the scheduling, then log it immediately at its start date (like an existing one).
                 const created = await createScheduling(projectId, {
@@ -506,7 +537,7 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                     end_date: localDateTimeToIso(newSchedEnd),
                 });
                 onAdd(
-                    { key: `scheduling:${created.id}`, type: 'scheduling', refId: created.id, title: created.title },
+                    { type: 'scheduling', refId: created.id, title: created.title },
                     created,
                     toISODate(new Date(newSchedStart)),
                 );
@@ -515,7 +546,7 @@ function AddRowModal({ projectId, existingKeys, onClose, onAdd }: AddRowModalPro
                 const [schedulingId, occurrenceIso] = selectedSchedulingId.split('::');
                 const scheduling = schedulings.find((s) => s.id === schedulingId)!;
                 onAdd(
-                    { key: `scheduling:${scheduling.id}`, type: 'scheduling', refId: scheduling.id, title: scheduling.title },
+                    { type: 'scheduling', refId: scheduling.id, title: scheduling.title },
                     scheduling,
                     occurrenceIso,
                 );
