@@ -232,7 +232,7 @@ export function BoardView() {
       <div className="flex-1 flex flex-col min-h-0 relative">
         <BoardHeader {...{ projectId, boardId, navigate, boardName, setBoardName, boardCode, setBoardCode, boardColor, setBoardColor, isColorPickerOpen, setIsColorPickerOpen, project, board, selectedEpicIds, setSelectedEpicIds, epics, setIsEpicModalOpen, selectedSprintIds, setSelectedSprintIds, sprints, setIsSprintModalOpen, handleQuickExecute: async () => { if (selectedSprintIds.length > 0) { setStrategyTarget(null); setIsStrategyModalOpen(true); } }, isDirty, isSaving, handleSaveBoard, handleOpenBulkApply }} />
         <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
-          <div className="flex gap-6 min-w-max h-full items-start">
+          <div className="flex gap-6 h-full items-start">
             {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns?.map((col: any, index: number) => (
               <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} onStartExecution={handleStartExecution} onTitleChange={async () => {}} onColorChange={async () => {}} onMoveColumn={async () => {}} />
             ))}
