@@ -279,7 +279,7 @@ export function CalendarView() {
             >
               {view === 'month' && <MonthView currentDate={currentDate} schedulings={schedulings} cards={cards} loading={initialLoading} onExecute={handleExecute} onEditScheduling={handleEditScheduling} />}
               {view === 'week' && <WeekView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} loading={initialLoading} onExecute={handleExecute} onEditExecution={handleEditExecution} onEditScheduling={handleEditScheduling} />}
-              {view === 'day' && <DayView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} routines={routines} loading={initialLoading} onExecute={handleExecute} onAddExecution={handleAddExecution} onEditExecution={handleEditExecution} onCloneYesterday={handleCloneYesterday} onToggleRoutineStatus={handleToggleRoutineStatus} onAddRoutine={handleAddRoutine} onEditRoutine={handleEditRoutine} onEditScheduling={handleEditScheduling} />}
+              {view === 'day' && <DayView currentDate={currentDate} schedulings={schedulings} dailyExecutions={dailyExecutions} cards={cards} routines={routines} loading={initialLoading} onExecute={handleExecute} onAddExecution={handleAddExecution} onEditExecution={handleEditExecution} onCloneYesterday={handleCloneYesterday} onToggleRoutineStatus={handleToggleRoutineStatus} onAddRoutine={handleAddRoutine} onEditRoutine={handleEditRoutine} onEditScheduling={handleEditScheduling} onAddScheduling={() => setIsCreateModalOpen(true)} />}
             </motion.div>
           </AnimatePresence>
         </div>

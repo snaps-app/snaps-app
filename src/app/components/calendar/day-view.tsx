@@ -1,7 +1,7 @@
 import type { CardWithProject, DailyExecutionWithProject, RoutineWithStatus, SchedulingWithProject } from '@/services/types';
 import { useMemo } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle2, Clock, CalendarDays, Repeat } from 'lucide-react';
+import { CheckCircle2, Clock, CalendarDays, Repeat, Plus } from 'lucide-react';
 import type { ExecuteTodayData } from '@/app/components/calendar/execute-today-modal';
 import { ScrollArea } from '@/app/components/ui/scroll-area';
 import { DailyExecutionTimeline } from '@/app/components/execution/daily-execution-timeline';
@@ -16,6 +16,7 @@ interface DayViewProps {
     loading: boolean;
     onExecute?: (data: ExecuteTodayData) => void;
     onEditScheduling?: (s: SchedulingWithProject) => void;
+    onAddScheduling?: () => void;
     onAddExecution?: () => void;
     onEditExecution?: (execution: DailyExecutionWithProject) => void;
     onCloneYesterday?: () => Promise<void>;
@@ -33,6 +34,7 @@ export function DayView({
     loading,
     onExecute,
     onEditScheduling,
+    onAddScheduling,
     onAddExecution,
     onEditExecution,
     onCloneYesterday,
@@ -109,6 +111,15 @@ export function DayView({
                         <CalendarDays className="w-5 h-5 text-purple-400" />
                         <h2 className="text-xl font-bold text-white">Schedulings</h2>
                         <span className="text-xs bg-white/10 text-zinc-300 px-2 py-0.5 rounded-full">{daySchedulings.length}</span>
+                        {onAddScheduling && (
+                            <button
+                                onClick={onAddScheduling}
+                                className="ml-auto flex items-center gap-1 text-xs font-medium text-purple-300 hover:text-purple-200 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg px-2.5 py-1 transition-colors"
+                                title="Novo agendamento neste dia"
+                            >
+                                <Plus className="w-3.5 h-3.5" /> Agendamento
+                            </button>
+                        )}
                     </div>
                     <ScrollArea className="flex flex-col gap-3 pr-2">
                         {daySchedulings.length === 0 ? (
