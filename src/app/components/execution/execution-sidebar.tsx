@@ -367,23 +367,25 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                         )}
                         {(() => {
                             const force = Object.values(manualOverrides).some(Boolean);
-                            const isCompleted = execution.status === 'completed';
                             const isDone = execution.status === 'done';
-                            const disabled = isAdvancing || (isCompleted && !force);
-                            
+                            // A phase's advance_conditions are evaluated per-phase, server-side, on every
+                            // call — including when status is already 'completed' (e.g. a sibling in a
+                            // wait_all wave). The backend converges/no-ops idempotently, so the button must
+                            // never block a completed execution from re-attempting advance: there is no
+                            // "waiting for siblings" state a user can observe here.
+                            const disabled = isAdvancing;
+
                             return (
                                 <button
                                     onClick={isDone ? () => setIsTimeTrackingModalOpen(true) : handleAdvance}
                                     disabled={disabled}
-                                    className={`w-full h-12 ${isDone ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : (isCompleted && !force) ? 'bg-blue-600 shadow-blue-900/20 opacity-50 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20'} text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50`}
+                                    className={`w-full h-12 ${isDone ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20'} text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50`}
                                 >
                                     {isAdvancing ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                                         <>
                                             {isDone
                                                 ? 'Execution Complete — Exit'
-                                                : (isCompleted && !force)
-                                                    ? 'Waiting for Siblings...' 
-                                                    : (force ? 'Force Advance to Next Phase' : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase'))
+                                                : (force ? 'Force Advance to Next Phase' : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase'))
                                             }
                                             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                         </>
