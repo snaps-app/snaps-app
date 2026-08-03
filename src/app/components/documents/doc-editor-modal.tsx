@@ -74,6 +74,8 @@ export function DocEditorModal({
               <option value="playbook">Playbook</option>
               <option value="strategy">Strategy</option>
               <option value="roadmap">Roadmap</option>
+              <option value="architecture">Architecture</option>
+              <option value="design_system">Design System</option>
             </select>
           </div>
           <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/40 px-4 py-3">

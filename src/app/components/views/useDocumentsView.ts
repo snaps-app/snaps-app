@@ -82,8 +82,12 @@ export function useDocumentsView() {
   const [docPublicVisible, setDocPublicVisible] = useState(false);
 
   const fetchDocs = async () => {
+    if (!projectId) return;
     try {
-      const all = await getGovernanceDocs();
+      // Filtra no servidor para nao esbarrar no limit=100 do endpoint conforme a base cresce.
+      // O filtro local permanece porque a API tambem retorna docs globais (project_id null),
+      // que nao pertencem a esta view.
+      const all = await getGovernanceDocs(projectId);
       setGovDocs(all.filter((d: any) => d.project_id === projectId));
     } catch (e) { console.error(e); }
   };
