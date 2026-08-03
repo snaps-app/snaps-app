@@ -212,6 +212,8 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                             <option value="prd">PRD</option>
                             <option value="context">Context</option>
                             <option value="roadmap">Roadmap</option>
+                            <option value="architecture">Architecture</option>
+                            <option value="design_system">Design System</option>
                         </select>
                     </div>
                     <div>

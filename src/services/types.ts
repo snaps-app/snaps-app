@@ -198,7 +198,7 @@ export interface DecisionCreate {
 // --- Governance Interfaces ---
 export type AgentInstructionType = 'ide_persona' | 'fleet_agent' | 'security';
 export type AgentScope = 'global' | 'project';
-export type GovernanceDocType = 'playbook' | 'strategy' | 'prd' | 'context' | 'roadmap' | 'other';
+export type GovernanceDocType = 'playbook' | 'strategy' | 'prd' | 'PRD' | 'tool_policy' | 'context' | 'roadmap' | 'architecture' | 'design_system' | 'other';
 export type SkillScope = 'global' | 'project';
 export type ResourceType = 'api_proxy' | 'ui_component' | 'documentation' | 'other';
 
