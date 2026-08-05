@@ -12,6 +12,12 @@ import { GovernanceFormModal } from '@/app/components/modals/governance-form-mod
 
 type Tab = 'agents' | 'docs' | 'skills' | 'resources' | 'workflows';
 
+// project_id e a fonte de verdade do escopo; scope no backend e so a projecao dele.
+// Antes esta tela lia item.scope enquanto a API filtrava por project_id, entao um
+// registro incoerente aparecia aqui e sumia na tela do projeto (card C12). Derivar
+// de project_id torna impossivel a UI discordar da API.
+const deriveScope = (item: { project_id?: string | null }) => (item.project_id ? 'project' : 'global');
+
 const TAB_CONFIG = {
   agents:    { label: 'Agents',    icon: Bot,      accent: 'purple' },
   docs:      { label: 'Docs',      icon: FileText,  accent: 'blue' },
@@ -96,7 +102,7 @@ export function GovernanceView() {
     tab === 'workflows' ? [] :
     resources
   ).filter((item: any) => {
-      const scope = item.scope || (item.project_id ? 'project' : 'global');
+      const scope = deriveScope(item);
       if (scopeFilter === 'global') return scope === 'global';
       if (scopeFilter === 'project') {
         if (selectedProjectId) return item.project_id === selectedProjectId;
@@ -109,7 +115,7 @@ export function GovernanceView() {
 
   const renderCard = (item: any) => {
     const itemProject = projects.find(p => p.id === item.project_id);
-    const scope = item.scope || (item.project_id ? 'project' : 'global');
+    const scope = deriveScope(item);
     
     return (
       <motion.div
