@@ -47,6 +47,20 @@ export const setCachedData = (key: string, data: any) => {
     dataCache[key] = { data, timestamp: Date.now() };
 };
 
+/**
+ * Descarta as entradas de cache cujo nome começa por `prefix`.
+ *
+ * O cache não tinha nenhuma invalidação por escrita: quem criava ou editava
+ * uma nota podia continuar vendo a lista antiga por até 30 s ao navegar de
+ * volta. Era a segunda causa do sintoma "ele vê e eu não", independente do
+ * escopo da consulta.
+ */
+export const invalidateCachedData = (prefix: string) => {
+    for (const key of Object.keys(dataCache)) {
+        if (key.startsWith(prefix)) delete dataCache[key];
+    }
+};
+
 // Catch cases where API returns HTML (e.g. port conflict with another app)
 api.interceptors.response.use(
     (response) => {

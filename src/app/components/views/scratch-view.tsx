@@ -1,7 +1,7 @@
 import { getAgentExecution } from '@/services/agentExecutions';
 import { createSnap, deleteSnap, getSnaps, updateSnap } from '@/services/snaps';
 import type { AgentTaskExecution, Snap } from '@/services/types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,6 +31,22 @@ export const ScratchView: React.FC = () => {
     const [scratchName, setScratchName] = useState('');
     const [isSavingScratch, setIsSavingScratch] = useState(false);
 
+    // A cada 15 s, e ao voltar o foco. A lista era buscada UMA vez na montagem:
+    // duas pessoas na mesma URL viam listas diferentes se uma abriu a aba antes
+    // da outra escrever, e nenhuma das duas tinha como saber disso.
+    const REFETCH_INTERVAL_MS = 15000;
+
+    // `tree` em vez do nó exato: uma sprint é uma ÁRVORE de execuções, e a nota
+    // ficava presa ao nó em que nasceu, sumindo das fases seguintes.
+    const fetchScratches = useCallback(async (bypassCache: boolean) => {
+        if (!projectId || !executionId) return;
+        const snapsData = await getSnaps(projectId, 0, 100, undefined, executionId, {
+            executionScope: 'tree',
+            bypassCache,
+        });
+        return snapsData.filter(s => (s.snadds as any)?.type === 'scratch');
+    }, [projectId, executionId]);
+
     useEffect(() => {
         const initData = async () => {
             if (!projectId || !executionId) return;
@@ -42,10 +58,9 @@ export const ScratchView: React.FC = () => {
 
                 // Fetch scratches
                 setIsLoadingScratches(true);
-                const snapsData = await getSnaps(projectId, 0, 100, undefined, executionId);
-                const scratchSnaps = snapsData.filter(s => (s.snadds as any)?.type === 'scratch');
+                const scratchSnaps = await fetchScratches(false) ?? [];
                 setScratches(scratchSnaps);
-                
+
                 if (scratchSnaps.length > 0) {
                     setSelectedScratch(scratchSnaps[0]);
                     setScratchName(scratchSnaps[0].name);
@@ -60,7 +75,34 @@ export const ScratchView: React.FC = () => {
         };
 
         initData();
-    }, [projectId, executionId]);
+    }, [projectId, executionId, fetchScratches]);
+
+    useEffect(() => {
+        if (!projectId || !executionId) return;
+
+        // Não sobrescreve a nota que está sendo editada: o refetch atualiza a
+        // lista, nunca o editor aberto.
+        const refresh = async () => {
+            if (document.hidden || isEditingScratch) return;
+            try {
+                const fresh = await fetchScratches(true);
+                if (fresh) setScratches(fresh);
+            } catch (err) {
+                console.error('Failed to refresh scratches:', err);
+            }
+        };
+
+        const timer = window.setInterval(refresh, REFETCH_INTERVAL_MS);
+        // Aba oculta não consome requisição; ao voltar, busca imediatamente em
+        // vez de esperar o próximo tick.
+        const onVisibility = () => { if (!document.hidden) refresh(); };
+        document.addEventListener('visibilitychange', onVisibility);
+
+        return () => {
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, [projectId, executionId, isEditingScratch, fetchScratches]);
 
     const handleCreateScratch = async () => {
         if (!projectId || !executionId) return;
@@ -111,7 +153,7 @@ export const ScratchView: React.FC = () => {
     const handleDeleteScratch = async (id: string) => {
         if (!confirm('Are you sure you want to delete this scratch?')) return;
         try {
-            await deleteSnap(id);
+            await deleteSnap(id, projectId);
             setScratches(prev => prev.filter(s => s.id !== id));
             if (selectedScratch?.id === id) {
                 setSelectedScratch(null);
@@ -237,6 +279,23 @@ export const ScratchView: React.FC = () => {
                                         <span className="text-[9px] text-white/20 font-medium">
                                             {new Date(scratch.updated_at || scratch.created_at).toLocaleDateString()}
                                         </span>
+                                        {/* A lista agora mistura nos da arvore. Sem a fase de origem,
+                                            duas notas homonimas de fases diferentes ficam
+                                            indistinguiveis — foi assim que "Pendencias Sprint 9"
+                                            acabou duplicada e divergindo. */}
+                                        {scratch.execution_phase && (
+                                            <>
+                                                <span className="text-[9px] text-white/10">·</span>
+                                                <span className="text-[9px] text-orange-400/50 font-mono">
+                                                    {scratch.execution_phase}
+                                                </span>
+                                            </>
+                                        )}
+                                        {scratch.agent_execution_id && scratch.agent_execution_id !== executionId && (
+                                            <span className="text-[9px] text-white/20 px-1.5 py-0.5 rounded bg-white/5">
+                                                outra fase
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             ))

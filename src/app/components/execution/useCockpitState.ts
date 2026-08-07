@@ -114,7 +114,12 @@ export const useCockpitState = (
         setIsPeerReviewModalOpen(true);
         setIsLoadingPeerReview(true);
         try {
-            const snaps = await getSnaps(projectId, 0, 50, undefined, execution.id);
+            // Escopo de arvore: o peer review pode ter nascido em outro no da
+            // mesma execucao (a fase `plan_review` cria um no proprio), e com
+            // igualdade exata ele ficava invisivel a partir da fase seguinte.
+            const snaps = await getSnaps(projectId, 0, 50, undefined, execution.id, {
+                executionScope: 'tree',
+            });
             const reviewSnap = snaps.find(s =>
                 s.name.toLowerCase().includes('peer review report') ||
                 s.name.toLowerCase().includes('peer review')
