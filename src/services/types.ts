@@ -40,6 +40,10 @@ export interface Snap {
     created_at: string;
     updated_at: string;
     project_name?: string;
+    /** Fase da execução em que a nota nasceu. Com escopo de árvore a lista
+     *  mistura nós, e duas notas homônimas precisam ser distinguíveis sem
+     *  que o usuário tenha de abrir cada uma. */
+    execution_phase?: string | null;
 }
 
 export interface SnapCreate {
