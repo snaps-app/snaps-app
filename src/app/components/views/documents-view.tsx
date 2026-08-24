@@ -8,6 +8,11 @@ import { DocEditorModal } from '@/app/components/documents/doc-editor-modal';
 import { DocViewerModal } from '@/app/components/documents/doc-viewer-modal';
 import { DocCard } from '@/app/components/documents/doc-card';
 import { useDocumentsView } from '@/app/components/views/useDocumentsView';
+import { SourceDocumentsTab } from '@/app/components/documents/source-documents-tab';
+import { ImportDestinationModal } from '@/app/components/modals/import-destination-modal';
+import { SourceImportModal } from '@/app/components/modals/source-import-modal';
+import { useState } from 'react';
+import type { DestinoImportacao } from '@/app/components/modals/import-destination-modal';
 
 export function DocumentsView() {
   const {
@@ -49,6 +54,19 @@ export function DocumentsView() {
     filteredDocuments,
     mockDocuments
   } = useDocumentsView();
+
+  // Qual passo da importacao esta aberto. `destino` e a pergunta; os dois
+  // valores seguintes sao os fluxos que ela despacha.
+  const [perguntandoDestino, setPerguntandoDestino] = useState(false);
+  const [importandoSource, setImportandoSource] = useState(false);
+  // Muda a cada importacao concluida, so para a aba recarregar a lista.
+  const [recarga, setRecarga] = useState(0);
+
+  const escolherDestino = (d: DestinoImportacao) => {
+    setPerguntandoDestino(false);
+    if (d === 'governance') setImportModalOpen(true);
+    else setImportandoSource(true);
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--snaps-bg)' }}>
@@ -197,7 +215,7 @@ export function DocumentsView() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Imported Documents
+                Source documents
                 <span
                   className="ml-2 px-2 py-0.5 rounded text-xs"
                   style={{
@@ -212,9 +230,9 @@ export function DocumentsView() {
             </motion.div>
 
             <AnimatePresence>
-              {activeTab === 'governance' && (
+              {(activeTab === 'governance' || activeTab === 'imported') && (
                 <div className="flex items-center gap-2">
-                  <div className="relative group">
+                  <div className="relative group" style={{ display: activeTab === 'governance' ? undefined : 'none' }}>
                     <motion.button
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -237,7 +255,7 @@ export function DocumentsView() {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    onClick={() => setImportModalOpen(true)}
+                    onClick={() => setPerguntandoDestino(true)}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-300 font-bold hover:bg-violet-500/20 transition-all"
                   >
                     <Upload className="w-4 h-4" />
@@ -248,6 +266,7 @@ export function DocumentsView() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     onClick={openCreate}
+                    style={{ display: activeTab === 'governance' ? undefined : 'none' }}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 text-green-300 font-bold hover:from-green-500/30 hover:to-emerald-500/30 transition-all"
                   >
                     <Plus className="w-5 h-5" />
@@ -262,13 +281,19 @@ export function DocumentsView() {
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              className={activeTab === 'imported' ? 'flex flex-col gap-2' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              {activeTab === 'governance'
+              {activeTab === 'imported' && projectId ? (
+                <SourceDocumentsTab
+                  key={recarga}
+                  projectId={projectId}
+                  onAbrir={(d) => navigate(`/project/${projectId}/documents/${d.id}`)}
+                />
+              ) : activeTab === 'governance'
                 ? govDocs.map((doc, index) => (
                     <DocCard
                       key={doc.id}
@@ -290,13 +315,12 @@ export function DocumentsView() {
                       onView={() => {}}
                       onDelete={() => {}}
                     />
-                  ))
-              }
+                  ))}
             </motion.div>
           </AnimatePresence>
 
           {/* Empty State */}
-          {((activeTab !== 'governance' && filteredDocuments.length === 0) || (activeTab === 'governance' && govDocs.length === 0)) && (
+          {((activeTab === 'generated' && filteredDocuments.length === 0) || (activeTab === 'governance' && govDocs.length === 0)) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -307,7 +331,12 @@ export function DocumentsView() {
                 No documents yet
               </h3>
               <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                {activeTab === 'generated' ? 'Generate your first document to get started' : activeTab === 'imported' ? 'Import documents to see them here' : 'Create a PRD or Strategy context for your project'}
+                {/* A aba `imported` cuida do proprio vazio: ela sabe distinguir
+                    "nao ha material" de "a chamada falhou", e as duas coisas
+                    precisam de telas diferentes. */}
+                {activeTab === 'generated'
+                  ? 'Geração de documentos ainda não foi construída.'
+                  : 'Create a PRD or Strategy context for your project'}
               </p>
             </motion.div>
           )}
@@ -343,6 +372,32 @@ export function DocumentsView() {
           }
         }}
       />
+
+      {/* Para onde vai o arquivo. O "Importar" tinha um destino so, e por isso
+          quem tentava trazer uma aula por aqui nao chegava a lugar nenhum. */}
+      <AnimatePresence>
+        {perguntandoDestino && (
+          <ImportDestinationModal
+            onEscolher={escolherDestino}
+            onClose={() => setPerguntandoDestino(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {importandoSource && projectId && (
+          <SourceImportModal
+            projectId={projectId}
+            onClose={() => setImportandoSource(false)}
+            onPronto={({ doc }) => {
+              setImportandoSource(false);
+              setRecarga((n) => n + 1);
+              setActiveTab('imported');
+              navigate(`/project/${projectId}/documents/${doc.id}`);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* PRD / Roadmap Import Modal */}
       <AnimatePresence>
