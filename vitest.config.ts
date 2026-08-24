@@ -21,5 +21,15 @@ export default defineConfig({
     // '@playwright/test'.
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['node_modules', 'dist', 'tests/e2e'],
+    // Valores de fachada, nunca credenciais. `createClient` do Supabase roda no
+    // import de `services/client`, e sem URL ele LANCA -- entao qualquer teste
+    // que alcance a cadeia de servicos falha na coleta, antes do primeiro
+    // `it`. Isto e o que impede o modulo de explodir; nenhuma chamada de rede
+    // sai daqui, os testes sobem mock do cliente.
+    env: {
+      VITE_SUPABASE_URL: 'http://supabase.test',
+      VITE_SUPABASE_ANON_KEY: 'chave-de-teste',
+      VITE_API_URL: 'http://api.test',
+    },
   },
 });

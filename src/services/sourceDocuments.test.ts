@@ -27,6 +27,8 @@ import {
   decomposeSourceDocument,
   extractSourceDocument,
   getReviewSnaps,
+  getSourceDocument,
+  getSourceDocumentDownloadUrl,
 } from '@/services/sourceDocuments';
 
 const PROJETO = '7d17a48e-5615-4c90-9602-531f1b5a603d';
@@ -130,5 +132,55 @@ describe('notas de um lote', () => {
     vi.mocked(api.get).mockResolvedValue({ data: [] });
     await expect(getReviewSnaps(PROJETO, {})).rejects.toThrow(/documento ou lote/i);
     expect(api.get).not.toHaveBeenCalled();
+  });
+});
+
+describe('baixar o original', () => {
+  it('devolve a URL assinada que o backend gera, nao um caminho de API', async () => {
+    // O bucket e privado. O binario so e alcancavel pela URL assinada de
+    // validade curta que a rota devolve -- montar `/download` na mao e apontar
+    // o navegador para um endpoint que exige o header de autenticacao que uma
+    // navegacao de aba nova nao carrega.
+    vi.mocked(api.get).mockResolvedValue({
+      data: { url: 'https://storage.test/assinada?token=abc', expira_em_segundos: 300 },
+    });
+
+    const url = await getSourceDocumentDownloadUrl(PROJETO, DOC);
+
+    expect(api.get).toHaveBeenCalledWith(
+      `/projects/${PROJETO}/source_documents/${DOC}/download`,
+    );
+    expect(url).toBe('https://storage.test/assinada?token=abc');
+  });
+
+  it('deixa subir a recusa de documento sem binario', async () => {
+    // 404 aqui e informacao: o documento nasceu por texto e nao ha original
+    // para baixar. Virar string vazia esconderia isso do botao.
+    vi.mocked(api.get).mockRejectedValue({ response: { status: 404 } });
+    await expect(getSourceDocumentDownloadUrl(PROJETO, DOC)).rejects.toBeTruthy();
+  });
+});
+
+describe('abrir um documento', () => {
+  it('carrega os blocos extraidos junto do documento', async () => {
+    // A rota por id responde SourceDocumentWithBlocks. Sem tipar `blocks` o
+    // painel nao tem como mostrar de onde cada nota saiu.
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        id: DOC,
+        name: 'Aula 03.pdf',
+        status: 'extracted',
+        blocks: [
+          { id: 'b1', block_id: 'p1-b1', page: 1, ordem: 0, tipo: 'paragrafo', content: 'Primeiro' },
+          { id: 'b2', block_id: 'p2-b1', page: 2, ordem: 1, tipo: 'paragrafo', content: 'Segundo' },
+        ],
+      },
+    });
+
+    const doc = await getSourceDocument(PROJETO, DOC);
+
+    expect(doc.blocks).toHaveLength(2);
+    expect(doc.blocks?.[0].page).toBe(1);
+    expect(doc.blocks?.[1].content).toBe('Segundo');
   });
 });

@@ -31,6 +31,21 @@ export interface SourceDocument {
   updated_at?: string;
 }
 
+export interface SourceDocumentBlock {
+  id: string;
+  /** Identificador estavel dentro do documento, usado na proveniencia do snap. */
+  block_id: string;
+  page: number | null;
+  ordem: number;
+  tipo: string;
+  content: string;
+}
+
+/** A rota por id responde com os blocos junto; a listagem, nao. */
+export interface SourceDocumentWithBlocks extends SourceDocument {
+  blocks?: SourceDocumentBlock[];
+}
+
 export interface ResultadoExtracao {
   blocos: number;
   status: SourceDocumentStatus;
@@ -51,7 +66,7 @@ export const listSourceDocuments = async (projectId: string): Promise<SourceDocu
 export const getSourceDocument = async (
   projectId: string,
   docId: string,
-): Promise<SourceDocument> => {
+): Promise<SourceDocumentWithBlocks> => {
   const r = await api.get(`/projects/${projectId}/source_documents/${docId}`);
   return r.data;
 };
@@ -88,8 +103,21 @@ export const decomposeSourceDocument = async (
   return r.data;
 };
 
-export const downloadSourceDocumentPath = (projectId: string, docId: string): string =>
-  `/projects/${projectId}/source_documents/${docId}/download`;
+/**
+ * A URL assinada do binario original.
+ *
+ * O bucket e privado, entao nao ha caminho publico a montar. Apontar o
+ * navegador para a rota de API tambem nao funciona: uma navegacao de aba nova
+ * nao carrega o header de autenticacao. O backend devolve uma URL de validade
+ * curta -- e ela que abre.
+ */
+export const getSourceDocumentDownloadUrl = async (
+  projectId: string,
+  docId: string,
+): Promise<string> => {
+  const r = await api.get(`/projects/${projectId}/source_documents/${docId}/download`);
+  return r.data.url;
+};
 
 export interface FiltroRevisao {
   sourceDocumentId?: string;
