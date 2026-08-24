@@ -187,7 +187,13 @@ export function MemoryView() {
     const t = setTimeout(async () => {
       try {
         const r = await searchSnapsGlobal(termo, 50);
-        setSearchResults(r);
+        // O endpoint devolve as colunas do snap, sem `project_name` -- ele nao
+        // faz join com projects. Numa busca GLOBAL, resultado sem indicacao de
+        // projeto e ambiguo: o mesmo assunto aparece em varios, e o usuario
+        // precisa saber de onde veio antes de agir sobre a nota.
+        // Os nomes ja estao carregados na barra lateral; e so casar por id.
+        const nomes = new Map(folderStructure.map(f => [f.id, f.name]));
+        setSearchResults(r.map(x => ({ ...x, project_name: x.project_name ?? nomes.get(x.project_id) })));
         setSearchMode(r.length > 0 ? (r[0].modo ?? null) : null);
       } catch (e) {
         console.error('Busca falhou:', e);
@@ -198,7 +204,7 @@ export function MemoryView() {
       }
     }, 350);
     return () => clearTimeout(t);
-  }, [searchQuery]);
+  }, [searchQuery, folderStructure]);
 
   useEffect(() => {
     const fetchData = async () => {
