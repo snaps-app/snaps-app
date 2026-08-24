@@ -1,5 +1,5 @@
-import { getAllSnaps } from '@/services/snaps';
-import type { Snap } from '@/services/types';
+import { getAllSnaps, searchSnapsGlobal, promoteSnaps, discardSnaps } from '@/services/snaps';
+import type { Snap, SnapSearchResult } from '@/services/types';
 import { useEffect, useState } from 'react';
 import { Search, Folder, ChevronRight, ChevronDown, FileText, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -107,12 +107,98 @@ function FolderTree({ nodes, level = 0 }: { nodes: FolderNode[]; level?: number 
 
 export function MemoryView() {
   const [searchQuery, setSearchQuery] = useState('');
+  // Resultados vindos do SERVIDOR. `null` = nenhuma busca ativa, e a grade
+  // mostra a listagem normal. Distinto de `[]`, que e "buscou e nao achou" --
+  // colapsar os dois esconderia o estado vazio, que e resposta legitima.
+  const [searchResults, setSearchResults] = useState<SnapSearchResult[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState<string | null>(null);
+  const [revisando, setRevisando] = useState<string | null>(null);
+
+
   const [ruleFilter, setRuleFilter] = useState<'all' | 'staged' | 'active' | 'deprecated' | 'agent-memory'>('all');
   const [isSnapDetailModalOpen, setIsSnapDetailModalOpen] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<MemoryCard | null>(null);
   const [memoryCards, setMemoryCards] = useState<MemoryCard[]>([]);
   const [folderStructure, setFolderStructure] = useState<FolderNode[]>([]);
   const [mobileView, setMobileView] = useState<'sidebar' | 'main'>('main');
+
+  // Pendencias derivadas do que ja esta carregado -- nao ha chamada extra. A
+  // tela de Memory e global e o endpoint de revisao e por projeto, entao o
+  // agrupamento acontece aqui e cada acao vai ao projeto do proprio lote.
+  const staged = memoryCards.filter(c => (c.status || c.snadds?.status) === 'staged');
+  const pendentes = staged.length;
+
+  // O LOTE de importacao e a unidade de revisao, nao o snap solto: importar uma
+  // aula gera dezenas de uma vez, e revisar um a um sem agrupamento reproduz o
+  // limbo que este fluxo existe para resolver.
+  const lotes = Object.values(
+    staged.reduce((acc, snap) => {
+      const gid = snap.snadds?.group_id || 'sem-lote';
+      const chave = `${snap.project_id}::${gid}`;
+      (acc[chave] ||= {
+        chave,
+        groupId: snap.snadds?.group_id,
+        projectId: snap.project_id,
+        projectName: snap.project_name,
+        importado: snap.trust_level === 'imported',
+        snaps: [] as Snap[],
+      }).snaps.push(snap);
+      return acc;
+    }, {} as Record<string, any>)
+  );
+
+  const revisarLote = async (lote: any, acao: 'promover' | 'descartar') => {
+    const rotulo = lote.groupId ? 'este lote' : 'os snaps sem lote';
+    const verbo = acao === 'promover' ? 'promover' : 'DESCARTAR';
+    if (!confirm(`${verbo} ${lote.snaps.length} snap(s) de ${rotulo}?`)) return;
+
+    setRevisando(lote.chave);
+    try {
+      // Sempre por snap_ids, mesmo havendo group_id: o group_id pode repetir
+      // entre projetos, e a rota e por projeto. Enviar ids e inequivoco.
+      const ids = lote.snaps.map((x: Snap) => x.id);
+      if (acao === 'promover') {
+        await promoteSnaps(lote.projectId, { snap_ids: ids });
+      } else {
+        await discardSnaps(lote.projectId, { snap_ids: ids });
+      }
+      const { snaps } = await getAllSnaps();
+      setMemoryCards(snaps as MemoryCard[]);
+    } catch (e) {
+      console.error('Revisao falhou:', e);
+      alert('Falha ao revisar o lote. Veja o console.');
+    } finally {
+      setRevisando(null);
+    }
+  };
+
+  // Busca no servidor, com debounce. Antes isto era `.includes()` sobre a base
+  // inteira carregada no browser -- o que, alem do trafego, deixava invisiveis
+  // os snaps de projetos com mais de 100 notas: eles nunca chegavam ao cliente.
+  useEffect(() => {
+    const termo = searchQuery.trim();
+    if (!termo) {
+      setSearchResults(null);
+      setSearchMode(null);
+      return;
+    }
+    setIsSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchSnapsGlobal(termo, 50);
+        setSearchResults(r);
+        setSearchMode(r.length > 0 ? (r[0].modo ?? null) : null);
+      } catch (e) {
+        console.error('Busca falhou:', e);
+        setSearchResults([]);
+        setSearchMode(null);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -276,13 +362,31 @@ export function MemoryView() {
                   }}
                 >
                   <Brain className="w-4 h-4" style={{ color: 'var(--snaps-accent-blue)' }} />
+                  {/* O rotulo acompanha o que a busca REALMENTE fez.
+                    *
+                    * Este selo dizia "Neural Search" sobre um `.includes()` de
+                    * substring. Um rotulo que afirma capacidade inexistente e
+                    * pior que rotulo nenhum: renova a cada uso a crenca de que
+                    * a busca semantica ja existia -- foi assim que "cada snap e
+                    * vetorizado ao ser salvo" sobreviveu com 0 de 576 vetores.
+                    *
+                    * 'lexical' significa que o ramo vetorial caiu; o usuario
+                    * precisa saber que o resultado esta mais fraco. */}
                   <span style={{
-                    background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
+                    background: searchMode === 'lexical'
+                      ? 'linear-gradient(135deg, #FFB020 0%, #FF6B35 100%)'
+                      : 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text'
                   }}>
-                    Neural Search
+                    {isSearching
+                      ? 'Buscando...'
+                      : searchMode === 'hibrida'
+                        ? 'Neural Search'
+                        : searchMode === 'lexical'
+                          ? 'Busca textual (semantica indisponivel)'
+                          : 'Busca'}
                   </span>
                 </div>
               </motion.div>
@@ -341,6 +445,21 @@ export function MemoryView() {
                 >
                   <Folder className="w-4 h-4" />
                   Staged Rules
+                  {/* Contador de pendencias. A ausencia de sinalizacao e metade
+                    * da causa de 572 snaps terem ficado parados em staging:
+                    * ninguem deixou de revisar por decisao, deixou por nao
+                    * haver nada indicando que havia o que revisar. */}
+                  {pendentes > 0 && (
+                    <span
+                      className="ml-1 px-2 py-0.5 rounded-full text-xs font-bold"
+                      style={{
+                        background: 'var(--snaps-accent-orange)',
+                        color: '#0B0F19'
+                      }}
+                    >
+                      {pendentes}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setRuleFilter('active')}
@@ -370,23 +489,105 @@ export function MemoryView() {
             </div>
           </motion.div>
 
+          {/* Painel de revisao do staging.
+            *
+            * O filtro `staged` ja existia -- dava para VER o que estava
+            * parado. Faltava a ACAO, e e por isso que 572 snaps ficaram no
+            * limbo: nao foi decisao de ninguem, foi ausencia de botao. */}
+          {ruleFilter === 'staged' && lotes.length > 0 && (
+            <div className="px-8 pt-6">
+              <div className="max-w-7xl mx-auto space-y-3">
+                {lotes.map((lote: any) => (
+                  <div
+                    key={lote.chave}
+                    className="flex items-center justify-between gap-4 p-4 rounded-xl backdrop-blur-xl"
+                    style={{
+                      background: 'rgba(255, 107, 53, 0.06)',
+                      border: '1px solid rgba(255, 107, 53, 0.3)'
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium" style={{ color: 'var(--snaps-text-primary)' }}>
+                          {lote.snaps.length} snap(s)
+                        </span>
+                        {lote.projectName && (
+                          <span className="text-sm opacity-70" style={{ color: 'var(--snaps-text-secondary)' }}>
+                            · {lote.projectName}
+                          </span>
+                        )}
+                        {/* Lote importado precisa ser visivel ANTES da acao:
+                          * aprovar material de terceiro nao e a mesma decisao
+                          * que aprovar uma nota escrita pelo time. */}
+                        {lote.importado && (
+                          <span
+                            className="px-2 py-0.5 rounded text-xs font-semibold"
+                            style={{ background: 'rgba(168,85,247,0.2)', color: '#A855F7' }}
+                          >
+                            importado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs mt-1 opacity-60 truncate" style={{ color: 'var(--snaps-text-secondary)' }}>
+                        {lote.groupId ? `lote ${String(lote.groupId).slice(0, 8)}` : 'sem lote de importacao'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        disabled={revisando === lote.chave}
+                        onClick={() => revisarLote(lote, 'promover')}
+                        className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                        style={{
+                          background: 'rgba(0, 212, 255, 0.15)',
+                          border: '1px solid rgba(0, 212, 255, 0.5)',
+                          color: 'var(--snaps-accent-blue)'
+                        }}
+                      >
+                        {revisando === lote.chave ? '...' : 'Aprovar lote'}
+                      </button>
+                      <button
+                        disabled={revisando === lote.chave}
+                        onClick={() => revisarLote(lote, 'descartar')}
+                        className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                        style={{
+                          background: 'rgba(255, 107, 53, 0.1)',
+                          border: '1px solid rgba(255, 107, 53, 0.4)',
+                          color: 'var(--snaps-accent-orange)'
+                        }}
+                      >
+                        Descartar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Knowledge Grid */}
           <div className="flex-1 overflow-y-auto p-8">
             <div className="max-w-7xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence>
-                  {memoryCards.filter(card => {
-                    // Filter by rule status or agent-memory label
+                  {(searchResults ?? memoryCards).filter(card => {
+                    // Filtro por status ou por label de agente.
                     if (ruleFilter === 'agent-memory') {
                       const labels: string[] = card.snadds?.labels ?? [];
                       if (!labels.includes('agent-memory')) return false;
                     } else if (ruleFilter !== 'all') {
-                      const snapStatus = card.snadds?.status || '';
+                      // Le a COLUNA `status`, canonica desde a migration 052.
+                      // Lia `snadds.status`, e por isso 59 snaps apareciam com
+                      // status diferente conforme quem perguntasse: a rota de
+                      // promocao gravava so no JSON, a coluna ficava no default.
+                      // O fallback ao JSON cobre a janela ate o deploy.
+                      const snapStatus = card.status || card.snadds?.status || '';
                       if (snapStatus !== ruleFilter) return false;
                     }
-                    // Filter by text
-                    return card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      card.content.toLowerCase().includes(searchQuery.toLowerCase());
+                    // Sem filtro de texto aqui: quando ha busca, quem filtrou
+                    // foi o servidor, e refiltrar no cliente descartaria
+                    // justamente os acertos semanticos -- que por definicao nao
+                    // contem o termo digitado.
+                    return true;
                   }).map((card) => (
                     <SnapCard
                       key={card.id}
@@ -397,6 +598,17 @@ export function MemoryView() {
                   ))}
                 </AnimatePresence>
               </div>
+
+              {searchResults !== null && searchResults.length === 0 && !isSearching && (
+                <div className="text-center py-16" style={{ color: 'var(--snaps-text-secondary)' }}>
+                  <Brain className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  <p className="text-lg">Nenhum resultado para "{searchQuery}"</p>
+                  <p className="text-sm mt-2 opacity-70">
+                    A busca nao devolve resultados de baixa similaridade so para preencher a lista.
+                    Vazio aqui significa vazio de verdade.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

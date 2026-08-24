@@ -1,6 +1,6 @@
 import { api, getCachedData, setCachedData, invalidateCachedData } from './client';
 import { getProjects } from './projects';
-import type { Snap, SnapCreate, Project } from './types';
+import type { Snap, SnapCreate, Project, SnapSearchResult, ReviewPending } from './types';
 
 /** Alcance do filtro por execução.
  *  - `exact`: só as notas do nó informado (comportamento histórico, default).
@@ -80,5 +80,68 @@ export const getAllSnaps = async (): Promise<{ snaps: Snap[], projects: Project[
 export const updateSnapStatus = async (snapId: string, status: string): Promise<any> => {
     const response = await api.patch(`/snaps/${snapId}/status`, { status });
     if (response.data?.project_id) invalidateSnapsCache(response.data.project_id);
+    return response.data;
+};
+
+// --- Busca hibrida (Sprint 19.0, cards SNA-RD-128 / SNA-RD-129) ---
+//
+// Substitui o filtro por substring que rodava no cliente. Duas diferencas que
+// importam:
+//
+// 1. O termo vai ao SERVIDOR. Antes, `getAllSnaps()` trazia a base inteira para
+//    o browser -- uma requisicao por projeto, cada uma com limit=100 -- e
+//    filtrava aqui. Alem do trafego, isso significava que projeto com mais de
+//    100 snaps tinha resultados INVISIVEIS: eles nunca chegavam ao cliente.
+//
+// 2. O escopo e decidido pelo servidor, nao por parametro. Por isso sao duas
+//    funcoes, e nao uma com flag.
+
+export const searchSnapsInProject = async (
+    projectId: string,
+    q: string,
+    limit: number = 20,
+    incluirStaged: boolean = false
+): Promise<SnapSearchResult[]> => {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    if (incluirStaged) params.append('incluir_staged', 'true');
+    const response = await api.get(`/projects/${projectId}/snaps/search`, { params });
+    return response.data;
+};
+
+export const searchSnapsGlobal = async (
+    q: string,
+    limit: number = 20
+): Promise<SnapSearchResult[]> => {
+    const response = await api.get('/snaps/search', { params: { q, limit } });
+    return response.data;
+};
+
+export const getEmbeddingCoverage = async (projectId: string): Promise<any> => {
+    const response = await api.get(`/projects/${projectId}/snaps/embedding-coverage`);
+    return response.data;
+};
+
+// --- Revisao do staging ---
+
+export const getReviewPending = async (projectId: string): Promise<ReviewPending> => {
+    const response = await api.get(`/projects/${projectId}/snaps/review/pending`);
+    return response.data;
+};
+
+/** Promove snaps de `staged` para `active`. Passe snapIds OU groupId. */
+export const promoteSnaps = async (
+    projectId: string,
+    payload: { snap_ids?: string[]; group_id?: string }
+): Promise<{ promovidos: number; ids: string[] }> => {
+    const response = await api.post(`/projects/${projectId}/snaps/review/promote`, payload);
+    return response.data;
+};
+
+/** Descarta snaps em staging. So alcanca `staged` -- snap ja promovido fica. */
+export const discardSnaps = async (
+    projectId: string,
+    payload: { snap_ids?: string[]; group_id?: string }
+): Promise<{ descartados: number }> => {
+    const response = await api.post(`/projects/${projectId}/snaps/review/discard`, payload);
     return response.data;
 };

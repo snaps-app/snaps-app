@@ -14,6 +14,16 @@ interface SnapCardProps {
 export function SnapCard({ snap, onClick, projectName }: SnapCardProps) {
   const tags = (snap.snadds?.labels || []).map((label: string) => ({ label, variant: 'blue' as const }));
 
+  // Proveniencia visivel no card, nao so no detalhe.
+  //
+  // Snap importado e material de TERCEIRO virando memoria do projeto. Se a
+  // origem so aparecesse ao abrir a nota, na pratica ninguem veria: a leitura
+  // acontece na grade. A opiniao de um material de aula ficaria
+  // indistinguivel de uma decisao de arquitetura do time -- que e exatamente o
+  // risco que a marcacao existe para conter.
+  const importado = snap.trust_level === 'imported';
+  const externo = snap.trust_level === 'external';
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -39,6 +49,22 @@ export function SnapCard({ snap, onClick, projectName }: SnapCardProps) {
             className="text-sm font-semibold mb-3 flex-1"
             style={{ color: 'var(--snaps-text-primary)', lineHeight: '1.6' }}
           >
+            {(importado || externo) && (
+              <span
+                className="mr-2 align-middle px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide"
+                style={{
+                  background: importado ? 'rgba(168,85,247,0.2)' : 'rgba(255,107,53,0.2)',
+                  color: importado ? '#A855F7' : '#FF6B35',
+                }}
+                title={
+                  importado
+                    ? 'Importado de documento externo. E referencia, nao decisao do time.'
+                    : 'Origem externa nao verificada.'
+                }
+              >
+                {importado ? 'importado' : 'externo'}
+              </span>
+            )}
             {snap.name || 'Untitled Snap'}
           </h3>
 
