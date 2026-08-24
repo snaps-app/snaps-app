@@ -69,9 +69,28 @@ export const deleteSnap = async (snapId: string, projectId?: string): Promise<vo
     if (projectId) invalidateSnapsCache(projectId);
 };
 
+// Quantos snaps o endpoint devolve por chamada. E o mesmo default do
+// `read_snaps` da API; pedir mais que isso nao adianta.
+const PAGINA = 100;
+
 export const getAllSnaps = async (): Promise<{ snaps: Snap[], projects: Project[] }> => {
     const projects = await getProjects();
-    const snapsPromises = projects.map(p => getSnaps(p.id).then(snaps => snaps.map(s => ({ ...s, project_name: p.name }))));
+    // Antes isto chamava `getSnaps(p.id)` UMA vez, com o default de 100. Projeto
+    // com mais que isso aparecia truncado sem nenhum sinal: o contador da barra
+    // lateral marcava exatamente 100 e o resto simplesmente nao existia para a
+    // tela. Nubo Conecta tem 246 notas ativas e Snaps tem 190 -- os dois
+    // mostravam 100.
+    const snapsPromises = projects.map(async p => {
+        const todos: Snap[] = [];
+        for (let skip = 0; ; skip += PAGINA) {
+            const lote = await getSnaps(p.id, skip, PAGINA);
+            todos.push(...lote);
+            // Lote menor que a pagina significa que acabou. Trava em 100 paginas
+            // para que um endpoint que ignore `skip` nao vire laco infinito.
+            if (lote.length < PAGINA || skip >= PAGINA * 100) break;
+        }
+        return todos.map(s => ({ ...s, project_name: p.name }));
+    });
     const snapsArrays = await Promise.all(snapsPromises);
     const allSnaps = snapsArrays.flat();
     return { snaps: allSnaps, projects };

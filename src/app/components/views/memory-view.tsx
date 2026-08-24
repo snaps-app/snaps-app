@@ -1,7 +1,7 @@
 import { getAllSnaps, searchSnapsGlobal, promoteSnaps, discardSnaps } from '@/services/snaps';
 import type { Snap, SnapSearchResult } from '@/services/types';
 import { useEffect, useState } from 'react';
-import { Search, Folder, ChevronRight, ChevronDown, FileText, Brain } from 'lucide-react';
+import { Search, Folder, ChevronRight, ChevronDown, FileText, Brain, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { SnapDetailModal } from '@/app/components/modals/snap-detail-modal';
@@ -113,6 +113,11 @@ export function MemoryView() {
   const [searchResults, setSearchResults] = useState<SnapSearchResult[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchMode, setSearchMode] = useState<string | null>(null);
+  // Falha da requisicao e um TERCEIRO estado, distinto de `[]`. Colapsar os
+  // dois fazia 401, CORS e timeout desenharem a mesma tela de "nao achei" --
+  // com a propria tela afirmando que "vazio aqui significa vazio de verdade",
+  // coisa que o codigo nao sustentava.
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [revisando, setRevisando] = useState<string | null>(null);
 
 
@@ -181,9 +186,11 @@ export function MemoryView() {
     if (!termo) {
       setSearchResults(null);
       setSearchMode(null);
+      setSearchError(null);
       return;
     }
     setIsSearching(true);
+    setSearchError(null);
     const t = setTimeout(async () => {
       try {
         const r = await searchSnapsGlobal(termo, 50);
@@ -195,9 +202,16 @@ export function MemoryView() {
         const nomes = new Map(folderStructure.map(f => [f.id, f.name]));
         setSearchResults(r.map(x => ({ ...x, project_name: x.project_name ?? nomes.get(x.project_id) })));
         setSearchMode(r.length > 0 ? (r[0].modo ?? null) : null);
-      } catch (e) {
+      } catch (e: any) {
         console.error('Busca falhou:', e);
-        setSearchResults([]);
+        const status = e?.response?.status;
+        setSearchError(
+          status === 401 ? 'Sua sessao expirou. Entre de novo para buscar.'
+          : status === 403 ? 'Voce nao tem acesso aos projetos desta busca.'
+          : status ? `A API respondeu ${status}.`
+          : `Nao foi possivel falar com a API (${e?.message ?? 'erro desconhecido'}).`
+        );
+        setSearchResults(null);
         setSearchMode(null);
       } finally {
         setIsSearching(false);
@@ -605,7 +619,15 @@ export function MemoryView() {
                 </AnimatePresence>
               </div>
 
-              {searchResults !== null && searchResults.length === 0 && !isSearching && (
+              {searchError && !isSearching && (
+                <div className="text-center py-16" style={{ color: 'var(--snaps-accent-orange)' }}>
+                  <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-80" />
+                  <p className="text-lg">A busca nao pode ser feita</p>
+                  <p className="text-sm mt-2 opacity-80">{searchError}</p>
+                </div>
+              )}
+
+              {!searchError && searchResults !== null && searchResults.length === 0 && !isSearching && (
                 <div className="text-center py-16" style={{ color: 'var(--snaps-text-secondary)' }}>
                   <Brain className="w-10 h-10 mx-auto mb-3 opacity-40" />
                   <p className="text-lg">Nenhum resultado para "{searchQuery}"</p>
