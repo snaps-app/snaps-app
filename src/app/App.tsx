@@ -9,6 +9,8 @@ import { EditProject } from '@/app/components/project/edit-project';
 import { GenerateDocument } from '@/app/components/views/generate-document';
 import { DocumentsView } from '@/app/components/views/documents-view';
 import { SourceDocumentView } from '@/app/components/views/source-document-view';
+import { IngestQueueProvider } from '@/app/ingest/ingestQueue';
+import { IngestToast } from '@/app/ingest/ingest-toast';
 import { Profile } from '@/app/components/views/profile';
 import { MemoryView } from '@/app/components/views/memory-view';
 import { GlobalBoard } from '@/app/components/views/global-board';
@@ -62,8 +64,13 @@ function AuthRedirector() {
 export default function App() {
     return (
         <BrowserRouter>
+            {/* A fila de importacao envolve as rotas de proposito: dentro delas,
+                navegar para revisar um material desmontaria o provider e mataria
+                os uploads em curso. */}
+            <IngestQueueProvider>
             <div className="min-h-screen" style={{ backgroundColor: 'var(--snaps-bg)' }}>
                 <AuthRedirector />
+                <IngestToast />
                 <Routes>
                     {/* Public */}
                     <Route path="/login" element={<Login />} />
@@ -121,6 +128,7 @@ export default function App() {
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </div>
+            </IngestQueueProvider>
         </BrowserRouter>
     );
 }

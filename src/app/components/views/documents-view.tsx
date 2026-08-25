@@ -10,6 +10,7 @@ import { DocCard } from '@/app/components/documents/doc-card';
 import { useDocumentsView } from '@/app/components/views/useDocumentsView';
 import { SourceDocumentsTab } from '@/app/components/documents/source-documents-tab';
 import { listSourceDocuments } from '@/services/sourceDocuments';
+import { useIngestQueue } from '@/app/ingest/ingestQueue';
 import { ImportDestinationModal } from '@/app/components/modals/import-destination-modal';
 import { SourceImportModal } from '@/app/components/modals/source-import-modal';
 import { useEffect, useState } from 'react';
@@ -63,6 +64,12 @@ export function DocumentsView() {
   // Muda a cada importacao concluida, so para a aba recarregar a lista.
   const [recarga, setRecarga] = useState(0);
 
+  // A fila importa em segundo plano; `versao` muda a cada material que passa a
+  // existir no servidor. E o que faz a lista se atualizar sozinha enquanto os
+  // outros ainda sobem -- sem isto o usuario teria de recarregar a pagina para
+  // ver o que ja chegou.
+  const { versao } = useIngestQueue();
+
   // A badge da aba. `null` = ainda nao sei (ou a busca falhou), e nesse caso
   // ela nao aparece -- zero e uma afirmacao, e mostrar "0" ao lado de tres
   // materiais reais e o mesmo defeito dos dados falsos que sairam daqui.
@@ -77,7 +84,7 @@ export function DocumentsView() {
       .then((l) => vivo && setQtdSource(l.length))
       .catch(() => vivo && setQtdSource(null));
     return () => { vivo = false; };
-  }, [projectId, recarga]);
+  }, [projectId, recarga, versao]);
 
   const escolherDestino = (d: DestinoImportacao) => {
     setPerguntandoDestino(false);
@@ -306,7 +313,7 @@ export function DocumentsView() {
             >
               {activeTab === 'imported' && projectId ? (
                 <SourceDocumentsTab
-                  key={recarga}
+                  key={`${recarga}-${versao}`}
                   projectId={projectId}
                   onAbrir={(d) => navigate(`/project/${projectId}/documents/${d.id}`)}
                   onContagem={setQtdSource}
@@ -406,12 +413,11 @@ export function DocumentsView() {
         {importandoSource && projectId && (
           <SourceImportModal
             projectId={projectId}
-            onClose={() => setImportandoSource(false)}
-            onPronto={({ doc }) => {
+            onClose={() => {
               setImportandoSource(false);
-              setRecarga((n) => n + 1);
+              // A aba muda porque e onde os materiais vao aparecer -- um por
+              // um, conforme a fila anda.
               setActiveTab('imported');
-              navigate(`/project/${projectId}/documents/${doc.id}`);
             }}
           />
         )}

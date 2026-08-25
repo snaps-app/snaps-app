@@ -1,139 +1,105 @@
 /**
- * A esteira: upload -> extracao -> decomposicao.
+ * A escolha dos materiais.
  *
- * O portao de tamanho vive aqui. A decomposicao so pergunta quando a espera
- * passa de um minuto, e a pergunta traz os numeros que a justificam -- perguntar
- * sem dizer "quantas chamadas" e "quanto tempo" e so um obstaculo.
+ * Esta modal JA rodou a esteira inteira (upload -> extracao -> decomposicao),
+ * um arquivo por vez, com a tela travada esperando. A esteira mudou de lugar,
+ * nao sumiu: mora agora em `app/ingest/ingestQueue`, acima das rotas, e os
+ * testes de la cobrem upload, extracao, portao de tamanho e falha isolada de um
+ * arquivo sem derrubar os outros.
  *
- * Falha em qualquer etapa preserva o documento. O binario fica guardado no
- * servidor, entao reprocessar nunca exige subir o arquivo de novo.
+ * O motivo da mudanca: enquanto a esteira vivia aqui, fechar a modal ou sair da
+ * tela matava a importacao. Nao dava para revisar um material enquanto os
+ * outros subiam -- que e justamente o que se quer de uma fila.
+ *
+ * O que sobra aqui e uma responsabilidade so: escolher arquivos e entregar.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('@/services/sourceDocuments', () => ({
-  uploadSourceDocument: vi.fn(),
-  extractSourceDocument: vi.fn(),
-  decomposeSourceDocument: vi.fn(),
-}));
+vi.mock('@/app/ingest/ingestQueue', () => ({ useIngestQueue: vi.fn() }));
 
-import {
-  uploadSourceDocument,
-  extractSourceDocument,
-  decomposeSourceDocument,
-} from '@/services/sourceDocuments';
+import { useIngestQueue } from '@/app/ingest/ingestQueue';
 import { SourceImportModal } from '@/app/components/modals/source-import-modal';
 
 const PROJETO = '7d17a48e-5615-4c90-9602-531f1b5a603d';
-const DOC = { id: 'doc-1', name: 'aula.pdf', status: 'uploaded', raw_data: { mimetype: 'application/pdf' } };
 
-const abrir = (props: any = {}) =>
-  render(
-    <SourceImportModal
-      projectId={PROJETO}
-      onClose={props.onClose ?? vi.fn()}
-      onPronto={props.onPronto ?? vi.fn()}
-      {...props}
-    />,
-  );
+let enfileirar: any;
 
-async function escolherArquivo(nome = 'aula.pdf') {
-  const arquivo = new File(['x'], nome, { type: 'application/pdf' });
-  await userEvent.upload(screen.getByLabelText(/arquivo/i), arquivo);
-  return arquivo;
-}
+const abrir = (props: any = {}) => {
+  const onClose = props.onClose ?? vi.fn();
+  render(<SourceImportModal projectId={PROJETO} {...props} onClose={onClose} />);
+  return { onClose };
+};
+
+const pdf = (nome: string) => new File(['x'], nome, { type: 'application/pdf' });
+
+const escolher = async (...nomes: string[]) => {
+  await userEvent.upload(screen.getByLabelText(/arquivos/i), nomes.map(pdf));
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(uploadSourceDocument).mockResolvedValue(DOC as any);
-  vi.mocked(extractSourceDocument).mockResolvedValue({ blocos: 24, status: 'extracted' } as any);
-  vi.mocked(decomposeSourceDocument).mockResolvedValue({
-    group_id: 'lote-1', criados: 14, pulados_ja_promovidos: 0, blocos: 24,
+  enfileirar = vi.fn();
+  vi.mocked(useIngestQueue).mockReturnValue({
+    itens: [], progresso: 0, ativa: false, versao: 0, enfileirar, dispensar: vi.fn(),
   } as any);
 });
 
-describe('caminho automatico', () => {
-  it('sobe, extrai e decompoe sem perguntar quando o documento e pequeno', async () => {
-    // 24 blocos sao 2 chamadas, poucos segundos. Perguntar aqui seria um clique
-    // a toa.
-    const onPronto = vi.fn();
-    abrir({ onPronto });
-    await escolherArquivo();
-    await userEvent.click(screen.getByRole('button', { name: /importar/i }));
-
-    await waitFor(() => expect(decomposeSourceDocument).toHaveBeenCalled());
-    expect(uploadSourceDocument).toHaveBeenCalledWith(PROJETO, expect.any(File));
-    expect(extractSourceDocument).toHaveBeenCalledWith(PROJETO, 'doc-1');
-    expect(onPronto).toHaveBeenCalledWith(expect.objectContaining({ group_id: 'lote-1', criados: 14 }));
-  });
-});
-
-describe('portao de tamanho', () => {
-  it('para e pergunta acima do limite, com chamadas e tempo na tela', async () => {
-    vi.mocked(extractSourceDocument).mockResolvedValue({ blocos: 127, status: 'extracted' } as any);
+describe('escolher', () => {
+  it('aceita mais de um arquivo de uma vez', async () => {
     abrir();
-    await escolherArquivo();
-    await userEvent.click(screen.getByRole('button', { name: /importar/i }));
 
-    expect(await screen.findByText(/127 blocos/i)).toBeInTheDocument();
-    expect(screen.getByText(/11 chamadas/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 min/i)).toBeInTheDocument();
-    // Nao pode ter decomposto sozinho.
-    expect(decomposeSourceDocument).not.toHaveBeenCalled();
+    await escolher('Aula 1.pdf', 'Aula 2.pdf', 'Aula 3.pdf');
+
+    expect(screen.getByText('Aula 1.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Aula 3.pdf')).toBeInTheDocument();
   });
 
-  it('decompoe depois da confirmacao', async () => {
-    vi.mocked(extractSourceDocument).mockResolvedValue({ blocos: 127, status: 'extracted' } as any);
-    abrir();
-    await escolherArquivo();
-    await userEvent.click(screen.getByRole('button', { name: /importar/i }));
-    await userEvent.click(await screen.findByRole('button', { name: /decompor mesmo assim/i }));
-    await waitFor(() => expect(decomposeSourceDocument).toHaveBeenCalledWith(PROJETO, 'doc-1'));
-  });
-
-  it('recusar deixa o documento extraido, para decompor depois', async () => {
-    // Nao e cancelamento: o upload e a extracao ja aconteceram e nao se perdem.
-    vi.mocked(extractSourceDocument).mockResolvedValue({ blocos: 127, status: 'extracted' } as any);
-    const onPronto = vi.fn();
-    abrir({ onPronto });
-    await escolherArquivo();
-    await userEvent.click(screen.getByRole('button', { name: /importar/i }));
-    await userEvent.click(await screen.findByRole('button', { name: /agora não/i }));
-
-    expect(decomposeSourceDocument).not.toHaveBeenCalled();
-    expect(onPronto).toHaveBeenCalledWith(expect.objectContaining({ group_id: null }));
-  });
-});
-
-describe('quando falha', () => {
-  it('mostra a recusa do backend com o texto dele', async () => {
-    const recusa: any = new Error('Request failed');
-    recusa.response = { status: 413, data: { detail: 'arquivo de 40 MB excede o limite de 25 MB' } };
-    vi.mocked(uploadSourceDocument).mockRejectedValue(recusa);
-    abrir();
-    await escolherArquivo();
-    await userEvent.click(screen.getByRole('button', { name: /importar/i }));
-    expect(await screen.findByText(/excede o limite de 25 MB/i)).toBeInTheDocument();
-  });
-
-  it('falha na extracao avisa que o arquivo ficou guardado', async () => {
-    // Sem isso o usuario sobe o mesmo arquivo de novo, sem precisar.
-    const erro: any = new Error('falhou');
-    erro.response = { status: 500, data: { detail: 'PdfReadError: arquivo corrompido' } };
-    vi.mocked(extractSourceDocument).mockRejectedValue(erro);
-    abrir();
-    await escolherArquivo();
-    await userEvent.click(screen.getByRole('button', { name: /importar/i }));
-
-    expect(await screen.findByText(/arquivo corrompido/i)).toBeInTheDocument();
-    expect(screen.getByText(/continua guardado/i)).toBeInTheDocument();
-  });
-});
-
-describe('antes de escolher arquivo', () => {
-  it('nao deixa importar nada', async () => {
+  it('sem arquivo nao ha o que importar', () => {
     abrir();
     expect(screen.getByRole('button', { name: /importar/i })).toBeDisabled();
+  });
+
+  it('da para tirar um da lista antes de mandar', async () => {
+    abrir();
+    await escolher('Aula 1.pdf', 'Aula 2.pdf');
+
+    await userEvent.click(screen.getByRole('button', { name: /remover aula 1\.pdf/i }));
+
+    expect(screen.queryByText('Aula 1.pdf')).not.toBeInTheDocument();
+    expect(screen.getByText('Aula 2.pdf')).toBeInTheDocument();
+  });
+});
+
+describe('entregar a fila', () => {
+  it('enfileira tudo e sai da frente', async () => {
+    // Fechar na hora e o comportamento pedido: a fila continua acima das
+    // rotas, e o usuario pode ir revisar o que ja chegou.
+    const { onClose } = abrir();
+    await escolher('Aula 1.pdf', 'Aula 2.pdf');
+
+    await userEvent.click(screen.getByRole('button', { name: /importar 2 materiais/i }));
+
+    expect(enfileirar).toHaveBeenCalledTimes(1);
+    const [projeto, arquivos] = enfileirar.mock.calls[0];
+    expect(projeto).toBe(PROJETO);
+    expect(arquivos.map((f: File) => f.name)).toEqual(['Aula 1.pdf', 'Aula 2.pdf']);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('o botao diz quantos vao, no singular quando e um so', async () => {
+    abrir();
+    await escolher('Aula 1.pdf');
+
+    expect(screen.getByRole('button', { name: /importar 1 material$/i })).toBeInTheDocument();
+  });
+
+  it('avisa que o trabalho continua depois de fechar', async () => {
+    // Sem isto, a modal sumindo parece cancelamento.
+    abrir();
+    await escolher('Aula 1.pdf');
+
+    expect(screen.getByText(/continua em segundo plano/i)).toBeInTheDocument();
   });
 });
