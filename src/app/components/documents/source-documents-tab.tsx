@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, FileText, Loader2, RefreshCw } from 'lucide-react';
-import { listSourceDocuments, getReviewSnaps } from '@/services/sourceDocuments';
+import { listSourceDocuments } from '@/services/sourceDocuments';
 import type { SourceDocument } from '@/services/sourceDocuments';
 
 /**
@@ -41,31 +41,16 @@ export function SourceDocumentsTab({ projectId, onAbrir, onRevisar, onReprocessa
   // Falha e um estado proprio, nunca uma lista vazia: os dois desenham telas
   // diferentes porque significam coisas diferentes.
   const [erro, setErro] = useState<string | null>(null);
-  const [pendencias, setPendencias] = useState<Record<string, number>>({});
 
   const carregar = useCallback(async () => {
     setErro(null);
     try {
+      // Uma chamada, com as contagens ja dentro. Isto aqui fazia UMA chamada
+      // por documento -- 24 requisicoes para 23 materiais, e a espera crescia
+      // junto com o acervo.
       const lista = await listSourceDocuments(projectId);
       setDocs(lista);
       onContagem?.(lista.length);
-
-      // Quantas notas de cada material ainda esperam decisao. Uma chamada por
-      // documento -- a alternativa seria um agregado no backend, que so vale a
-      // pena quando a lista crescer.
-      const contagens = await Promise.all(
-        lista.map(async (d) => {
-          try {
-            const notas = await getReviewSnaps(projectId, { sourceDocumentId: d.id });
-            return [d.id, notas.length] as const;
-          } catch {
-            // Falhar a contagem nao pode derrubar a lista: sem contador a linha
-            // ainda diz o essencial.
-            return [d.id, 0] as const;
-          }
-        }),
-      );
-      setPendencias(Object.fromEntries(contagens));
     } catch (e: any) {
       setDocs(null);
       setErro(e?.response?.data?.detail ?? e?.message ?? 'erro desconhecido');
@@ -120,7 +105,7 @@ export function SourceDocumentsTab({ projectId, onAbrir, onRevisar, onReprocessa
     <div className="flex flex-col gap-2">
       {docs.map((d) => {
         const rotulo = ROTULO[d.status] ?? ROTULO.uploaded;
-        const aRevisar = pendencias[d.id] ?? 0;
+        const aRevisar = d.notas_pendentes ?? 0;
         const tamanho = tamanhoLegivel(d.raw_data?.size ?? undefined);
 
         return (
@@ -159,9 +144,12 @@ export function SourceDocumentsTab({ projectId, onAbrir, onRevisar, onReprocessa
             )}
 
             <div className="flex gap-2 shrink-0">
-              {d.status === 'extraction_failed' && (
+              {/* So aparece se ha quem reprocesse. Botao que nao faz nada e
+                  pior do que botao ausente: ensina que a tela esta quebrada e
+                  nao diz o que fazer. */}
+              {d.status === 'extraction_failed' && onReprocessar && (
                 <button
-                  onClick={() => onReprocessar?.(d)}
+                  onClick={() => onReprocessar(d)}
                   className="px-3 py-2 rounded-lg text-sm flex items-center gap-2"
                   style={{
                     color: 'var(--snaps-accent-orange)',

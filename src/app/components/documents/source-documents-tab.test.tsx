@@ -68,21 +68,20 @@ describe('o que cada linha comunica', () => {
     vi.mocked(listSourceDocuments).mockResolvedValue([
       doc({ status: 'extraction_failed', extraction_error: 'PdfReadError: arquivo corrompido' }),
     ] as any);
-    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onReprocessar={vi.fn()} />);
     expect(await screen.findByText(/arquivo corrompido/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /tentar de novo/i })).toBeInTheDocument();
   });
 
   it('conta quantas notas daquele material ainda esperam revisao', async () => {
-    vi.mocked(listSourceDocuments).mockResolvedValue([doc()] as any);
-    vi.mocked(getReviewSnaps).mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }] as any);
+    // A contagem vem na propria listagem desde que ela virou um GROUP BY.
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc({ notas_pendentes: 3 })] as any);
     render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
     expect(await screen.findByText(/3 a revisar/i)).toBeInTheDocument();
   });
 
   it('material sem pendencia nao oferece revisao', async () => {
-    vi.mocked(listSourceDocuments).mockResolvedValue([doc()] as any);
-    vi.mocked(getReviewSnaps).mockResolvedValue([] as any);
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc({ notas_pendentes: 0 })] as any);
     render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
     await screen.findByText('Aula 03.pdf');
     await waitFor(() =>
@@ -126,5 +125,64 @@ describe('a contagem da aba', () => {
 
     await waitFor(() => expect(onContagem).toHaveBeenCalledWith(null));
     expect(onContagem).not.toHaveBeenCalledWith(0);
+  });
+});
+
+describe('a contagem vem junto da lista', () => {
+  it('nao faz uma chamada por documento', async () => {
+    // Eram 24 requisicoes para 23 materiais -- e a espera crescia com o
+    // acervo. A listagem ja traz `notas_pendentes`.
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd1', notas_pendentes: 3, notas_total: 5 }),
+      doc({ id: 'd2', name: 'B.pdf', notas_pendentes: 0, notas_total: 0 }),
+    ] as any);
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+
+    expect(await screen.findByText(/3 a revisar/)).toBeInTheDocument();
+    expect(getReviewSnaps).not.toHaveBeenCalled();
+  });
+
+  it('material sem pendencia nao ganha selo', async () => {
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd2', notas_pendentes: 0 }),
+    ] as any);
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+
+    await screen.findByText('Aula 03.pdf');
+    expect(screen.queryByText(/a revisar/)).not.toBeInTheDocument();
+  });
+});
+
+describe('tentar de novo faz alguma coisa', () => {
+  it('chama quem sabe reprocessar, com o documento certo', async () => {
+    // O botao existia e chamava uma prop opcional que ninguem passava:
+    // clicar nao fazia absolutamente nada.
+    const onReprocessar = vi.fn();
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd9', status: 'extraction_failed', extraction_error: 'excede o teto' }),
+    ] as any);
+
+    render(
+      <SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onReprocessar={onReprocessar} />,
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /tentar de novo/i }));
+
+    expect(onReprocessar).toHaveBeenCalledWith(expect.objectContaining({ id: 'd9' }));
+  });
+
+  it('sem ninguem para reprocessar, o botao nao aparece prometendo nada', async () => {
+    // Botao que nao faz nada e pior do que botao ausente: ensina que a tela
+    // esta quebrada e nao diz o que fazer.
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd9', status: 'extraction_failed', extraction_error: 'x' }),
+    ] as any);
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+
+    await screen.findByText('Aula 03.pdf');
+    expect(screen.queryByRole('button', { name: /tentar de novo/i })).not.toBeInTheDocument();
   });
 });

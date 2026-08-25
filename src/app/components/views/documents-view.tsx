@@ -9,7 +9,7 @@ import { DocViewerModal } from '@/app/components/documents/doc-viewer-modal';
 import { DocCard } from '@/app/components/documents/doc-card';
 import { useDocumentsView } from '@/app/components/views/useDocumentsView';
 import { SourceDocumentsTab } from '@/app/components/documents/source-documents-tab';
-import { listSourceDocuments } from '@/services/sourceDocuments';
+import { listSourceDocuments, extractSourceDocument, limitePaginasVision } from '@/services/sourceDocuments';
 import { useIngestQueue } from '@/app/ingest/ingestQueue';
 import { ImportDestinationModal } from '@/app/components/modals/import-destination-modal';
 import { SourceImportModal } from '@/app/components/modals/source-import-modal';
@@ -317,6 +317,23 @@ export function DocumentsView() {
                   projectId={projectId}
                   onAbrir={(d) => navigate(`/project/${projectId}/documents/${d.id}`)}
                   onContagem={setQtdSource}
+                  onReprocessar={async (d) => {
+                    // O botao existia e chamava uma prop que ninguem passava:
+                    // clicar nao fazia nada. Agora reextrai de verdade.
+                    try {
+                      await extractSourceDocument(projectId, d.id);
+                      setRecarga((n) => n + 1);
+                    } catch (e) {
+                      // Recusa por custo do Vision nao se resolve aqui: quem
+                      // tem a conta na tela e o portao do material. Levar para
+                      // la e melhor do que duplicar o portao na lista.
+                      if (limitePaginasVision(e)) {
+                        navigate(`/project/${projectId}/documents/${d.id}`);
+                      } else {
+                        setRecarga((n) => n + 1);
+                      }
+                    }
+                  }}
                 />
               ) : activeTab === 'governance'
                 ? govDocs.map((doc, index) => (

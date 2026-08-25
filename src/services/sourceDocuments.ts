@@ -29,6 +29,10 @@ export interface SourceDocument {
   } | null;
   created_at?: string;
   updated_at?: string;
+  /** Contagens que a LISTAGEM ja devolve. Ausentes na rota por id -- a aba
+   *  fazia uma chamada por documento para descobrir isto. */
+  notas_total?: number;
+  notas_pendentes?: number;
 }
 
 export interface SourceDocumentBlock {
