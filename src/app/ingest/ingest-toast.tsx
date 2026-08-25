@@ -1,4 +1,5 @@
-import { AlertTriangle, CheckCircle2, Loader2, Scissors, X } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, Scissors, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useIngestQueue } from '@/app/ingest/ingestQueue';
 import type { EstadoItem } from '@/app/ingest/ingestQueue';
@@ -11,6 +12,11 @@ import type { EstadoItem } from '@/app/ingest/ingestQueue';
  * ser grande NAO e sucesso nem falha, e sim decisao pendente. Chamar isso de
  * "pronto" faria o usuario nunca voltar nele, e o material ficaria extraido
  * para sempre sem virar nota nenhuma.
+ *
+ * Da para encolher, porque expandido ele cobria os botoes do painel de revisao
+ * -- sobrepor a acao que o proprio aviso pede e o pior lugar possivel. Mas
+ * encolhido ele NAO pode virar so uma bolinha: continua contando quantos
+ * materiais esperam decisao, senao esconder vira perder.
  */
 
 const ETAPA: Record<EstadoItem, string> = {
@@ -27,12 +33,52 @@ const TERMINADOS: EstadoItem[] = ['pronto', 'falhou', 'grande-demais'];
 
 export function IngestToast() {
   const { itens, progresso, ativa, dispensar } = useIngestQueue();
+  const [minimizado, setMinimizado] = useState(false);
 
   if (itens.length === 0) return null;
 
   const concluidos = itens.filter((i) => TERMINADOS.includes(i.estado)).length;
   const corrente = itens.find((i) => !TERMINADOS.includes(i.estado));
   const problemas = itens.filter((i) => i.estado === 'falhou' || i.estado === 'grande-demais');
+  const esperandoDecisao = itens.filter((i) => i.estado === 'grande-demais').length;
+  const pct = Math.round(progresso * 100);
+
+  if (minimizado) {
+    return (
+      <button
+        onClick={() => setMinimizado(false)}
+        aria-label="Maximizar"
+        className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-full"
+        style={{
+          background: '#101014',
+          border: '1px solid rgba(255,255,255,0.14)',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.5)',
+        }}
+      >
+        {ativa ? (
+          <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--snaps-accent-blue)' }} />
+        ) : (
+          <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--snaps-accent-green)' }} />
+        )}
+        <span className="text-xs font-mono" style={{ color: 'var(--snaps-text-secondary)' }}>
+          {concluidos} de {itens.length} · {pct}%
+        </span>
+        {esperandoDecisao > 0 && (
+          <span
+            className="text-xs px-2 py-0.5 rounded-full"
+            style={{
+              color: 'var(--snaps-accent-orange)',
+              border: '1px solid rgba(255,107,53,0.45)',
+              background: 'rgba(255,107,53,0.12)',
+            }}
+          >
+            {esperandoDecisao} esperando você
+          </span>
+        )}
+        <ChevronUp className="w-4 h-4" style={{ color: 'var(--snaps-text-secondary)' }} />
+      </button>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -60,19 +106,27 @@ export function IngestToast() {
               </span>
             </div>
             <p className="text-xs mt-1 font-mono" style={{ color: 'var(--snaps-placeholder)' }}>
-              {concluidos} de {itens.length} · {Math.round(progresso * 100)}%
+              {concluidos} de {itens.length} · {pct}%
             </p>
           </div>
-          {!ativa && (
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={dispensar}
-              aria-label="Dispensar"
-              className="shrink-0"
+              onClick={() => setMinimizado(true)}
+              aria-label="Minimizar"
               style={{ color: 'var(--snaps-text-secondary)' }}
             >
-              <X className="w-4 h-4" />
+              <ChevronDown className="w-4 h-4" />
             </button>
-          )}
+            {!ativa && (
+              <button
+                onClick={dispensar}
+                aria-label="Dispensar"
+                style={{ color: 'var(--snaps-text-secondary)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div
@@ -82,7 +136,7 @@ export function IngestToast() {
           <div
             className="h-full rounded-full transition-all"
             style={{
-              width: `${Math.round(progresso * 100)}%`,
+              width: `${pct}%`,
               background: 'linear-gradient(90deg, #00D4FF 0%, #A855F7 100%)',
             }}
           />

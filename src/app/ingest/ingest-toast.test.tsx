@@ -113,3 +113,76 @@ it('so da para dispensar quando nao ha mais nada rodando', async () => {
   await userEvent.click(screen.getByRole('button', { name: /dispensar/i }));
   expect(dispensar).toHaveBeenCalled();
 });
+
+describe('sair da frente', () => {
+  const fila22 = () =>
+    fila({
+      itens: [
+        item('A.pdf', 'pronto'),
+        item('B.pdf', 'grande-demais', { blocos: 96 }),
+        item('C.pdf', 'grande-demais', { blocos: 65 }),
+        item('D.pdf', 'decompondo'),
+      ],
+      progresso: 0.4,
+      ativa: true,
+    }) as any;
+
+  it('minimiza, e a lista de problemas sai da frente', async () => {
+    // O aviso cobria os botoes de decisao do painel de revisao. Sobrepor a
+    // acao que o proprio aviso pede e o pior lugar possivel para ele estar.
+    vi.mocked(useIngestQueue).mockReturnValue(fila22());
+
+    render(<IngestToast />);
+    expect(screen.getByText('B.pdf')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /minimizar/i }));
+
+    expect(screen.queryByText('B.pdf')).not.toBeInTheDocument();
+    expect(screen.queryByText('D.pdf')).not.toBeInTheDocument();
+  });
+
+  it('minimizado continua dizendo quanto falta', async () => {
+    vi.mocked(useIngestQueue).mockReturnValue(fila22());
+
+    render(<IngestToast />);
+    await userEvent.click(screen.getByRole('button', { name: /minimizar/i }));
+
+    // 3 de 4: "grande demais" ja terminou PARA A FILA -- nada mais vai rodar
+    // nele. O que falta ali e decisao humana, e quem carrega isso e o selo ao
+    // lado, nao o contador.
+    expect(screen.getByText(/3 de 4/)).toBeInTheDocument();
+    expect(screen.getByText(/40%/)).toBeInTheDocument();
+  });
+
+  it('minimizado avisa que ha decisao esperando, senao esconder vira perder', async () => {
+    // Dois materiais pararam por serem grandes. Se o aviso encolhido nao
+    // contasse isso, eles ficariam extraidos para sempre sem virar nota.
+    vi.mocked(useIngestQueue).mockReturnValue(fila22());
+
+    render(<IngestToast />);
+    await userEvent.click(screen.getByRole('button', { name: /minimizar/i }));
+
+    expect(screen.getByText(/2 esperando você/i)).toBeInTheDocument();
+  });
+
+  it('nao inventa aviso de decisao quando nao ha nenhuma', async () => {
+    vi.mocked(useIngestQueue).mockReturnValue(
+      fila({ itens: [item('A.pdf', 'pronto'), item('B.pdf', 'subindo')], progresso: 0.5, ativa: true }) as any,
+    );
+
+    render(<IngestToast />);
+    await userEvent.click(screen.getByRole('button', { name: /minimizar/i }));
+
+    expect(screen.queryByText(/esperando você/i)).not.toBeInTheDocument();
+  });
+
+  it('maximizar traz tudo de volta', async () => {
+    vi.mocked(useIngestQueue).mockReturnValue(fila22());
+
+    render(<IngestToast />);
+    await userEvent.click(screen.getByRole('button', { name: /minimizar/i }));
+    await userEvent.click(screen.getByRole('button', { name: /maximizar/i }));
+
+    expect(screen.getByText('B.pdf')).toBeInTheDocument();
+  });
+});
