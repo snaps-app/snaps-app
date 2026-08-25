@@ -5,56 +5,14 @@ import { getProject } from '@/services/projects';
 import type { GovernanceDoc } from '@/services/types';
 import type { FileDocument } from '@/app/components/documents/doc-card';
 
-const mockDocuments: FileDocument[] = [
-  {
-    id: '1',
-    name: 'Zettelkasten Method Guide',
-    type: 'generated',
-    format: 'md',
-    size: '24 KB',
-    date: '2h ago'
-  },
-  {
-    id: '2',
-    name: 'Second Brain Framework Overview',
-    type: 'generated',
-    format: 'pdf',
-    size: '156 KB',
-    date: '5h ago'
-  },
-  {
-    id: '3',
-    name: 'PARA Method Explained',
-    type: 'generated',
-    format: 'docx',
-    size: '48 KB',
-    date: '1d ago'
-  },
-  {
-    id: '4',
-    name: 'Research Paper - Knowledge Management',
-    type: 'imported',
-    format: 'pdf',
-    size: '2.4 MB',
-    date: '2d ago'
-  },
-  {
-    id: '5',
-    name: 'Meeting Notes 2024',
-    type: 'imported',
-    format: 'txt',
-    size: '12 KB',
-    date: '3d ago'
-  },
-  {
-    id: '6',
-    name: 'Project Roadmap',
-    type: 'imported',
-    format: 'xlsx',
-    size: '86 KB',
-    date: '4d ago'
-  }
-];
+// Os dados falsos que ocupavam este arquivo foram removidos. Eram tres itens
+// fixos -- "Zettelkasten Method Guide", "PARA Method Explained", "Research
+// Paper - Knowledge Management" -- que alimentavam as abas Generated e
+// Imported. O contador delas parecia informacao e nao era.
+//
+// `Imported` virou `Source documents` e le do backend. `Generated` continua
+// sem implementacao, e agora diz isso em vez de mostrar arquivo inventado.
+const mockDocuments: FileDocument[] = [];
 
 export function useDocumentsView() {
   const { projectId } = useParams<{ projectId: string }>();

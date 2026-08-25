@@ -24,6 +24,14 @@ export interface ProjectCreate {
     settings?: Record<string, any>;
 }
 
+export type TrustLevel = 'internal' | 'imported' | 'external';
+
+export interface SnapSourceRef {
+    source_document_id?: string;
+    block_id?: string;
+    page?: number | null;
+}
+
 export interface Snap {
     id: string;
     project_id: string;
@@ -44,6 +52,15 @@ export interface Snap {
      *  mistura nós, e duas notas homônimas precisam ser distinguíveis sem
      *  que o usuário tenha de abrir cada uma. */
     execution_phase?: string | null;
+    // Coluna canonica desde a migration 052. `snadds.status` foi descontinuado
+    // como fonte de verdade: 59 snaps chegaram a ficar simultaneamente `staged`
+    // na coluna e `active` no JSON, porque a rota de status so gravava no JSON.
+    status?: string;
+    // Proveniencia (migration 054). Sem exibir isto, a opiniao de um material
+    // de aula importado fica indistinguivel de uma decisao do time.
+    trust_level?: TrustLevel;
+    source_ref?: SnapSourceRef;
+    source_document_id?: string;
 }
 
 export interface SnapCreate {
@@ -534,4 +551,30 @@ export interface Chat {
     project_id: string;
     title: string;
     created_at: string;
+}
+
+// --- Busca hibrida e revisao de staging (Sprint 19.0) ---
+
+export interface SnapSearchResult extends Snap {
+    // Medidas DIFERENTES, nao comparaveis entre si: `rrf_score` e a posicao na
+    // fusao dos dois ramos; `semantic_similarity` e cosseno, e vem nulo quando
+    // o resultado veio apenas do ramo lexical.
+    rrf_score?: number | null;
+    semantic_similarity?: number | null;
+    // 'hibrida' | 'lexical'. 'lexical' significa que o ramo vetorial estava
+    // indisponivel e o resultado e mais fraco que o normal.
+    modo?: string;
+}
+
+export interface ReviewGroup {
+    group_id: string | null;
+    source_document_id: string | null;
+    total: number;
+    desde: string;
+    tem_importado: boolean;
+}
+
+export interface ReviewPending {
+    total_pendente: number;
+    grupos: ReviewGroup[];
 }

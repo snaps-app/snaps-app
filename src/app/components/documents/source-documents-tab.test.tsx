@@ -1,0 +1,188 @@
+/**
+ * A aba que substitui os dados falsos.
+ *
+ * Antes disto, `Imported Documents` mostrava tres itens fixos no codigo
+ * ("Zettelkasten Method Guide", "PARA Method Explained"...). O contador parecia
+ * informacao e nao era.
+ *
+ * O que cada linha precisa dizer, sem que o usuario abra nada: em que ponto do
+ * pipeline o material esta, e o que fazer com ele agora.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+vi.mock('@/services/sourceDocuments', () => ({
+  listSourceDocuments: vi.fn(),
+  getReviewSnaps: vi.fn(),
+}));
+
+import { listSourceDocuments, getReviewSnaps } from '@/services/sourceDocuments';
+import { SourceDocumentsTab } from '@/app/components/documents/source-documents-tab';
+
+const PROJETO = '7d17a48e-5615-4c90-9602-531f1b5a603d';
+
+const doc = (over: any = {}) => ({
+  id: over.id ?? 'doc-1',
+  project_id: PROJETO,
+  name: 'Aula 03.pdf',
+  status: 'extracted',
+  content: 'texto',
+  raw_data: { mimetype: 'application/pdf', size: 2_400_000 },
+  ...over,
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(getReviewSnaps).mockResolvedValue([]);
+});
+
+describe('lista', () => {
+  it('mostra os documentos do projeto', async () => {
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc(), doc({ id: 'doc-2', name: 'Aula 02.pdf' })] as any);
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+    expect(await screen.findByText('Aula 03.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Aula 02.pdf')).toBeInTheDocument();
+  });
+
+  it('diz que esta vazio em vez de mostrar uma lista inventada', async () => {
+    vi.mocked(listSourceDocuments).mockResolvedValue([] as any);
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+    expect(await screen.findByText(/nenhum material/i)).toBeInTheDocument();
+  });
+
+  it('mostra a falha, e nao uma lista vazia', async () => {
+    // Vazio silencioso por erro foi o bug que custou duas mensagens de
+    // diagnostico na busca. Nao se repete aqui.
+    vi.mocked(listSourceDocuments).mockRejectedValue(new Error('Network Error'));
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+    expect(await screen.findByText(/nao foi possivel carregar/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nenhum material/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('o que cada linha comunica', () => {
+  it('extração falhada mostra a causa e oferece nova tentativa', async () => {
+    // O binario fica guardado, entao reprocessar nao pede upload novo -- e o
+    // botao precisa dizer isso, senao o usuario sobe o arquivo de novo.
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ status: 'extraction_failed', extraction_error: 'PdfReadError: arquivo corrompido' }),
+    ] as any);
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onReprocessar={vi.fn()} />);
+    expect(await screen.findByText(/arquivo corrompido/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /tentar de novo/i })).toBeInTheDocument();
+  });
+
+  it('conta quantas notas daquele material ainda esperam revisao', async () => {
+    // A contagem vem na propria listagem desde que ela virou um GROUP BY.
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc({ notas_pendentes: 3 })] as any);
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+    expect(await screen.findByText(/3 a revisar/i)).toBeInTheDocument();
+  });
+
+  it('material sem pendencia nao oferece revisao', async () => {
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc({ notas_pendentes: 0 })] as any);
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+    await screen.findByText('Aula 03.pdf');
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /revisar/i })).not.toBeInTheDocument(),
+    );
+  });
+});
+
+describe('navegacao', () => {
+  it('abrir o material entrega o documento inteiro, nao so o id', async () => {
+    // Quem recebe precisa do status e do raw_data para decidir o proximo passo
+    // sem uma segunda ida ao servidor.
+    const onAbrir = vi.fn();
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc()] as any);
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={onAbrir} />);
+    await userEvent.click(await screen.findByRole('button', { name: /aula 03\.pdf/i }));
+    expect(onAbrir).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc-1', status: 'extracted' }));
+  });
+});
+
+describe('a contagem da aba', () => {
+  it('informa quantos materiais carregou', async () => {
+    // A badge da aba lia `mockDocuments`, que foi esvaziado junto com os dados
+    // falsos. Ficou mostrando 0 ao lado de tres materiais reais -- de novo um
+    // numero que parece informacao e nao e.
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc(), doc({ id: 'doc-2' })] as any);
+    const onContagem = vi.fn();
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onContagem={onContagem} />);
+
+    await waitFor(() => expect(onContagem).toHaveBeenCalledWith(2));
+  });
+
+  it('falha reporta desconhecido, nunca zero', async () => {
+    // Zero e uma afirmacao ("nao ha material"). Depois de uma falha ninguem
+    // sabe quantos ha, e dizer zero seria inventar.
+    vi.mocked(listSourceDocuments).mockRejectedValue(new Error('caiu'));
+    const onContagem = vi.fn();
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onContagem={onContagem} />);
+
+    await waitFor(() => expect(onContagem).toHaveBeenCalledWith(null));
+    expect(onContagem).not.toHaveBeenCalledWith(0);
+  });
+});
+
+describe('a contagem vem junto da lista', () => {
+  it('nao faz uma chamada por documento', async () => {
+    // Eram 24 requisicoes para 23 materiais -- e a espera crescia com o
+    // acervo. A listagem ja traz `notas_pendentes`.
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd1', notas_pendentes: 3, notas_total: 5 }),
+      doc({ id: 'd2', name: 'B.pdf', notas_pendentes: 0, notas_total: 0 }),
+    ] as any);
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+
+    expect(await screen.findByText(/3 a revisar/)).toBeInTheDocument();
+    expect(getReviewSnaps).not.toHaveBeenCalled();
+  });
+
+  it('material sem pendencia nao ganha selo', async () => {
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd2', notas_pendentes: 0 }),
+    ] as any);
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+
+    await screen.findByText('Aula 03.pdf');
+    expect(screen.queryByText(/a revisar/)).not.toBeInTheDocument();
+  });
+});
+
+describe('tentar de novo faz alguma coisa', () => {
+  it('chama quem sabe reprocessar, com o documento certo', async () => {
+    // O botao existia e chamava uma prop opcional que ninguem passava:
+    // clicar nao fazia absolutamente nada.
+    const onReprocessar = vi.fn();
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd9', status: 'extraction_failed', extraction_error: 'excede o teto' }),
+    ] as any);
+
+    render(
+      <SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onReprocessar={onReprocessar} />,
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /tentar de novo/i }));
+
+    expect(onReprocessar).toHaveBeenCalledWith(expect.objectContaining({ id: 'd9' }));
+  });
+
+  it('sem ninguem para reprocessar, o botao nao aparece prometendo nada', async () => {
+    // Botao que nao faz nada e pior do que botao ausente: ensina que a tela
+    // esta quebrada e nao diz o que fazer.
+    vi.mocked(listSourceDocuments).mockResolvedValue([
+      doc({ id: 'd9', status: 'extraction_failed', extraction_error: 'x' }),
+    ] as any);
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} />);
+
+    await screen.findByText('Aula 03.pdf');
+    expect(screen.queryByRole('button', { name: /tentar de novo/i })).not.toBeInTheDocument();
+  });
+});
