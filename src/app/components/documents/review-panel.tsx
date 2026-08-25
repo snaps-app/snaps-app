@@ -44,6 +44,12 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
   const [editando, setEditando] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  // Descartar precisa de confirmacao e aprovar nao, e a assimetria e
+  // deliberada: `review/discard` faz `db.delete()` -- nao ha status
+  // `discarded`, nao ha desfazer. Somado a lista comecar toda marcada, um
+  // clique distraido apagaria o lote inteiro. Aprovar erra para o lado
+  // recuperavel: a nota fica, e da para descartar depois.
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
 
   const detalhe = (e: any) => e?.response?.data?.detail ?? e?.message ?? 'erro desconhecido';
 
@@ -78,6 +84,7 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
   const decidir = async (acao: 'promover' | 'descartar') => {
     const ids = [...selecionados];
     if (ids.length === 0) return;
+    setConfirmandoDescarte(false);
     setErro(null);
     setOcupado(true);
     try {
@@ -266,6 +273,41 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
           )}
         </div>
 
+        {confirmandoDescarte && (
+          <div
+            className="mx-5 mb-4 px-4 py-4 rounded-xl"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.4)' }}
+          >
+            <div className="flex items-center gap-2 mb-2" style={{ color: 'var(--snaps-accent-red)' }}>
+              <AlertTriangle className="w-4 h-4" />
+              <span className="font-semibold text-sm">Descartar apaga de vez</span>
+            </div>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--snaps-text-secondary)' }}>
+              {n} {n === 1 ? 'nota some' : 'notas somem'} do banco e{' '}
+              <strong style={{ color: 'var(--snaps-text-primary)' }}>não dá para desfazer</strong>. O
+              documento continua guardado — para trazer estas notas de volta seria preciso decompor
+              o material outra vez.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmandoDescarte(false)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--snaps-text-primary)' }}
+              >
+                Manter as notas
+              </button>
+              <button
+                onClick={() => void decidir('descartar')}
+                disabled={ocupado}
+                className="px-4 py-2 rounded-lg text-sm disabled:opacity-40"
+                style={{ color: 'var(--snaps-accent-red)', border: '1px solid rgba(239,68,68,0.5)', background: 'rgba(239,68,68,0.14)' }}
+              >
+                Apagar {n} {n === 1 ? 'nota' : 'notas'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {notas && notas.length > 0 && (
           <footer
             className="flex flex-wrap items-center gap-2 px-5 py-4"
@@ -282,7 +324,7 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
             </button>
             <div className="flex-1" />
             <button
-              onClick={() => void decidir('descartar')}
+              onClick={() => setConfirmandoDescarte(true)}
               disabled={n === 0 || ocupado}
               className="px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-40"
               style={{ color: 'var(--snaps-accent-red)', border: '1px solid rgba(239,68,68,0.45)', background: 'rgba(239,68,68,0.10)' }}

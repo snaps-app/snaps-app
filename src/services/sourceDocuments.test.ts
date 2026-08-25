@@ -29,6 +29,7 @@ import {
   getReviewSnaps,
   getSourceDocument,
   getSourceDocumentDownloadUrl,
+  getDocumentSnaps,
 } from '@/services/sourceDocuments';
 
 const PROJETO = '7d17a48e-5615-4c90-9602-531f1b5a603d';
@@ -182,5 +183,27 @@ describe('abrir um documento', () => {
     expect(doc.blocks).toHaveLength(2);
     expect(doc.blocks?.[0].page).toBe(1);
     expect(doc.blocks?.[1].content).toBe('Segundo');
+  });
+});
+
+describe('todas as notas de um material', () => {
+  it('nao filtra por status: aprovada e pendente vem juntas', async () => {
+    // `getReviewSnaps` forca status=staged, entao depois de aprovar o lote ele
+    // devolve vazio -- e do documento nao havia caminho ate o que saiu dele.
+    vi.mocked(api.get).mockResolvedValue({
+      data: [{ id: 's1', status: 'active' }, { id: 's2', status: 'staged' }],
+    });
+
+    const notas = await getDocumentSnaps(PROJETO, DOC);
+
+    const [, cfg] = vi.mocked(api.get).mock.calls[0] as any;
+    expect(cfg.params.source_document_id).toBe(DOC);
+    expect(cfg.params.status).toBeUndefined();
+    expect(notas).toHaveLength(2);
+  });
+
+  it('deixa a falha subir, como o resto do modulo', async () => {
+    vi.mocked(api.get).mockRejectedValue({ response: { status: 403 } });
+    await expect(getDocumentSnaps(PROJETO, DOC)).rejects.toBeTruthy();
   });
 });

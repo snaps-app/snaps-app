@@ -23,6 +23,7 @@ vi.mock('@/services/sourceDocuments', () => ({
   decomposeSourceDocument: vi.fn(),
   getSourceDocumentDownloadUrl: vi.fn(),
   getReviewSnaps: vi.fn(),
+  getDocumentSnaps: vi.fn(),
 }));
 
 import {
@@ -31,6 +32,7 @@ import {
   decomposeSourceDocument,
   getSourceDocumentDownloadUrl,
   getReviewSnaps,
+  getDocumentSnaps,
 } from '@/services/sourceDocuments';
 import { SourceDocumentPanel } from '@/app/components/documents/source-document-panel';
 
@@ -60,6 +62,7 @@ const doc = (over: any = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getReviewSnaps).mockResolvedValue([]);
+  vi.mocked(getDocumentSnaps).mockResolvedValue([]);
 });
 
 describe('carregamento', () => {
@@ -255,7 +258,11 @@ describe('baixar o original', () => {
 describe('revisao', () => {
   it('notas pendentes viram um convite com o numero', async () => {
     vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
-    vi.mocked(getReviewSnaps).mockResolvedValue([{ id: 's1' }, { id: 's2' }, { id: 's3' }] as any);
+    // A contagem vem de TODAS as notas do material: contando so as `staged`,
+    // "ja revisei tudo" ficava indistinguivel de "nunca decompus".
+    vi.mocked(getDocumentSnaps).mockResolvedValue([
+      { id: 's1', status: 'staged' }, { id: 's2', status: 'staged' }, { id: 's3', status: 'staged' },
+    ] as any);
 
     render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
 
@@ -272,5 +279,73 @@ describe('revisao', () => {
 
     await screen.findByText('Aula 03 - Fotossintese.pdf');
     expect(screen.queryByRole('button', { name: /revisar \d+ nota/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('o que saiu deste material', () => {
+  const notaAprovada = {
+    id: 'a1',
+    name: 'Descobrir no Double Diamond',
+    content: 'Brainstorming, Matriz CSD, Persona',
+    status: 'active',
+    trust_level: 'imported',
+    source_ref: { page: 12 },
+  };
+
+  it('mostra as notas ja aprovadas, com a pagina de origem', async () => {
+    // Depois de aprovar o lote a revisao fica vazia -- e correto, ela so lista
+    // pendencias. Sem esta secao o material nao tem como responder "o que
+    // saiu daqui?", e a unica saida e caçar em Memory.
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+    vi.mocked(getDocumentSnaps).mockResolvedValue([notaAprovada] as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /1 nota aprovada/i }));
+
+    const secao = screen.getByTestId('notas-do-material');
+    expect(within(secao).getByText('Descobrir no Double Diamond')).toBeInTheDocument();
+    expect(within(secao).getByText(/página 12/i)).toBeInTheDocument();
+  });
+
+  it('separa o que ja foi aprovado do que ainda espera decisao', async () => {
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+    vi.mocked(getDocumentSnaps).mockResolvedValue([
+      notaAprovada,
+      { id: 'p1', name: 'Ainda em revisao', content: 'x', status: 'staged', source_ref: { page: 3 } },
+    ] as any);
+    vi.mocked(getReviewSnaps).mockResolvedValue([{ id: 'p1' }] as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /1 nota aprovada/i }));
+
+    const secao = screen.getByTestId('notas-do-material');
+    expect(within(secao).getByTestId('nota-a1')).toHaveAttribute('data-status', 'active');
+    expect(within(secao).getByTestId('nota-p1')).toHaveAttribute('data-status', 'staged');
+  });
+
+  it('material sem nota nenhuma nao inventa secao', async () => {
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    await screen.findByText('Aula 03 - Fotossintese.pdf');
+    expect(screen.queryByRole('button', { name: /nota aprovada/i })).not.toBeInTheDocument();
+  });
+
+  it('a esteira sabe que houve decomposicao mesmo com tudo ja revisado', async () => {
+    // Este era o buraco honesto que ficou registrado: sem contar as notas de
+    // TODOS os status, "ja revisei tudo" era desenhado igual a "nunca
+    // decompus".
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+    vi.mocked(getDocumentSnaps).mockResolvedValue([notaAprovada] as any);
+    vi.mocked(getReviewSnaps).mockResolvedValue([] as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('etapa-decomposicao')).toHaveAttribute('data-estado', 'concluida'),
+    );
   });
 });

@@ -145,3 +145,21 @@ export const getReviewSnaps = async (
   const r = await api.get(`/projects/${projectId}/snaps/`, { params });
   return r.data;
 };
+
+/**
+ * TODAS as notas nascidas deste material, em qualquer status.
+ *
+ * `getReviewSnaps` existe para a fila de revisao e por isso forca
+ * `status=staged` -- o que significa que, assim que o lote e decidido, ele
+ * devolve vazio. Sem esta funcao o material nao conseguia responder "o que
+ * saiu daqui?", e a unica saida era procurar em Memory sem filtro de origem.
+ */
+export const getDocumentSnaps = async (
+  projectId: string,
+  docId: string,
+): Promise<Snap[]> => {
+  const r = await api.get(`/projects/${projectId}/snaps/`, {
+    params: { source_document_id: docId, limit: '200' },
+  });
+  return r.data;
+};

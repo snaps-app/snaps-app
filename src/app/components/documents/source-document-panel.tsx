@@ -18,8 +18,10 @@ import {
   decomposeSourceDocument,
   getSourceDocumentDownloadUrl,
   getReviewSnaps,
+  getDocumentSnaps,
 } from '@/services/sourceDocuments';
 import type { SourceDocumentWithBlocks } from '@/services/sourceDocuments';
+import type { Snap } from '@/services/types';
 import { precisaConfirmarDecomposicao } from '@/services/ingestRules';
 import { ReviewPanel } from './review-panel';
 
@@ -30,11 +32,12 @@ import { ReviewPanel } from './review-panel';
  * nao cabe: por que a extracao falhou, o que exatamente foi lido do arquivo, e o
  * que ainda falta decidir.
  *
- * Sobre a terceira etapa da esteira: `pendente` ali significa "nao ha nota
- * esperando decisao", o que cobre DOIS casos que a API nao distingue -- nunca
- * decomposto, ou ja todo revisado. O texto abaixo da etapa diz isso em vez de
- * fingir certeza. Separar os dois exigiria contar as notas do documento sem
- * filtro de status, e a listagem no cliente ainda nao passa esse filtro.
+ * A terceira etapa da esteira ja foi ambigua: contando so as notas `staged`,
+ * "nunca decomposto" e "ja revisei tudo" eram desenhados igual. Agora as notas
+ * do material sao contadas em TODOS os status, entao a etapa sabe a diferenca
+ * -- e a secao "notas deste material" responde a pergunta que sobrava depois
+ * da revisao: "o que saiu daqui?". Antes dela a unica saida era procurar em
+ * Memory, sem filtro de origem.
  */
 
 type Estado = 'concluida' | 'pendente' | 'falhou' | 'corrente';
@@ -96,6 +99,8 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
   const [pendentes, setPendentes] = useState(0);
+  const [notas, setNotas] = useState<Snap[]>([]);
+  const [verNotas, setVerNotas] = useState(false);
   const [ocupado, setOcupado] = useState<'extraindo' | 'decompondo' | null>(null);
   const [verBlocos, setVerBlocos] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
@@ -114,10 +119,12 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
       return;
     }
     try {
-      const notas = await getReviewSnaps(projectId, { sourceDocumentId: docId });
-      setPendentes(notas.length);
+      const todas = await getDocumentSnaps(projectId, docId);
+      setNotas(todas);
+      setPendentes(todas.filter((n) => n.status === 'staged').length);
     } catch {
       // Perder a contagem nao pode derrubar o painel -- o resto continua util.
+      setNotas([]);
       setPendentes(0);
     }
   }, [projectId, docId]);
@@ -217,8 +224,9 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
           ? 'concluida'
           : 'pendente';
 
+  const aprovadas = notas.filter((n) => n.status !== 'staged');
   const estadoDecomposicao: Estado =
-    ocupado === 'decompondo' ? 'corrente' : pendentes > 0 ? 'concluida' : 'pendente';
+    ocupado === 'decompondo' ? 'corrente' : notas.length > 0 ? 'concluida' : 'pendente';
 
   return (
     <div className="flex flex-col gap-6">
@@ -261,8 +269,8 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
           estado={estadoDecomposicao}
           detalhe={
             estadoDecomposicao === 'concluida'
-              ? `${pendentes} notas esperando revisão.`
-              : 'Nenhuma nota esperando decisão — ou este material ainda não foi decomposto, ou já foi todo revisado.'
+              ? `${notas.length} notas, ${aprovadas.length} aprovadas${pendentes ? `, ${pendentes} esperando revisão` : ''}.`
+              : 'Este material ainda não foi decomposto em notas.'
           }
         />
       </div>
@@ -384,6 +392,63 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
                   </p>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {notas.length > 0 && (
+        <div>
+          <button
+            onClick={() => setVerNotas((v) => !v)}
+            className="flex items-center gap-2 text-sm"
+            style={{ color: 'var(--snaps-text-secondary)' }}
+          >
+            {verNotas ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {aprovadas.length} {aprovadas.length === 1 ? 'nota aprovada' : 'notas aprovadas'}
+            {pendentes > 0 && ` · ${pendentes} a revisar`}
+          </button>
+
+          {verNotas && (
+            <div data-testid="notas-do-material" className="flex flex-col gap-2 mt-3">
+              {notas.map((nota) => {
+                const aprovada = nota.status !== 'staged';
+                return (
+                  <div
+                    key={nota.id}
+                    data-testid={`nota-${nota.id}`}
+                    data-status={nota.status}
+                    className="px-4 py-3 rounded-lg"
+                    style={{
+                      background: 'rgba(255,255,255,0.035)',
+                      border: `1px solid ${aprovada ? 'rgba(34,197,94,0.28)' : 'rgba(255,107,53,0.28)'}`,
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-sm font-medium" style={{ color: 'var(--snaps-text-primary)' }}>
+                        {nota.name}
+                      </h3>
+                      <span
+                        className="shrink-0 text-xs px-2 py-0.5 rounded font-mono"
+                        style={{
+                          color: aprovada ? 'var(--snaps-accent-green)' : 'var(--snaps-accent-orange)',
+                          border: `1px solid ${aprovada ? 'rgba(34,197,94,0.4)' : 'rgba(255,107,53,0.4)'}`,
+                        }}
+                      >
+                        {aprovada ? 'aprovada' : 'a revisar'}
+                      </span>
+                    </div>
+                    <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: 'var(--snaps-text-secondary)' }}>
+                      {nota.content}
+                    </p>
+                    {nota.source_ref?.page && (
+                      <p className="text-xs mt-2 font-mono" style={{ color: 'var(--snaps-placeholder)' }}>
+                        página {nota.source_ref.page}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

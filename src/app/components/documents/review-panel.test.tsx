@@ -137,7 +137,22 @@ describe('decidir', () => {
     expect(promoteSnaps).not.toHaveBeenCalledWith(PROJETO, expect.objectContaining({ group_id: expect.anything() }));
   });
 
-  it('descarta pelos ids selecionados', async () => {
+  it('descartar pergunta antes, porque a rota APAGA a linha', async () => {
+    // `review/discard` faz db.delete(). Nao ha status `discarded`, nao ha
+    // desfazer. Somado a lista comecar toda marcada, um clique distraido
+    // apagaria o lote inteiro -- foi assim que notas se perderam em 25/08.
+    vi.mocked(getReviewSnaps).mockResolvedValue([nota(1), nota(2)] as any);
+
+    abrir();
+
+    await screen.findByText('Nota 1');
+    await userEvent.click(screen.getByRole('button', { name: /descartar 2/i }));
+
+    expect(discardSnaps).not.toHaveBeenCalled();
+    expect(screen.getByText(/não dá para desfazer/i)).toBeInTheDocument();
+  });
+
+  it('confirmado, descarta pelos ids selecionados', async () => {
     vi.mocked(getReviewSnaps)
       .mockResolvedValueOnce([nota(1), nota(2)] as any)
       .mockResolvedValueOnce([] as any);
@@ -147,8 +162,36 @@ describe('decidir', () => {
 
     await screen.findByText('Nota 1');
     await userEvent.click(screen.getByRole('button', { name: /descartar 2/i }));
+    await userEvent.click(screen.getByRole('button', { name: /apagar 2 notas/i }));
 
     expect(discardSnaps).toHaveBeenCalledWith(PROJETO, { snap_ids: ['s1', 's2'] });
+  });
+
+  it('desistir da confirmacao nao apaga nada', async () => {
+    vi.mocked(getReviewSnaps).mockResolvedValue([nota(1), nota(2)] as any);
+
+    abrir();
+
+    await screen.findByText('Nota 1');
+    await userEvent.click(screen.getByRole('button', { name: /descartar 2/i }));
+    await userEvent.click(screen.getByRole('button', { name: /manter/i }));
+
+    expect(discardSnaps).not.toHaveBeenCalled();
+    expect(screen.getByText('Nota 1')).toBeInTheDocument();
+  });
+
+  it('aprovar continua num clique, porque e reversivel', async () => {
+    vi.mocked(getReviewSnaps)
+      .mockResolvedValueOnce([nota(1)] as any)
+      .mockResolvedValueOnce([] as any);
+    vi.mocked(promoteSnaps).mockResolvedValue({ promovidos: 1, ids: ['s1'] } as any);
+
+    abrir();
+
+    await screen.findByText('Nota 1');
+    await userEvent.click(screen.getByRole('button', { name: /aprovar 1/i }));
+
+    expect(promoteSnaps).toHaveBeenCalled();
   });
 
   it('o que foi decidido some da lista, e quem abriu fica sabendo', async () => {
