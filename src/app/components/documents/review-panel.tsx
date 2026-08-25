@@ -25,7 +25,15 @@ import type { Snap } from '@/services/types';
 
 interface Props {
   projectId: string;
-  filtro: FiltroRevisao;
+  /** Busca as notas pendentes do documento ou lote. Use quando a tela nao as
+   *  tem em maos. */
+  filtro?: FiltroRevisao;
+  /** Notas ja carregadas. Memory e uma tela global: ela ja trouxe todas as
+   *  `staged` e as agrupa em lotes no cliente, entao rebuscar seria ir a rede
+   *  atras do que ja esta na mao. E e o unico caminho para os lotes SEM
+   *  group_id -- `getReviewSnaps` se recusa a buscar sem documento nem lote, e
+   *  com razao: sem filtro o backend devolveria a base inteira do projeto. */
+  notas?: Snap[];
   titulo?: string;
   onFechar: () => void;
   onMudou?: () => void;
@@ -37,7 +45,7 @@ interface Rascunho {
   content: string;
 }
 
-export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Props) {
+export function ReviewPanel({ projectId, filtro, notas: recebidas, titulo, onFechar, onMudou }: Props) {
   const [notas, setNotas] = useState<Snap[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -56,7 +64,7 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
   const carregar = useCallback(async () => {
     setErro(null);
     try {
-      const lista = await getReviewSnaps(projectId, filtro);
+      const lista = recebidas ?? (await getReviewSnaps(projectId, filtro!));
       setNotas(lista);
       // Tudo marcado: o caso comum e aprovar o lote e tirar as poucas que nao
       // servem. Comecar vazio faria o usuario clicar N vezes para o caminho
@@ -67,7 +75,7 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
       setErro(detalhe(e));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, filtro.sourceDocumentId, filtro.groupId]);
+  }, [projectId, filtro?.sourceDocumentId, filtro?.groupId, recebidas]);
 
   useEffect(() => {
     void carregar();
@@ -91,7 +99,16 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
       if (acao === 'promover') await promoteSnaps(projectId, { snap_ids: ids });
       else await discardSnaps(projectId, { snap_ids: ids });
       onMudou?.();
-      await carregar();
+      if (filtro) {
+        await carregar();
+      } else {
+        // Sem filtro nao ha o que rebuscar. Tirar o que foi decidido e o
+        // equivalente honesto: a nota saiu da fila porque alguem decidiu, nao
+        // porque a tela esqueceu dela.
+        const decididos = new Set(ids);
+        setNotas((atual) => (atual ?? []).filter((n) => !decididos.has(n.id)));
+        setSelecionados(new Set());
+      }
     } catch (e) {
       // A lista fica como esta: perder o que ja foi marcado depois de uma falha
       // obrigaria a refazer a triagem inteira.
@@ -127,6 +144,7 @@ export function ReviewPanel({ projectId, filtro, titulo, onFechar, onMudou }: Pr
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }}>
       <motion.aside
+        data-testid="painel-revisao"
         initial={{ x: 40, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         className="h-full w-full max-w-xl flex flex-col"

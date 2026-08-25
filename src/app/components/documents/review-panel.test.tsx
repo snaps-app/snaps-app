@@ -277,3 +277,62 @@ describe('editar antes de aprovar', () => {
     expect(screen.getByText('Nota 1')).toBeInTheDocument();
   });
 });
+
+describe('lote ja carregado (a revisao vinda de Memory)', () => {
+  // Memory e uma tela global: ela ja carregou todas as notas `staged` e as
+  // agrupa em lotes no cliente. Refazer a busca aqui seria uma ida a rede para
+  // trazer o que ja esta na mao -- e, pior, nao funcionaria para os lotes SEM
+  // group_id, que sao a maioria dos artefatos de agente: `getReviewSnaps` se
+  // recusa a buscar sem documento nem lote, e com razao.
+  const preCarregadas = [nota(1), nota(2)];
+
+  it('usa as notas recebidas em vez de ir buscar', async () => {
+    render(
+      <ReviewPanel projectId={PROJETO} notas={preCarregadas as any} onFechar={vi.fn()} />,
+    );
+
+    expect(await screen.findByText('Nota 1')).toBeInTheDocument();
+    expect(getReviewSnaps).not.toHaveBeenCalled();
+  });
+
+  it('decidir parte do lote tira da lista so o que foi decidido', async () => {
+    vi.mocked(promoteSnaps).mockResolvedValue({ promovidos: 1, ids: ['s1'] } as any);
+    const onMudou = vi.fn();
+
+    render(
+      <ReviewPanel
+        projectId={PROJETO}
+        notas={preCarregadas as any}
+        onFechar={vi.fn()}
+        onMudou={onMudou}
+      />,
+    );
+
+    await screen.findByText('Nota 1');
+    await userEvent.click(within(screen.getByTestId('nota-s2')).getByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: /aprovar 1/i }));
+
+    await waitFor(() => expect(screen.queryByText('Nota 1')).not.toBeInTheDocument());
+    expect(screen.getByText('Nota 2')).toBeInTheDocument();
+    expect(onMudou).toHaveBeenCalled();
+    // Sem filtro nao ha o que rebuscar: a lista se atualiza sozinha.
+    expect(getReviewSnaps).not.toHaveBeenCalled();
+  });
+
+  it('falha mantem a nota na lista, nada de sumico silencioso', async () => {
+    vi.mocked(promoteSnaps).mockRejectedValue({
+      response: { data: { detail: 'sem permissão' } },
+    });
+
+    render(
+      <ReviewPanel projectId={PROJETO} notas={preCarregadas as any} onFechar={vi.fn()} />,
+    );
+
+    await screen.findByText('Nota 1');
+    await userEvent.click(screen.getByRole('button', { name: /aprovar 2/i }));
+
+    expect(await screen.findByText(/sem permissão/)).toBeInTheDocument();
+    expect(screen.getByText('Nota 1')).toBeInTheDocument();
+    expect(screen.getByText('Nota 2')).toBeInTheDocument();
+  });
+});

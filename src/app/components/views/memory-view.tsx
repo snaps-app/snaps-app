@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { SnapDetailModal } from '@/app/components/modals/snap-detail-modal';
 import { SnapCard } from '@/app/components/shared/snap-card';
+import { ReviewPanel } from '@/app/components/documents/review-panel';
 
 interface FolderNode {
   id: string;
@@ -152,6 +153,12 @@ export function MemoryView() {
       return acc;
     }, {} as Record<string, any>)
   );
+
+  // Qual lote esta aberto no painel de revisao. Os dois botoes do lote
+  // continuam existindo -- quem confia no lote nao precisa passar por aqui --,
+  // mas decidir nota a nota deixou de exigir a API na mao: `promote` e
+  // `discard` sempre aceitaram `snap_ids`, faltava a tela oferecer.
+  const [loteAberto, setLoteAberto] = useState<any>(null);
 
   const revisarLote = async (lote: any, acao: 'promover' | 'descartar') => {
     const rotulo = lote.groupId ? 'este lote' : 'os snaps sem lote';
@@ -554,6 +561,17 @@ export function MemoryView() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
+                        onClick={() => setLoteAberto(lote)}
+                        className="px-3 py-2 rounded-lg text-sm font-medium"
+                        style={{
+                          background: 'rgba(168, 85, 247, 0.12)',
+                          border: '1px solid rgba(168, 85, 247, 0.45)',
+                          color: 'var(--snaps-accent-purple)'
+                        }}
+                      >
+                        Revisar uma a uma
+                      </button>
+                      <button
                         disabled={revisando === lote.chave}
                         onClick={() => revisarLote(lote, 'promover')}
                         className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
@@ -641,6 +659,21 @@ export function MemoryView() {
           </div>
         </div>
       </div>
+
+      {loteAberto && (
+        <ReviewPanel
+          projectId={loteAberto.projectId}
+          notas={loteAberto.snaps}
+          titulo={loteAberto.groupId
+            ? `${loteAberto.projectName ?? ''} - lote ${String(loteAberto.groupId).slice(0, 8)}`
+            : `${loteAberto.projectName ?? ''} - sem lote de importacao`}
+          onFechar={() => setLoteAberto(null)}
+          onMudou={async () => {
+            const { snaps } = await getAllSnaps();
+            setMemoryCards(snaps as MemoryCard[]);
+          }}
+        />
+      )}
 
       {/* Snap Detail Modal */}
       <SnapDetailModal
