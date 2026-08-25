@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  CircleDashed,
   Download,
   Loader2,
   RefreshCw,
@@ -32,12 +33,16 @@ import { ReviewPanel } from './review-panel';
  * nao cabe: por que a extracao falhou, o que exatamente foi lido do arquivo, e o
  * que ainda falta decidir.
  *
- * A terceira etapa da esteira ja foi ambigua: contando so as notas `staged`,
- * "nunca decomposto" e "ja revisei tudo" eram desenhados igual. Agora as notas
- * do material sao contadas em TODOS os status, entao a etapa sabe a diferenca
- * -- e a secao "notas deste material" responde a pergunta que sobrava depois
- * da revisao: "o que saiu daqui?". Antes dela a unica saida era procurar em
- * Memory, sem filtro de origem.
+ * A esteira tem QUATRO etapas, e a quarta nao e enfeite. Com tres, aprovar o
+ * ultimo lote zerava o contador de pendentes e "Decomposto" voltava a cinza:
+ * a tela dizia que o usuario tinha retrocedido exatamente quando ele terminou
+ * o trabalho. Revisar e um avanco e precisa de casa propria.
+ *
+ * As notas do material sao contadas em TODOS os status. Contando so `staged`,
+ * "nunca decomposto" e "ja revisei tudo" ficavam identicos -- a mesma
+ * ambiguidade, um passo antes. E a secao "notas deste material" responde o que
+ * sobrava depois da revisao: "o que saiu daqui?". Antes dela a unica saida era
+ * procurar em Memory, sem filtro de origem.
  */
 
 type Estado = 'concluida' | 'pendente' | 'falhou' | 'corrente';
@@ -59,11 +64,15 @@ function Etapa({
   titulo,
   estado,
   detalhe,
+  girando = false,
 }: {
   id: string;
   titulo: string;
   estado: Estado;
   detalhe?: string | null;
+  /** So a maquina gira. Uma etapa parada esperando decisao HUMANA com spinner
+   *  giraria para sempre, sugerindo trabalho em curso que nao existe. */
+  girando?: boolean;
 }) {
   const cor =
     estado === 'concluida'
@@ -75,12 +84,16 @@ function Etapa({
           : 'var(--snaps-placeholder)';
 
   const Icone =
-    estado === 'concluida' ? CheckCircle2 : estado === 'falhou' ? XCircle : estado === 'corrente' ? Loader2 : Circle;
+    estado === 'concluida' ? CheckCircle2
+    : estado === 'falhou' ? XCircle
+    : girando ? Loader2
+    : estado === 'corrente' ? CircleDashed
+    : Circle;
 
   return (
     <div data-testid={`etapa-${id}`} data-estado={estado} className="flex-1 min-w-[180px]">
       <div className="flex items-center gap-2" style={{ color: cor }}>
-        <Icone className={`w-4 h-4 ${estado === 'corrente' ? 'animate-spin' : ''}`} />
+        <Icone className={`w-4 h-4 ${girando ? 'animate-spin' : ''}`} />
         <span className="text-sm font-medium">{titulo}</span>
       </div>
       {detalhe && (
@@ -228,6 +241,11 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
   const estadoDecomposicao: Estado =
     ocupado === 'decompondo' ? 'corrente' : notas.length > 0 ? 'concluida' : 'pendente';
 
+  // Uma vez decomposto, nada aqui pode voltar a cinza: decidir notas so faz a
+  // esteira andar para a frente.
+  const estadoRevisao: Estado =
+    notas.length === 0 ? 'pendente' : pendentes > 0 ? 'corrente' : 'concluida';
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start gap-3">
@@ -255,6 +273,7 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
           id="extracao"
           titulo="Extraído"
           estado={estadoExtracao}
+          girando={ocupado === 'extraindo'}
           detalhe={
             estadoExtracao === 'falhou'
               ? doc.extraction_error ?? 'A leitura do arquivo falhou.'
@@ -267,10 +286,23 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
           id="decomposicao"
           titulo="Decomposto em notas"
           estado={estadoDecomposicao}
+          girando={ocupado === 'decompondo'}
           detalhe={
             estadoDecomposicao === 'concluida'
-              ? `${notas.length} notas, ${aprovadas.length} aprovadas${pendentes ? `, ${pendentes} esperando revisão` : ''}.`
+              ? `${notas.length} ${notas.length === 1 ? 'nota gerada' : 'notas geradas'} a partir dos blocos.`
               : 'Este material ainda não foi decomposto em notas.'
+          }
+        />
+        <Etapa
+          id="revisao"
+          titulo="Revisado"
+          estado={estadoRevisao}
+          detalhe={
+            estadoRevisao === 'concluida'
+              ? `${aprovadas.length} ${aprovadas.length === 1 ? 'nota no contexto' : 'notas no contexto'} dos agentes.`
+              : estadoRevisao === 'corrente'
+                ? `${pendentes} ${pendentes === 1 ? 'nota espera' : 'notas esperam'} sua decisão.`
+                : 'Nada a revisar ainda.'
           }
         />
       </div>

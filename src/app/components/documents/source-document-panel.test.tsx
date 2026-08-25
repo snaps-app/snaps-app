@@ -349,3 +349,62 @@ describe('o que saiu deste material', () => {
     );
   });
 });
+
+describe('a quarta etapa: revisao', () => {
+  const staged = (id: string) => ({ id, name: id, content: 'x', status: 'staged' });
+  const ativa = (id: string) => ({ id, name: id, content: 'x', status: 'active' });
+
+  it('sem nota nenhuma, revisao ainda nao comecou', async () => {
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    const etapa = await screen.findByTestId('etapa-revisao');
+    expect(etapa).toHaveAttribute('data-estado', 'pendente');
+  });
+
+  it('notas esperando decisao deixam a revisao em curso, nao concluida', async () => {
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+    vi.mocked(getDocumentSnaps).mockResolvedValue([staged('s1'), ativa('a1')] as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('etapa-revisao')).toHaveAttribute('data-estado', 'corrente'),
+    );
+    // E a decomposicao NAO regride so porque ainda ha o que decidir.
+    expect(screen.getByTestId('etapa-decomposicao')).toHaveAttribute('data-estado', 'concluida');
+  });
+
+  it('aprovar tudo CONCLUI a revisao -- avanco, nunca retrocesso', async () => {
+    // O defeito relatado: com tres etapas, aprovar o ultimo lote zerava o
+    // contador de pendentes e a etapa "Decomposto" voltava a cinza. A tela
+    // dizia que o usuario tinha andado para tras justamente quando ele
+    // completou o trabalho.
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+    vi.mocked(getDocumentSnaps).mockResolvedValue([ativa('a1'), ativa('a2')] as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('etapa-revisao')).toHaveAttribute('data-estado', 'concluida'),
+    );
+    expect(screen.getByTestId('etapa-decomposicao')).toHaveAttribute('data-estado', 'concluida');
+    expect(within(screen.getByTestId('etapa-revisao')).getByText(/2 notas no contexto/i))
+      .toBeInTheDocument();
+  });
+
+  it('nenhuma etapa anterior regride quando a revisao termina', async () => {
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+    vi.mocked(getDocumentSnaps).mockResolvedValue([ativa('a1')] as any);
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('etapa-revisao')).toHaveAttribute('data-estado', 'concluida'),
+    );
+    for (const id of ['etapa-upload', 'etapa-extracao', 'etapa-decomposicao']) {
+      expect(screen.getByTestId(id)).toHaveAttribute('data-estado', 'concluida');
+    }
+  });
+});
