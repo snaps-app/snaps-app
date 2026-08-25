@@ -1,12 +1,19 @@
-import { getAllSnaps, searchSnapsGlobal, promoteSnaps, discardSnaps } from '@/services/snaps';
+import { searchSnapsGlobal, promoteSnaps, discardSnaps } from '@/services/snaps';
+import { getSnapsSummary, getSnapsGlobal, getReviewBatches } from '@/services/memory';
+import type { LoteRevisao } from '@/services/memory';
 import type { Snap, SnapSearchResult } from '@/services/types';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Search, Folder, ChevronRight, ChevronDown, FileText, Brain, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { SnapDetailModal } from '@/app/components/modals/snap-detail-modal';
 import { SnapCard } from '@/app/components/shared/snap-card';
 import { ReviewPanel } from '@/app/components/documents/review-panel';
+
+/** Tamanho da pagina da grade. Exportado para o teste poder montar uma pagina
+ *  CHEIA sem repetir o numero -- amarrar o teste ao literal faria mudar a
+ *  pagina quebrar testes que nao falam sobre isso. */
+export const PAGINA_MEMORY = 60;
 
 interface FolderNode {
   id: string;
@@ -127,56 +134,57 @@ export function MemoryView() {
   const [selectedSnap, setSelectedSnap] = useState<MemoryCard | null>(null);
   const [memoryCards, setMemoryCards] = useState<MemoryCard[]>([]);
   const [folderStructure, setFolderStructure] = useState<FolderNode[]>([]);
+  // O total vem do resumo. Contar `memoryCards.length` era exatamente o que
+  // obrigava a tela a baixar o acervo inteiro antes de existir.
+  const [total, setTotal] = useState(0);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
+  const [lotes, setLotes] = useState<LoteRevisao[]>([]);
+  const [temMais, setTemMais] = useState(false);
+  const [porStatus, setPorStatus] = useState<Record<string, number>>({});
+  const [carregandoMais, setCarregandoMais] = useState(false);
   const [mobileView, setMobileView] = useState<'sidebar' | 'main'>('main');
 
-  // Pendencias derivadas do que ja esta carregado -- nao ha chamada extra. A
-  // tela de Memory e global e o endpoint de revisao e por projeto, entao o
-  // agrupamento acontece aqui e cada acao vai ao projeto do proprio lote.
-  const staged = memoryCards.filter(c => (c.status || c.snadds?.status) === 'staged');
-  const pendentes = staged.length;
+  // A fila vem AGREGADA do servidor. Era derivada de tudo que estivesse
+  // carregado no cliente, o que so funcionava porque a tela baixava a base
+  // inteira; com paginacao um lote de 30 apareceria como "8 notas" e o botao de
+  // aprovar em massa aprovaria so o pedaco que por acaso tivesse chegado.
+  const pendentes = porStatus.staged ?? 0;
 
-  // O LOTE de importacao e a unidade de revisao, nao o snap solto: importar uma
-  // aula gera dezenas de uma vez, e revisar um a um sem agrupamento reproduz o
-  // limbo que este fluxo existe para resolver.
-  const lotes = Object.values(
-    staged.reduce((acc, snap) => {
-      const gid = snap.snadds?.group_id || 'sem-lote';
-      const chave = `${snap.project_id}::${gid}`;
-      (acc[chave] ||= {
-        chave,
-        groupId: snap.snadds?.group_id,
-        projectId: snap.project_id,
-        projectName: snap.project_name,
-        importado: snap.trust_level === 'imported',
-        snaps: [] as Snap[],
-      }).snaps.push(snap);
-      return acc;
-    }, {} as Record<string, any>)
-  );
+  /** As notas de UM lote. O lote sem `group_id` -- artefato de agente, a
+   *  maioria da fila -- so e alcancavel por `semGrupo`. */
+  const notasDoLote = (lote: LoteRevisao) =>
+    getSnapsGlobal({
+      status: 'staged',
+      projectId: lote.project_id,
+      ...(lote.group_id ? { groupId: lote.group_id } : { semGrupo: true }),
+      limit: 200,
+    });
 
-  // Qual lote esta aberto no painel de revisao. Os dois botoes do lote
-  // continuam existindo -- quem confia no lote nao precisa passar por aqui --,
-  // mas decidir nota a nota deixou de exigir a API na mao: `promote` e
-  // `discard` sempre aceitaram `snap_ids`, faltava a tela oferecer.
-  const [loteAberto, setLoteAberto] = useState<any>(null);
+  // Qual lote esta aberto no painel, com as notas dele ja em maos. Os dois
+  // botoes do lote continuam existindo -- quem confia no lote nao precisa
+  // passar pelo painel.
+  const [loteAberto, setLoteAberto] = useState<{ lote: LoteRevisao; snaps: Snap[] } | null>(null);
 
-  const revisarLote = async (lote: any, acao: 'promover' | 'descartar') => {
-    const rotulo = lote.groupId ? 'este lote' : 'os snaps sem lote';
+  const chaveDoLote = (l: LoteRevisao) => `${l.project_id}::${l.group_id ?? 'sem-lote'}`;
+
+  const revisarLote = async (lote: LoteRevisao, acao: 'promover' | 'descartar') => {
+    const rotulo = lote.group_id ? 'este lote' : 'os snaps sem lote';
     const verbo = acao === 'promover' ? 'promover' : 'DESCARTAR';
-    if (!confirm(`${verbo} ${lote.snaps.length} snap(s) de ${rotulo}?`)) return;
+    if (!confirm(`${verbo} ${lote.total} snap(s) de ${rotulo}?`)) return;
 
-    setRevisando(lote.chave);
+    setRevisando(chaveDoLote(lote));
     try {
       // Sempre por snap_ids, mesmo havendo group_id: o group_id pode repetir
-      // entre projetos, e a rota e por projeto. Enviar ids e inequivoco.
-      const ids = lote.snaps.map((x: Snap) => x.id);
+      // entre projetos, e a rota e por projeto. Enviar ids e inequivoco -- e
+      // isso vale ainda mais agora que o agrupamento acontece no servidor.
+      const notas = await notasDoLote(lote);
+      const ids = notas.map((x) => x.id);
       if (acao === 'promover') {
-        await promoteSnaps(lote.projectId, { snap_ids: ids });
+        await promoteSnaps(lote.project_id, { snap_ids: ids });
       } else {
-        await discardSnaps(lote.projectId, { snap_ids: ids });
+        await discardSnaps(lote.project_id, { snap_ids: ids });
       }
-      const { snaps } = await getAllSnaps();
-      setMemoryCards(snaps as MemoryCard[]);
+      await recarregar();
     } catch (e) {
       console.error('Revisao falhou:', e);
       alert('Falha ao revisar o lote. Veja o console.');
@@ -227,29 +235,80 @@ export function MemoryView() {
     return () => clearTimeout(t);
   }, [searchQuery, folderStructure]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { snaps, projects } = await getAllSnaps();
+  /** O filtro da aba, traduzido para o que o servidor entende.
+   *
+   *  `Agent Memory` e etiqueta, nao status. Filtrar isso no cliente sobre
+   *  paginas ja carregadas daria uma tela que parece vazia com resultados na
+   *  pagina seguinte. */
+  const filtroDoServidor = useCallback(() => {
+    if (ruleFilter === 'agent-memory') return { label: 'agent-memory' };
+    if (ruleFilter === 'all') return {};
+    return { status: ruleFilter };
+  }, [ruleFilter]);
 
-        // Transform Snaps to MemoryCards
-        setMemoryCards(snaps as MemoryCard[]);
-
-        // Generate Folder Structure from Projects
-        const folders: FolderNode[] = projects.map(p => ({
-          id: p.id,
-          name: p.name,
-          type: 'project',
-          count: snaps.filter(s => s.project_id === p.id).length,
-          children: [] // Groups not supported yet in MVP
-        }));
-        setFolderStructure(folders);
-      } catch (error) {
-        console.error('Failed to fetch memory data:', error);
-      }
-    };
-    fetchData();
+  const carregarResumo = useCallback(async () => {
+    // Os numeros da tela, numa chamada. Antes eram 33 listagens e 6,2 MB para
+    // responder o que o banco responde com dois GROUP BY.
+    const resumo = await getSnapsSummary();
+    setTotal(resumo.total);
+    setPorStatus(resumo.por_status);
+    setFolderStructure(resumo.por_projeto.map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: 'project' as const,
+      count: p.total,
+      children: [],
+    })));
   }, []);
+
+  const carregarPrimeiraPagina = useCallback(async () => {
+    const pagina = await getSnapsGlobal({ skip: 0, limit: PAGINA_MEMORY, ...filtroDoServidor() });
+    setMemoryCards(pagina as MemoryCard[]);
+    // Pagina incompleta significa fim. Sem isto o botao de carregar mais
+    // continuaria oferecendo uma pagina que nao existe.
+    setTemMais(pagina.length === PAGINA_MEMORY);
+  }, [filtroDoServidor]);
+
+  const recarregar = useCallback(async () => {
+    setErroCarga(null);
+    try {
+      await Promise.all([carregarResumo(), carregarPrimeiraPagina()]);
+    } catch (e: any) {
+      // Falha de carregamento NAO pode virar base vazia. Foi assim que a busca
+      // passou a desenhar 401 como "nenhum resultado".
+      setErroCarga(e?.response?.data?.detail ?? e?.message ?? 'erro desconhecido');
+    }
+  }, [carregarResumo, carregarPrimeiraPagina]);
+
+  useEffect(() => {
+    void recarregar();
+  }, [recarregar]);
+
+  // Os lotes so sao buscados quando a fila esta aberta: quem esta olhando a
+  // grade nao precisa deles, e o contador da aba ja vem do resumo.
+  useEffect(() => {
+    if (ruleFilter !== 'staged') return;
+    let vivo = true;
+    getReviewBatches()
+      .then((l) => vivo && setLotes(l))
+      .catch(() => vivo && setLotes([]));
+    return () => { vivo = false; };
+  }, [ruleFilter]);
+
+  const carregarMais = async () => {
+    setCarregandoMais(true);
+    try {
+      const pagina = await getSnapsGlobal({
+        skip: memoryCards.length, limit: PAGINA_MEMORY, ...filtroDoServidor(),
+      });
+      setMemoryCards((atual) => [...atual, ...(pagina as MemoryCard[])]);
+      setTemMais(pagina.length === PAGINA_MEMORY);
+    } catch (e: any) {
+      setErroCarga(e?.response?.data?.detail ?? e?.message ?? 'erro desconhecido');
+    } finally {
+      setCarregandoMais(false);
+    }
+  };
 
   const handleCardClick = (card: MemoryCard) => {
     setSelectedSnap(card);
@@ -325,7 +384,7 @@ export function MemoryView() {
                     backgroundClip: 'text'
                   }}
                 >
-                  {memoryCards.length}
+                  {total}
                 </div>
                 <div className="text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
                   Total
@@ -524,9 +583,9 @@ export function MemoryView() {
           {ruleFilter === 'staged' && lotes.length > 0 && (
             <div className="px-8 pt-6">
               <div className="max-w-7xl mx-auto space-y-3">
-                {lotes.map((lote: any) => (
+                {lotes.map((lote) => (
                   <div
-                    key={lote.chave}
+                    key={chaveDoLote(lote)}
                     className="flex items-center justify-between gap-4 p-4 rounded-xl backdrop-blur-xl"
                     style={{
                       background: 'rgba(255, 107, 53, 0.06)',
@@ -536,11 +595,11 @@ export function MemoryView() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium" style={{ color: 'var(--snaps-text-primary)' }}>
-                          {lote.snaps.length} snap(s)
+                          {lote.total} snap(s)
                         </span>
-                        {lote.projectName && (
+                        {lote.project_name && (
                           <span className="text-sm opacity-70" style={{ color: 'var(--snaps-text-secondary)' }}>
-                            · {lote.projectName}
+                            · {lote.project_name}
                           </span>
                         )}
                         {/* Lote importado precisa ser visivel ANTES da acao:
@@ -556,12 +615,17 @@ export function MemoryView() {
                         )}
                       </div>
                       <p className="text-xs mt-1 opacity-60 truncate" style={{ color: 'var(--snaps-text-secondary)' }}>
-                        {lote.groupId ? `lote ${String(lote.groupId).slice(0, 8)}` : 'sem lote de importacao'}
+                        {lote.group_id ? `lote ${String(lote.group_id).slice(0, 8)}` : 'sem lote de importacao'}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => setLoteAberto(lote)}
+                        onClick={async () => {
+                          // As notas so sao buscadas quando o lote e aberto: a
+                          // fila mostra contagem, nao conteudo.
+                          const snaps = await notasDoLote(lote);
+                          setLoteAberto({ lote, snaps });
+                        }}
                         className="px-3 py-2 rounded-lg text-sm font-medium"
                         style={{
                           background: 'rgba(168, 85, 247, 0.12)',
@@ -572,7 +636,7 @@ export function MemoryView() {
                         Revisar uma a uma
                       </button>
                       <button
-                        disabled={revisando === lote.chave}
+                        disabled={revisando === chaveDoLote(lote)}
                         onClick={() => revisarLote(lote, 'promover')}
                         className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
                         style={{
@@ -581,10 +645,10 @@ export function MemoryView() {
                           color: 'var(--snaps-accent-blue)'
                         }}
                       >
-                        {revisando === lote.chave ? '...' : 'Aprovar lote'}
+                        {revisando === chaveDoLote(lote) ? '...' : 'Aprovar lote'}
                       </button>
                       <button
-                        disabled={revisando === lote.chave}
+                        disabled={revisando === chaveDoLote(lote)}
                         onClick={() => revisarLote(lote, 'descartar')}
                         className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
                         style={{
@@ -637,6 +701,36 @@ export function MemoryView() {
                 </AnimatePresence>
               </div>
 
+              {erroCarga && (
+                <div className="text-center py-16" style={{ color: 'var(--snaps-accent-orange)' }}>
+                  <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-80" />
+                  <p className="text-lg">Nao foi possivel carregar a Memory</p>
+                  <p className="text-sm mt-2 opacity-80">{erroCarga}</p>
+                  <button
+                    onClick={() => void recarregar()}
+                    className="mt-4 px-4 py-2 rounded-lg text-sm"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--snaps-text-primary)' }}
+                  >
+                    Tentar de novo
+                  </button>
+                </div>
+              )}
+
+              {/* So aparece quando a ultima pagina veio cheia. Oferecer sempre
+                  prometeria uma pagina que pode nao existir. */}
+              {temMais && searchResults === null && !erroCarga && (
+                <div className="flex justify-center py-8">
+                  <button
+                    onClick={() => void carregarMais()}
+                    disabled={carregandoMais}
+                    className="px-5 py-2.5 rounded-lg text-sm disabled:opacity-50"
+                    style={{ background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.4)', color: 'var(--snaps-accent-blue)' }}
+                  >
+                    {carregandoMais ? 'Carregando...' : 'Carregar mais'}
+                  </button>
+                </div>
+              )}
+
               {searchError && !isSearching && (
                 <div className="text-center py-16" style={{ color: 'var(--snaps-accent-orange)' }}>
                   <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-80" />
@@ -662,16 +756,13 @@ export function MemoryView() {
 
       {loteAberto && (
         <ReviewPanel
-          projectId={loteAberto.projectId}
+          projectId={loteAberto.lote.project_id}
           notas={loteAberto.snaps}
-          titulo={loteAberto.groupId
-            ? `${loteAberto.projectName ?? ''} - lote ${String(loteAberto.groupId).slice(0, 8)}`
-            : `${loteAberto.projectName ?? ''} - sem lote de importacao`}
+          titulo={loteAberto.lote.group_id
+            ? `${loteAberto.lote.project_name} - lote ${String(loteAberto.lote.group_id).slice(0, 8)}`
+            : `${loteAberto.lote.project_name} - sem lote de importacao`}
           onFechar={() => setLoteAberto(null)}
-          onMudou={async () => {
-            const { snaps } = await getAllSnaps();
-            setMemoryCards(snaps as MemoryCard[]);
-          }}
+          onMudou={() => void recarregar()}
         />
       )}
 
