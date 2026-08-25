@@ -102,3 +102,29 @@ describe('navegacao', () => {
     expect(onAbrir).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc-1', status: 'extracted' }));
   });
 });
+
+describe('a contagem da aba', () => {
+  it('informa quantos materiais carregou', async () => {
+    // A badge da aba lia `mockDocuments`, que foi esvaziado junto com os dados
+    // falsos. Ficou mostrando 0 ao lado de tres materiais reais -- de novo um
+    // numero que parece informacao e nao e.
+    vi.mocked(listSourceDocuments).mockResolvedValue([doc(), doc({ id: 'doc-2' })] as any);
+    const onContagem = vi.fn();
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onContagem={onContagem} />);
+
+    await waitFor(() => expect(onContagem).toHaveBeenCalledWith(2));
+  });
+
+  it('falha reporta desconhecido, nunca zero', async () => {
+    // Zero e uma afirmacao ("nao ha material"). Depois de uma falha ninguem
+    // sabe quantos ha, e dizer zero seria inventar.
+    vi.mocked(listSourceDocuments).mockRejectedValue(new Error('caiu'));
+    const onContagem = vi.fn();
+
+    render(<SourceDocumentsTab projectId={PROJETO} onAbrir={vi.fn()} onContagem={onContagem} />);
+
+    await waitFor(() => expect(onContagem).toHaveBeenCalledWith(null));
+    expect(onContagem).not.toHaveBeenCalledWith(0);
+  });
+});

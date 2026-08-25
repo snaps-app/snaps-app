@@ -9,9 +9,10 @@ import { DocViewerModal } from '@/app/components/documents/doc-viewer-modal';
 import { DocCard } from '@/app/components/documents/doc-card';
 import { useDocumentsView } from '@/app/components/views/useDocumentsView';
 import { SourceDocumentsTab } from '@/app/components/documents/source-documents-tab';
+import { listSourceDocuments } from '@/services/sourceDocuments';
 import { ImportDestinationModal } from '@/app/components/modals/import-destination-modal';
 import { SourceImportModal } from '@/app/components/modals/source-import-modal';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DestinoImportacao } from '@/app/components/modals/import-destination-modal';
 
 export function DocumentsView() {
@@ -61,6 +62,22 @@ export function DocumentsView() {
   const [importandoSource, setImportandoSource] = useState(false);
   // Muda a cada importacao concluida, so para a aba recarregar a lista.
   const [recarga, setRecarga] = useState(0);
+
+  // A badge da aba. `null` = ainda nao sei (ou a busca falhou), e nesse caso
+  // ela nao aparece -- zero e uma afirmacao, e mostrar "0" ao lado de tres
+  // materiais reais e o mesmo defeito dos dados falsos que sairam daqui.
+  // A busca vive aqui, e nao so na aba, porque a aba inicial e Governance: sem
+  // isto o numero so ficaria certo depois de alguem clicar em Source documents.
+  const [qtdSource, setQtdSource] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let vivo = true;
+    listSourceDocuments(projectId)
+      .then((l) => vivo && setQtdSource(l.length))
+      .catch(() => vivo && setQtdSource(null));
+    return () => { vivo = false; };
+  }, [projectId, recarga]);
 
   const escolherDestino = (d: DestinoImportacao) => {
     setPerguntandoDestino(false);
@@ -224,7 +241,7 @@ export function DocumentsView() {
                       : 'rgba(255, 255, 255, 0.1)'
                   }}
                 >
-                  {mockDocuments.filter(d => d.type === 'imported').length}
+                  {qtdSource ?? '—'}
                 </span>
               </motion.button>
             </motion.div>
@@ -292,6 +309,7 @@ export function DocumentsView() {
                   key={recarga}
                   projectId={projectId}
                   onAbrir={(d) => navigate(`/project/${projectId}/documents/${d.id}`)}
+                  onContagem={setQtdSource}
                 />
               ) : activeTab === 'governance'
                 ? govDocs.map((doc, index) => (

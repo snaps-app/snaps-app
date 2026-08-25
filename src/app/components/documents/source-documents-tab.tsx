@@ -19,6 +19,9 @@ interface Props {
   onAbrir: (doc: SourceDocument) => void;
   onRevisar?: (doc: SourceDocument) => void;
   onReprocessar?: (doc: SourceDocument) => void;
+  /** Quantos materiais existem, para a badge da aba. `null` = desconhecido:
+   *  depois de uma falha ninguem sabe quantos ha, e dizer zero seria inventar. */
+  onContagem?: (n: number | null) => void;
 }
 
 const ROTULO: Record<string, { texto: string; cor: string }> = {
@@ -33,7 +36,7 @@ function tamanhoLegivel(bytes?: number): string | null {
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
 }
 
-export function SourceDocumentsTab({ projectId, onAbrir, onRevisar, onReprocessar }: Props) {
+export function SourceDocumentsTab({ projectId, onAbrir, onRevisar, onReprocessar, onContagem }: Props) {
   const [docs, setDocs] = useState<SourceDocument[] | null>(null);
   // Falha e um estado proprio, nunca uma lista vazia: os dois desenham telas
   // diferentes porque significam coisas diferentes.
@@ -45,6 +48,7 @@ export function SourceDocumentsTab({ projectId, onAbrir, onRevisar, onReprocessa
     try {
       const lista = await listSourceDocuments(projectId);
       setDocs(lista);
+      onContagem?.(lista.length);
 
       // Quantas notas de cada material ainda esperam decisao. Uma chamada por
       // documento -- a alternativa seria um agregado no backend, que so vale a
@@ -65,7 +69,9 @@ export function SourceDocumentsTab({ projectId, onAbrir, onRevisar, onReprocessa
     } catch (e: any) {
       setDocs(null);
       setErro(e?.response?.data?.detail ?? e?.message ?? 'erro desconhecido');
+      onContagem?.(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   useEffect(() => {
