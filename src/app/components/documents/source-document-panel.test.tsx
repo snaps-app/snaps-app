@@ -24,6 +24,7 @@ vi.mock('@/services/sourceDocuments', () => ({
   getSourceDocumentDownloadUrl: vi.fn(),
   getReviewSnaps: vi.fn(),
   getDocumentSnaps: vi.fn(),
+  limitePaginasVision: vi.fn(),
 }));
 
 import {
@@ -33,6 +34,7 @@ import {
   getSourceDocumentDownloadUrl,
   getReviewSnaps,
   getDocumentSnaps,
+  limitePaginasVision,
 } from '@/services/sourceDocuments';
 import { SourceDocumentPanel } from '@/app/components/documents/source-document-panel';
 
@@ -63,6 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getReviewSnaps).mockResolvedValue([]);
   vi.mocked(getDocumentSnaps).mockResolvedValue([]);
+  vi.mocked(limitePaginasVision).mockReturnValue(null);
 });
 
 describe('carregamento', () => {
@@ -144,7 +147,9 @@ describe('reprocessar', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /tentar de novo/i }));
 
-    expect(extractSourceDocument).toHaveBeenCalledWith(PROJETO, DOC);
+    // Reprocessar NAO autoriza gasto: quem paga Vision acima do teto e o
+    // portao, com o preco na tela.
+    expect(extractSourceDocument).toHaveBeenCalledWith(PROJETO, DOC, { confirmarVision: false });
     await waitFor(() =>
       expect(screen.getByTestId('etapa-extracao')).toHaveAttribute('data-estado', 'concluida'),
     );
@@ -406,5 +411,68 @@ describe('a quarta etapa: revisao', () => {
     for (const id of ['etapa-upload', 'etapa-extracao', 'etapa-decomposicao']) {
       expect(screen.getByTestId(id)).toHaveAttribute('data-estado', 'concluida');
     }
+  });
+});
+
+describe('o teto do Vision, e a saida por cima', () => {
+  const recusado = doc({ status: 'extraction_failed', blocks: [], extraction_error: 'excede o teto' });
+
+  const recusar = () => {
+    vi.mocked(getSourceDocument).mockResolvedValue(recusado as any);
+    vi.mocked(extractSourceDocument).mockRejectedValue({ response: { status: 422 } });
+    vi.mocked(limitePaginasVision).mockReturnValue({ paginas: 76, teto: 60, custo: 0.8 });
+  };
+
+  it('a recusa vira uma escolha com o preco na mesa', async () => {
+    // Medido, nao estimado: ~1 centavo por pagina. Pedir autorizacao sem dizer
+    // quanto custa nao e escolha informada, e so um obstaculo.
+    recusar();
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: /tentar de novo/i }));
+
+    const portao = await screen.findByTestId('portao-vision');
+    expect(within(portao).getByText(/76 páginas/)).toBeInTheDocument();
+    expect(within(portao).getByText(/US\$ 0,80/)).toBeInTheDocument();
+  });
+
+  it('confirmar manda a autorizacao explicita', async () => {
+    recusar();
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: /tentar de novo/i }));
+
+    vi.mocked(extractSourceDocument).mockResolvedValue({ blocos: 76, status: 'extracted' } as any);
+    vi.mocked(getSourceDocument).mockResolvedValue(doc() as any);
+    await userEvent.click(screen.getByRole('button', { name: /extrair mesmo assim/i }));
+
+    expect(extractSourceDocument).toHaveBeenLastCalledWith(PROJETO, DOC, { confirmarVision: true });
+  });
+
+  it('desistir nao gasta nada, e o material continua ali', async () => {
+    recusar();
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: /tentar de novo/i }));
+    await userEvent.click(screen.getByRole('button', { name: /agora não/i }));
+
+    expect(extractSourceDocument).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('portao-vision')).not.toBeInTheDocument();
+    expect(screen.getByText('Aula 03 - Fotossintese.pdf')).toBeInTheDocument();
+  });
+
+  it('outra falha de extracao NAO oferece gastar', async () => {
+    // `limitePaginasVision` devolve null para qualquer coisa que nao seja o
+    // teto. Um PDF com senha nao vira convite para pagar Vision.
+    vi.mocked(getSourceDocument).mockResolvedValue(recusado as any);
+    vi.mocked(extractSourceDocument).mockRejectedValue({
+      response: { data: { detail: 'PDF protegido por senha' } },
+    });
+
+    render(<SourceDocumentPanel projectId={PROJETO} docId={DOC} onVoltar={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: /tentar de novo/i }));
+
+    expect(await screen.findByText(/PDF protegido por senha/)).toBeInTheDocument();
+    expect(screen.queryByTestId('portao-vision')).not.toBeInTheDocument();
   });
 });

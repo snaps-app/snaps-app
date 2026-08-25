@@ -30,6 +30,7 @@ import {
   getSourceDocument,
   getSourceDocumentDownloadUrl,
   getDocumentSnaps,
+  limitePaginasVision,
 } from '@/services/sourceDocuments';
 
 const PROJETO = '7d17a48e-5615-4c90-9602-531f1b5a603d';
@@ -205,5 +206,48 @@ describe('todas as notas de um material', () => {
   it('deixa a falha subir, como o resto do modulo', async () => {
     vi.mocked(api.get).mockRejectedValue({ response: { status: 403 } });
     await expect(getDocumentSnaps(PROJETO, DOC)).rejects.toBeTruthy();
+  });
+});
+
+describe('extrair acima do teto do Vision', () => {
+  it('por padrao nao autoriza gasto nenhum', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { blocos: 12, status: 'extracted' } });
+
+    await extractSourceDocument(PROJETO, DOC);
+
+    const [, , cfg] = vi.mocked(api.post).mock.calls[0] as any;
+    expect(cfg?.params?.confirmar_vision).toBeFalsy();
+  });
+
+  it('confirmado, manda a autorizacao explicita', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { blocos: 76, status: 'extracted' } });
+
+    await extractSourceDocument(PROJETO, DOC, { confirmarVision: true });
+
+    const [, , cfg] = vi.mocked(api.post).mock.calls[0] as any;
+    expect(cfg.params.confirmar_vision).toBe(true);
+  });
+});
+
+describe('ler a recusa do teto', () => {
+  it('reconhece o limite de paginas pelo codigo, nao pela frase', async () => {
+    // O texto da mensagem e portugues escrito por gente e vai mudar. O codigo
+    // e o contrato.
+    const erro = {
+      response: {
+        status: 422,
+        data: { detail: { codigo: 'vision_page_limit', paginas: 76, teto: 60, custo_estimado_usd: 0.8, mensagem: 'x' } },
+      },
+    };
+
+    const limite = limitePaginasVision(erro);
+
+    expect(limite).toEqual({ paginas: 76, teto: 60, custo: 0.8 });
+  });
+
+  it('outra falha qualquer nao vira convite para gastar', () => {
+    expect(limitePaginasVision({ response: { data: { detail: 'PDF protegido por senha' } } })).toBeNull();
+    expect(limitePaginasVision(new Error('rede'))).toBeNull();
+    expect(limitePaginasVision({ response: { data: { detail: { codigo: 'outro' } } } })).toBeNull();
   });
 });

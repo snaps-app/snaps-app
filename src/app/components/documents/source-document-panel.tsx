@@ -20,8 +20,9 @@ import {
   getSourceDocumentDownloadUrl,
   getReviewSnaps,
   getDocumentSnaps,
+  limitePaginasVision,
 } from '@/services/sourceDocuments';
-import type { SourceDocumentWithBlocks } from '@/services/sourceDocuments';
+import type { SourceDocumentWithBlocks, LimitePaginasVision } from '@/services/sourceDocuments';
 import type { Snap } from '@/services/types';
 import { precisaConfirmarDecomposicao } from '@/services/ingestRules';
 import { ReviewPanel } from './review-panel';
@@ -117,6 +118,9 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
   const [ocupado, setOcupado] = useState<'extraindo' | 'decompondo' | null>(null);
   const [verBlocos, setVerBlocos] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+  // O teto do Vision e a unica falha de extracao com saida por cima, entao e a
+  // unica que a tela TRATA em vez de so exibir.
+  const [tetoVision, setTetoVision] = useState<LimitePaginasVision | null>(null);
   const [revisando, setRevisando] = useState(false);
 
   const detalhe = (e: any) => e?.response?.data?.detail ?? e?.message ?? 'erro desconhecido';
@@ -146,14 +150,19 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
     void carregar();
   }, [carregar]);
 
-  const extrair = async () => {
+  const extrair = async (confirmarVision = false) => {
     setErroAcao(null);
+    setTetoVision(null);
     setOcupado('extraindo');
     try {
-      await extractSourceDocument(projectId, docId);
+      await extractSourceDocument(projectId, docId, { confirmarVision });
       await carregar();
     } catch (e) {
-      setErroAcao(detalhe(e));
+      const limite = limitePaginasVision(e);
+      // Recusa por custo nao e erro do usuario: e uma decisao que ele ainda nao
+      // tomou. Vira portao com o preco, nao caixa vermelha.
+      if (limite) setTetoVision(limite);
+      else setErroAcao(detalhe(e));
     } finally {
       setOcupado(null);
     }
@@ -314,6 +323,49 @@ export function SourceDocumentPanel({ projectId, docId, onVoltar }: Props) {
         >
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: 'var(--snaps-accent-red)' }} />
           <span>{erroAcao}</span>
+        </div>
+      )}
+
+      {tetoVision && (
+        <div
+          data-testid="portao-vision"
+          className="px-5 py-4 rounded-xl"
+          style={{ background: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.4)' }}
+        >
+          <div className="flex items-center gap-2 mb-2" style={{ color: 'var(--snaps-accent-orange)' }}>
+            <AlertTriangle className="w-4 h-4" />
+            <span className="font-semibold text-sm">Este PDF não tem camada de texto</span>
+          </div>
+          <p className="text-sm leading-relaxed mb-2" style={{ color: 'var(--snaps-text-secondary)' }}>
+            Ler um escaneado exige o modelo de visão, que cobra{' '}
+            <strong style={{ color: 'var(--snaps-text-primary)' }}>por página</strong>. São{' '}
+            <strong style={{ color: 'var(--snaps-text-primary)' }}>{tetoVision.paginas} páginas</strong>,
+            acima do teto de {tetoVision.teto} — cerca de{' '}
+            <strong style={{ color: 'var(--snaps-text-primary)' }}>
+              US$ {tetoVision.custo.toFixed(2).replace('.', ',')}
+            </strong>.
+          </p>
+          <p className="text-xs mb-4" style={{ color: 'var(--snaps-placeholder)' }}>
+            O teto existe para ninguém descobrir o custo pela fatura. Com o número na tela, a
+            decisão é sua.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setTetoVision(null)}
+              className="px-4 py-2 rounded-lg text-sm"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--snaps-text-primary)' }}
+            >
+              Agora não
+            </button>
+            <button
+              onClick={() => void extrair(true)}
+              disabled={ocupado !== null}
+              className="px-4 py-2 rounded-lg text-sm disabled:opacity-40"
+              style={{ color: 'var(--snaps-accent-orange)', border: '1px solid rgba(255,107,53,0.5)', background: 'rgba(255,107,53,0.14)' }}
+            >
+              Extrair mesmo assim
+            </button>
+          </div>
         </div>
       )}
 

@@ -90,9 +90,38 @@ export const uploadSourceDocument = async (
 export const extractSourceDocument = async (
   projectId: string,
   docId: string,
+  opcoes: { confirmarVision?: boolean } = {},
 ): Promise<ResultadoExtracao> => {
-  const r = await api.post(`/projects/${projectId}/source_documents/${docId}/extract`);
+  // A autorizacao e sempre explicita e por chamada. Nao ha estado "este projeto
+  // pode gastar": cada documento acima do teto e uma decisao nova.
+  const params = opcoes.confirmarVision ? { confirmar_vision: true } : undefined;
+  const r = await api.post(
+    `/projects/${projectId}/source_documents/${docId}/extract`,
+    undefined,
+    { params },
+  );
   return r.data;
+};
+
+export interface LimitePaginasVision {
+  paginas: number;
+  teto: number;
+  /** Estimativa em dolares, medida pelo backend a partir de uma chamada real. */
+  custo: number;
+}
+
+/**
+ * Reconhece a recusa por teto de paginas do Vision -- a unica falha de extracao
+ * que a tela TRATA em vez de so exibir, porque tem saida por cima.
+ *
+ * O reconhecimento e pelo `codigo`, nunca pelo texto: a mensagem e portugues
+ * escrito por gente e vai ser reescrita, e um `includes('excede o teto')`
+ * silenciosamente pararia de oferecer o botao no dia em que isso acontecesse.
+ */
+export const limitePaginasVision = (e: any): LimitePaginasVision | null => {
+  const d = e?.response?.data?.detail;
+  if (!d || typeof d !== 'object' || d.codigo !== 'vision_page_limit') return null;
+  return { paginas: d.paginas, teto: d.teto, custo: d.custo_estimado_usd };
 };
 
 export const decomposeSourceDocument = async (
