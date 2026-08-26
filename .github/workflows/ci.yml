@@ -1,16 +1,20 @@
 name: CI — snaps-app
 
 on:
+  # O gatilho era `branches: [master]`, e por isso NENHUM check rodou na PR #34,
+  # que aponta para `sprint-sprint-19.0`. O trabalho de uma sprint inteira ficou
+  # sem verificacao ate o merge final -- um erro de tipo passaria direto
+  # (SNA-SUP-42).
   pull_request:
-    branches:
-      - master
   push:
     branches:
       - master
+      - 'sprint-**'
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Typecheck & Build
+    name: Typecheck, Test & Build
     runs-on: ubuntu-latest
 
     steps:
@@ -27,6 +31,12 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit
+
+      # Antes desta linha o repositorio tinha um spec Playwright que nenhuma
+      # maquina executava. Teste que ninguem roda e pior que teste ausente: da a
+      # sensacao de cobertura sem a cobertura.
+      - name: Unit tests
+        run: npm test
 
       - name: Build
         run: npm run build
