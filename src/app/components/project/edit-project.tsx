@@ -28,6 +28,9 @@ export function EditProject() {
   const [repoOwner, setRepoOwner] = useState('');
   const [repoNames, setRepoNames] = useState('');
   const [githubPat, setGithubPat] = useState('');
+  const [hasSavedConfig, setHasSavedConfig] = useState(false);
+  const [savedGithubRepo, setSavedGithubRepo] = useState({ owner: '', names: '' });
+  const [githubError, setGithubError] = useState('');
   const [lastSyncAt, setLastSyncAt] = useState('');
   const [syncStatus, setSyncStatus] = useState('');
 
@@ -35,6 +38,12 @@ export function EditProject() {
     const loadData = async () => {
       if (!projectId) return;
       setIsLoading(true);
+      setGithubPat('');
+      setHasSavedConfig(false);
+      setSavedGithubRepo({ owner: '', names: '' });
+      setRepoOwner('');
+      setRepoNames('');
+      setGithubError('');
       try {
         const project = await getProject(projectId);
         setProjectName(project.name);
@@ -46,13 +55,15 @@ export function EditProject() {
           const config = await getGithubConfig(projectId);
           setRepoOwner(config.repo_owner);
           setRepoNames(config.repo_names || '');
-          setGithubPat(config.github_pat);
+          setGithubPat('');
+          setHasSavedConfig(true);
+          setSavedGithubRepo({ owner: config.repo_owner, names: config.repo_names || '' });
           if (config.last_sync_at) {
             setLastSyncAt(new Date(config.last_sync_at).toLocaleString());
           }
           setSyncStatus(config.sync_status || '');
         } catch (err) {
-          console.log("GitHub config not found or error:", err);
+          console.log("GitHub configuration unavailable.");
         }
       } catch (error) {
         console.error('Failed to load project:', error);
@@ -99,6 +110,12 @@ export function EditProject() {
 
   const handleUpdate = async () => {
     if (projectId && projectName) {
+      setGithubError('');
+      const repoChanged = repoOwner !== savedGithubRepo.owner || repoNames !== savedGithubRepo.names;
+      if ((repoChanged || githubPat) && (!repoOwner || !repoNames || !githubPat)) {
+        setGithubError('Para salvar alterações do GitHub, informe os repositórios e o PAT. O token salvo nunca é exibido.');
+        return;
+      }
       setIsUpdating(true);
       try {
         await updateProject(projectId, {
@@ -115,11 +132,14 @@ export function EditProject() {
                 repo_names: repoNames,
                 github_pat: githubPat
             });
+            setGithubPat('');
+            setHasSavedConfig(true);
+            setSavedGithubRepo({ owner: repoOwner, names: repoNames });
         }
 
         navigate(`/project/${projectId}`);
       } catch (error) {
-        console.error('Failed to update project:', error);
+        setGithubError('Não foi possível salvar. Confira suas permissões e tente novamente.');
       } finally {
         setIsUpdating(false);
       }
@@ -455,6 +475,7 @@ export function EditProject() {
               </motion.div>
 
               {/* GitHub Integration Section */}
+              {githubError && <p role="alert" className="text-sm text-red-400">{githubError}</p>}
               {projectId && (
                 <EditProjectGithubConfig
                     projectId={projectId}
@@ -463,9 +484,14 @@ export function EditProject() {
                     repoNames={repoNames}
                     setRepoNames={setRepoNames}
                     githubPat={githubPat}
+                    hasSavedConfig={hasSavedConfig}
+                    hasUnsavedConfigChanges={repoOwner !== savedGithubRepo.owner || repoNames !== savedGithubRepo.names}
+                    setHasSavedConfig={(saved) => {
+                      setHasSavedConfig(saved);
+                      if (saved) setSavedGithubRepo({ owner: repoOwner, names: repoNames });
+                    }}
                     setGithubPat={setGithubPat}
                     lastSyncAt={lastSyncAt}
-                    setLastSyncAt={setLastSyncAt}
                     syncStatus={syncStatus}
                     setSyncStatus={setSyncStatus}
                 />
