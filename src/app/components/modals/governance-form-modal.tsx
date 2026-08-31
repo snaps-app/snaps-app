@@ -42,6 +42,15 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
 }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
+    // A versao do registro que ORIGINOU este formulário, congelada na abertura.
+    //
+    // Estado, e não uma consulta às props no momento de salvar. As listas
+    // `agents`/`docs`/`skills` são recarregadas pelo pai e mudam por baixo do
+    // modal aberto: ler delas na hora do save capturaria a versão de uma
+    // escrita alheia que aconteceu DEPOIS que este formulário foi preenchido, e
+    // o compare-and-swap passaria por cima dela — exatamente o que ele existe
+    // para impedir.
+    const [baseLockVersion, setBaseLockVersion] = useState<number | undefined>(undefined);
 
     // Agent form
     const [agentName, setAgentName] = useState('');
@@ -78,21 +87,25 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     const item = agents.find(a => a.id === editingId);
                     if (item) {
                         setAgentName(item.name); setAgentType(item.type); setAgentInstructions(item.instructions); setAgentScope(item.scope || 'global'); setAgentProjectId(item.project_id || '');
+                        setBaseLockVersion(item.lock_version);
                     }
                 } else if (tab === 'docs') {
                     const item = docs.find(d => d.id === editingId);
                     if (item) {
                         setDocName(item.name); setDocType(item.type); setDocScope(item.scope || 'global'); setDocProjectId(item.project_id || ''); setDocContent(item.content);
+                        setBaseLockVersion(item.lock_version);
                     }
                 } else if (tab === 'skills') {
                     const item = skills.find(s => s.id === editingId);
                     if (item) {
                         setSkillName(item.name); setSkillContent(item.content); setSkillLang(item.language); setSkillVersion(item.version || '1.0.0'); setSkillScope(item.scope || 'global'); setSkillProjectId(item.project_id || '');
+                        setBaseLockVersion(item.lock_version);
                     }
                 } else {
                     const item = resources.find(r => r.id === editingId);
                     if (item) {
                         setResName(item.name); setResType(item.type); setResProjectId(item.project_id || ''); setResContent(item.content);
+                        setBaseLockVersion(undefined);
                     }
                 }
             } else {
@@ -100,20 +113,20 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                 setDocName(''); setDocType('playbook'); setDocScope('global'); setDocProjectId(''); setDocContent('');
                 setSkillName(''); setSkillContent(''); setSkillLang('python'); setSkillVersion('1.0.0'); setSkillScope('global'); setSkillProjectId('');
                 setResName(''); setResType('documentation'); setResProjectId(''); setResContent('');
+                setBaseLockVersion(undefined);
             }
+            setSaveError(null);
         }
-    }, [isOpen, editingId, tab, agents, docs, skills, resources]);
-
-    /**
-     * A `lock_version` do registro que ESTA tela carregou.
-     *
-     * Vem da lista que o modal recebeu por prop — a mesma de onde os campos do
-     * formulário foram preenchidos —, e não de uma releitura no momento de
-     * salvar. Reler aqui pegaria a versão nova e faria o CAS passar sobre a
-     * alteração alheia, que é exatamente o que ele existe para impedir.
-     */
-    const versaoLida = (lista: { id: string; lock_version: number }[]) =>
-        lista.find(x => x.id === editingId)?.lock_version;
+        // As listas NAO entram nas dependencias de proposito.
+        //
+        // Com `agents/docs/skills/resources` aqui, todo refresh do pai
+        // reexecutava este efeito com o modal ABERTO: os campos eram
+        // repovoados por cima do que a pessoa estava digitando (o rascunho
+        // simplesmente sumia) e a versao base pulava para a de uma escrita
+        // alheia. O formulario e um instantaneo do momento da abertura; quem o
+        // reabre e a interacao do usuario, nao a chegada de dados novos.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, editingId, tab]);
 
     const handleSave = async () => {
         if (isSaving) return;
@@ -129,7 +142,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     project_id: agentScope === 'project' ? agentProjectId : undefined
                 };
                 editingId
-                    ? await updateAgent(editingId, data, versaoLida(agents))
+                    ? await updateAgent(editingId, data, baseLockVersion)
                     : await createAgent(data);
             } else if (tab === 'docs') {
                 const data = { 
@@ -140,7 +153,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     content: docContent 
                 };
                 editingId
-                    ? await updateGovernanceDoc(editingId, data, versaoLida(docs))
+                    ? await updateGovernanceDoc(editingId, data, baseLockVersion)
                     : await createGovernanceDoc(data);
             } else if (tab === 'skills') {
                 const data = { 
@@ -152,7 +165,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     project_id: skillScope === 'project' ? skillProjectId : undefined
                 };
                 editingId
-                    ? await updateSkill(editingId, data, versaoLida(skills))
+                    ? await updateSkill(editingId, data, baseLockVersion)
                     : await createSkill(data);
             } else {
                 const data = { 

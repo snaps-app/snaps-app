@@ -40,6 +40,7 @@ export function WorkflowEditorCanvas() {
     setSelectedNodeId,
     loading,
     saving,
+    saveError,
     templateName,
     setTemplateName,
     showCreateModal,
@@ -173,6 +174,18 @@ export function WorkflowEditorCanvas() {
             handleDeleteTemplate={handleDeleteTemplate}
             saving={saving}
           />
+
+          {/* A recusa por conflito precisa aparecer NA tela, e nao so no
+              console: o rascunho do usuario continua aqui, e ele tem de saber
+              que ainda nao foi gravado. */}
+          {saveError && (
+            <div
+              role="alert"
+              className="mx-4 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+            >
+              {saveError}
+            </div>
+          )}
 
           {/* Main Split Layout: Canvas + Drawer */}
           <div className="flex-1 flex overflow-hidden">
