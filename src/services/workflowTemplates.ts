@@ -1,4 +1,5 @@
 import { api } from './client';
+import { escritaVersionada } from './versionedWrite';
 import type { WorkflowTemplate, WorkflowTemplateCreate } from './types';
 
 export const getWorkflowTemplates = async (): Promise<WorkflowTemplate[]> => {
@@ -16,9 +17,21 @@ export const createWorkflowTemplate = async (data: WorkflowTemplateCreate): Prom
     return response.data;
 };
 
-export const updateWorkflowTemplate = async (templateId: string, data: Partial<WorkflowTemplateCreate>): Promise<WorkflowTemplate> => {
-    const response = await api.patch(`/workflow-templates/${templateId}`, data);
-    return response.data;
+/**
+ * PATCH de template carregando a versão que o editor leu.
+ *
+ * `workflow_templates` entrou no escopo do CAS junto com as três tabelas de
+ * governança, mas esta função — a única que grava essa tabela pela UI — não
+ * tinha como enviar a versão: o tipo do payload não a comportava. Coluna,
+ * trigger, ORM e tipo existiam, e a tela seguia escrevendo cega.
+ */
+export const updateWorkflowTemplate = async (
+    templateId: string,
+    data: Partial<WorkflowTemplateCreate>,
+    expectedLockVersion?: number,
+): Promise<WorkflowTemplate> => {
+    return escritaVersionada<WorkflowTemplate>(
+        `/workflow-templates/${templateId}`, data, expectedLockVersion);
 };
 
 export const deleteWorkflowTemplate = async (templateId: string): Promise<void> => {

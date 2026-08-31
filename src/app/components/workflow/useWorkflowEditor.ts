@@ -8,6 +8,7 @@ import {
   getWorkflowTemplatesMetadata,
   updateWorkflowTemplate
 } from '@/services/workflowTemplates';
+import { VersionConflictError } from '@/services/versionedWrite';
 import type { WorkflowTemplate, PhaseConfigItem, WorkflowTemplateCreate } from '@/services/types';
 
 export function useWorkflowEditor() {
@@ -30,6 +31,15 @@ export function useWorkflowEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [templateName, setTemplateName] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // A versao do template como o editor o CARREGOU do servidor.
+  //
+  // Estado separado, e nao `selectedTemplate.lock_version`, porque
+  // `selectedTemplate` e reescrito a cada arrasto de fase e a cada edicao de
+  // no. Deixar a versao viajar junto com o rascunho e como acabaria sendo
+  // sobrescrita por um objeto montado na tela. Esta so muda quando o servidor
+  // devolve estado novo: no load e depois de um save bem-sucedido.
+  const [baseLockVersion, setBaseLockVersion] = useState<number | undefined>(undefined);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [modalTemplateName, setModalTemplateName] = useState('');
@@ -128,12 +138,18 @@ export function useWorkflowEditor() {
             phases: initialPhases,
             default_agents: [],
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            // Rascunho ainda nao gravado (`id: ''`): nasce na versao 1, como
+            // qualquer registro novo. Nao ha base com que conflitar ate o
+            // primeiro POST.
+            lock_version: 1
           };
           setSelectedTemplate(newTemplate);
           setTemplateName(newTemplate.name);
           setSelectedNodeId(null);
-          
+          // Rascunho nao gravado: nao ha base no servidor com que conflitar.
+          setBaseLockVersion(undefined);
+
           buildFlowFromPhases(initialPhases);
         } else {
           const matched = tmpls.find(t => t.id === templateId);
@@ -141,6 +157,7 @@ export function useWorkflowEditor() {
             setSelectedTemplate(matched);
             setTemplateName(matched.name);
             setSelectedNodeId(null);
+            setBaseLockVersion(matched.lock_version);
             
             const newNodes = matched.phases.map((phase, index) => ({
               id: phase.key,
@@ -182,6 +199,7 @@ export function useWorkflowEditor() {
         setSelectedTemplate(null);
         setTemplateName('');
         setSelectedNodeId(null);
+        setBaseLockVersion(undefined);
       }
     } catch (e) {
       console.error('Failed to load workflow data: ' + e);
@@ -198,6 +216,10 @@ export function useWorkflowEditor() {
     setSelectedTemplate(template);
     setTemplateName(template.name);
     setSelectedNodeId(null);
+    // So aqui e no load a versao base se move: os dois pontos em que o objeto
+    // vem do servidor. Qualquer outra reatribuicao seria um rascunho local.
+    setBaseLockVersion(template.lock_version);
+    setSaveError(null);
     buildFlowFromPhases(template.phases);
   };
 
@@ -311,7 +333,8 @@ export function useWorkflowEditor() {
   const handleSaveTemplate = async () => {
     if (!selectedTemplate || !templateName.trim()) return;
     setSaving(true);
-    
+    setSaveError(null);
+
     try {
       const payload: WorkflowTemplateCreate = {
         name: templateName,
@@ -323,12 +346,13 @@ export function useWorkflowEditor() {
       if (!selectedTemplate.id) {
         result = await createWorkflowTemplate(payload);
       } else {
-        result = await updateWorkflowTemplate(selectedTemplate.id, payload);
+        result = await updateWorkflowTemplate(
+          selectedTemplate.id, payload, baseLockVersion);
       }
 
       const tmpls = await getWorkflowTemplates();
       setTemplates(tmpls);
-      
+
       const saved = tmpls.find(t => t.name === result.name) || result;
       if (templateId === 'new' && saved.id) {
         navigate(`/workflow-editor/${saved.id}`);
@@ -338,7 +362,16 @@ export function useWorkflowEditor() {
       alert('Workflow template saved successfully!');
     } catch (e) {
       console.error('Error saving template:', e);
-      alert('Error saving workflow template.');
+      // O rascunho NAO e descartado aqui: `selectedTemplate` e `nodes` seguem
+      // como estao. Num conflito, o trabalho da pessoa e a unica copia da
+      // alteracao dela — recarregar por baixo seria apagar exatamente o que a
+      // recusa existe para proteger.
+      setSaveError(
+        e instanceof VersionConflictError
+          ? `${e.message} Suas alteracoes continuam nesta tela: abra o template `
+            + `atual em outra aba, reaplique-as e salve de novo.`
+          : 'Nao foi possivel salvar o workflow template. Tente de novo.'
+      );
     } finally {
       setSaving(false);
     }
@@ -387,6 +420,8 @@ export function useWorkflowEditor() {
     setSelectedNodeId,
     loading,
     saving,
+    saveError,
+    baseLockVersion,
     templateName,
     setTemplateName,
     showCreateModal,
