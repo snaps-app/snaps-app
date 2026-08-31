@@ -224,7 +224,7 @@ export type SkillScope = 'global' | 'project';
 export type ResourceType = 'api_proxy' | 'ui_component' | 'documentation' | 'other';
 
 /**
- * Concorrência otimista nas entidades de governança (migration 056 da API).
+ * Concorrência otimista nas entidades de governança (migration 058 da API).
  *
  * `lock_version` é o contador que o banco move a cada escrita relevante. A UI
  * o recebe na leitura e o devolve na escrita: se alguém tiver gravado nesse

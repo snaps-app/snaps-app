@@ -28,7 +28,7 @@ export class VersionConflictError extends Error {
 }
 
 /**
- * PATCH carregando a versão que a tela leu (migration 056 da API).
+ * PATCH carregando a versão que a tela leu (migration 058 da API).
  *
  * `expectedLockVersion` é opcional de propósito enquanto o rollout está em
  * expansão: uma tela que ainda não a conhece continua salvando. Sem ela, porém,
