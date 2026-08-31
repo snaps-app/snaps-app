@@ -128,7 +128,11 @@ export function useWorkflowEditor() {
             phases: initialPhases,
             default_agents: [],
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            // Rascunho ainda nao gravado (`id: ''`): nasce na versao 1, como
+            // qualquer registro novo. Nao ha base com que conflitar ate o
+            // primeiro POST.
+            lock_version: 1
           };
           setSelectedTemplate(newTemplate);
           setTemplateName(newTemplate.name);

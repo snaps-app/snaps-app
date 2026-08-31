@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getGovernanceDocs, createGovernanceDoc, updateGovernanceDoc, deleteGovernanceDoc, processGovernanceDoc } from '@/services/governance';
+import { getGovernanceDocs, createGovernanceDoc, updateGovernanceDoc, deleteGovernanceDoc, processGovernanceDoc, VersionConflictError } from '@/services/governance';
 import { getProject } from '@/services/projects';
 import type { GovernanceDoc } from '@/services/types';
 import type { FileDocument } from '@/app/components/documents/doc-card';
@@ -24,6 +24,11 @@ export function useDocumentsView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // A versao do doc como esta tela o leu. Guardada no `openEdit` junto com os
+  // campos do formulario, e nao relida na hora de salvar: reler pegaria a versao
+  // nova e faria o compare-and-swap passar por cima da alteracao alheia.
+  const [editingLockVersion, setEditingLockVersion] = useState<number | undefined>(undefined);
 
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<GovernanceDoc | null>(null);
@@ -110,6 +115,7 @@ export function useDocumentsView() {
 
   const resetForm = () => {
     setEditingId(null);
+    setEditingLockVersion(undefined);
     setDocName(''); setDocType('prd'); setDocContent(''); setDocPublicVisible(false);
   };
 
@@ -117,6 +123,7 @@ export function useDocumentsView() {
 
   const openEdit = (item: GovernanceDoc) => {
     setEditingId(item.id);
+    setEditingLockVersion(item.lock_version);
     setDocName(item.name); setDocType(item.type); setDocContent(item.content);
     setDocPublicVisible(!!item.public_visible);
     setModalOpen(true);
@@ -125,11 +132,24 @@ export function useDocumentsView() {
   const handleSave = async () => {
     if (isSaving) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
       const data = { name: docName, type: docType as any, scope: 'project' as any, project_id: projectId, content: docContent, public_visible: docPublicVisible };
-      editingId ? await updateGovernanceDoc(editingId, data) : await createGovernanceDoc(data);
+      editingId
+        ? await updateGovernanceDoc(editingId, data, editingLockVersion)
+        : await createGovernanceDoc(data);
       setModalOpen(false); resetForm(); fetchDocs();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      // O `catch` mudo original deixava o modal aberto sem dizer por que. Num
+      // conflito de versao o usuario precisa saber que o texto dele NAO entrou —
+      // senao ele fecha a tela supondo que salvou.
+      setSaveError(
+        e instanceof VersionConflictError
+          ? `${e.message} Feche, reabra o documento e reaplique sua alteracao.`
+          : 'Nao foi possivel salvar. Tente de novo.'
+      );
+    }
     finally { setIsSaving(false); }
   };
 
@@ -150,6 +170,7 @@ export function useDocumentsView() {
     modalOpen,
     setModalOpen,
     isSaving,
+    saveError,
     editingId,
     viewModalOpen,
     setViewModalOpen,

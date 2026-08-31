@@ -489,7 +489,12 @@ export const ExecutionCockpit: React.FC = () => {
                     if (!viewDoc) return;
                     setIsSavingDoc(true);
                     try {
-                        const updated = await updateGovernanceDoc(viewDoc.id, { content: newContent });
+                        // A versão que ESTA tela leu. Se um agente reescreveu o
+                        // doc enquanto ele estava aberto aqui, a API responde
+                        // 409 em vez de deixar o salvamento apagar o trabalho
+                        // dele — que neste cockpit é o cenário normal, não o raro.
+                        const updated = await updateGovernanceDoc(
+                            viewDoc.id, { content: newContent }, viewDoc.lock_version);
                         setGovernanceDocs(prev => prev.map(d => d.id === viewDoc.id ? updated : d));
                         setViewDoc(updated);
                         setIsEditingDoc(false);

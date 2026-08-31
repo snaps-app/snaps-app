@@ -5,7 +5,8 @@ import {
     createAgent, updateAgent,
     createGovernanceDoc, updateGovernanceDoc,
     createSkill, updateSkill,
-    createResource, updateResource
+    createResource, updateResource,
+    VersionConflictError
 } from '@/services/governance';
 import type { AgentInstruction, GovernanceDoc, Resource, Skill } from '@/services/types';
 
@@ -40,6 +41,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
     onSaveSuccess,
 }) => {
     const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     // Agent form
     const [agentName, setAgentName] = useState('');
@@ -102,9 +104,21 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
         }
     }, [isOpen, editingId, tab, agents, docs, skills, resources]);
 
+    /**
+     * A `lock_version` do registro que ESTA tela carregou.
+     *
+     * Vem da lista que o modal recebeu por prop — a mesma de onde os campos do
+     * formulário foram preenchidos —, e não de uma releitura no momento de
+     * salvar. Reler aqui pegaria a versão nova e faria o CAS passar sobre a
+     * alteração alheia, que é exatamente o que ele existe para impedir.
+     */
+    const versaoLida = (lista: { id: string; lock_version: number }[]) =>
+        lista.find(x => x.id === editingId)?.lock_version;
+
     const handleSave = async () => {
         if (isSaving) return;
         setIsSaving(true);
+        setSaveError(null);
         try {
             if (tab === 'agents') {
                 const data = { 
@@ -114,7 +128,9 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     scope: agentScope as any,
                     project_id: agentScope === 'project' ? agentProjectId : undefined
                 };
-                editingId ? await updateAgent(editingId, data) : await createAgent(data);
+                editingId
+                    ? await updateAgent(editingId, data, versaoLida(agents))
+                    : await createAgent(data);
             } else if (tab === 'docs') {
                 const data = { 
                     name: docName, 
@@ -123,7 +139,9 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     project_id: docScope === 'project' ? docProjectId : undefined,
                     content: docContent 
                 };
-                editingId ? await updateGovernanceDoc(editingId, data) : await createGovernanceDoc(data);
+                editingId
+                    ? await updateGovernanceDoc(editingId, data, versaoLida(docs))
+                    : await createGovernanceDoc(data);
             } else if (tab === 'skills') {
                 const data = { 
                     name: skillName, 
@@ -133,7 +151,9 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     scope: skillScope as any,
                     project_id: skillScope === 'project' ? skillProjectId : undefined
                 };
-                editingId ? await updateSkill(editingId, data) : await createSkill(data);
+                editingId
+                    ? await updateSkill(editingId, data, versaoLida(skills))
+                    : await createSkill(data);
             } else {
                 const data = { 
                     name: resName, 
@@ -146,6 +166,15 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
             onSaveSuccess();
         } catch (e) {
             console.error('Save error:', e);
+            // O `catch` mudo daqui fazia o botao voltar ao normal como se
+            // tivesse salvado. Num conflito de versao isso e pior do que
+            // inutil: o usuario acha que gravou, fecha a tela, e o texto dele
+            // nunca existiu.
+            setSaveError(
+                e instanceof VersionConflictError
+                    ? `${e.message} Feche, reabra o item e reaplique sua alteracao.`
+                    : 'Nao foi possivel salvar. Tente de novo.'
+            );
         } finally {
             setIsSaving(false);
         }
@@ -321,6 +350,11 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="p-6 space-y-4 overflow-y-auto flex-1 scrollbar-hide">{renderForm()}</div>
+                {saveError && (
+                    <div role="alert" className="px-6 py-3 border-t border-amber-500/30 bg-amber-500/10 text-amber-300 text-sm">
+                        {saveError}
+                    </div>
+                )}
                 <div className="p-6 border-t border-white/10 flex justify-end gap-3 bg-black/20">
                     <button onClick={onClose} className="px-4 py-2 rounded-lg border border-white/10 text-gray-400 hover:text-white transition-colors">Cancel</button>
                     <button onClick={handleSave} disabled={!isFormValid() || isSaving}
