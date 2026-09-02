@@ -448,14 +448,12 @@ export interface GithubConfig {
     id: string;
     project_id: string;
     repo_owner: string;
-    repo_name: string;
-    github_pat: string;
+    repo_names: string;
     last_sync_at?: string;
     sync_status?: string;
     sync_error?: string;
     created_at: string;
     updated_at: string;
-    repo_names?: string;
 }
 
 export interface GithubConfigCreate {
