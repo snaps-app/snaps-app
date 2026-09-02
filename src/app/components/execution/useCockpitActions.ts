@@ -1,11 +1,17 @@
-import { advanceAgentExecution, rollbackAgentExecution, syncAgentExecution } from '@/services/agentExecutions';
+import {
+    advanceAgentExecution,
+    createExecutionOverrideDecision,
+    rollbackAgentExecution,
+    syncAgentExecution,
+} from '@/services/agentExecutions';
 import { getCard, updateCard } from '@/services/cards';
 import { getCardsBySprint, getSprints } from '@/services/sprints';
-import type { Card } from '@/services/types';
+import type { AgentTaskExecution, Card } from '@/services/types';
 
 interface UseCockpitActionsProps {
     projectId?: string;
     executionId?: string;
+    execution: AgentTaskExecution | null;
     missionInstructions: string;
     selectedDocIds: string[];
     selectedDecisionIds: string[];
@@ -30,6 +36,7 @@ interface UseCockpitActionsProps {
 export const useCockpitActions = ({
     projectId,
     executionId,
+    execution,
     missionInstructions,
     selectedDocIds,
     selectedDecisionIds,
@@ -55,7 +62,9 @@ export const useCockpitActions = ({
         if (!executionId) return;
         setIsSavingTestPlanContext(true);
         try {
-            const updated = await syncAgentExecution(executionId, undefined, undefined, undefined, ids);
+            const updated = await syncAgentExecution(
+                executionId, undefined, undefined, undefined, ids, execution?.lock_version,
+            );
             setExecution(updated);
             setSelectedTestPlanIds(ids);
         } catch (err) {
@@ -69,7 +78,10 @@ export const useCockpitActions = ({
         if (!executionId) return;
         setIsRefreshing(true);
         try {
-            const updated = await syncAgentExecution(executionId, missionInstructions, selectedDocIds, selectedDecisionIds);
+            const updated = await syncAgentExecution(
+                executionId, missionInstructions, selectedDocIds, selectedDecisionIds,
+                undefined, execution?.lock_version,
+            );
             setExecution(updated);
             const tree = await fetchSisters();
 
@@ -115,8 +127,37 @@ export const useCockpitActions = ({
         if (!executionId) return;
         setIsAdvancing(true);
         try {
-            const force = Object.values(manualOverrides).some(Boolean);
-            const updated = await advanceAgentExecution(executionId, missionInstructions, selectedDocIds, selectedDecisionIds, force);
+            const overrideConditions = Object.entries(manualOverrides)
+                .filter(([, selected]) => selected)
+                .map(([condition]) => condition);
+            let decisionId: string | undefined;
+            let expectedRevision = execution?.lock_version;
+
+            if (overrideConditions.length > 0) {
+                const reason = window.prompt(
+                    `Explain why these requirements may be overridden: ${overrideConditions.join(', ')}`,
+                );
+                if (!reason?.trim()) {
+                    alert('Override cancelled: a human reason is required.');
+                    return;
+                }
+                const decision = await createExecutionOverrideDecision(
+                    executionId, reason.trim(), overrideConditions,
+                );
+                decisionId = decision.decision_id;
+                expectedRevision = decision.execution_revision;
+            }
+
+            const updated = await advanceAgentExecution(
+                executionId,
+                missionInstructions,
+                selectedDocIds,
+                selectedDecisionIds,
+                overrideConditions.length > 0,
+                expectedRevision,
+                decisionId,
+                overrideConditions,
+            );
             setExecution(updated);
             setMissionInstructions('');
             setManualOverrides({});
@@ -142,7 +183,9 @@ export const useCockpitActions = ({
 
         setIsRollingBack(true);
         try {
-            const updated = await rollbackAgentExecution(executionId, targetPhase);
+            const updated = await rollbackAgentExecution(
+                executionId, targetPhase, execution?.lock_version,
+            );
             setExecution(updated);
             alert(`Execution rolled back to ${targetPhase}. Prompt has been regenerated.`);
             if (updated.id !== executionId) {
