@@ -543,6 +543,7 @@ export interface AgentTaskExecution {
     root_id?: string;
     branch_type?: string;
     workflow_template_id?: string;
+    lock_version: number;
     created_at: string;
     updated_at: string;
 }

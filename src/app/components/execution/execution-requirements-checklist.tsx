@@ -5,9 +5,8 @@ interface ExecutionRequirementsChecklistProps {
     execution: AgentTaskExecution;
     templates: WorkflowTemplate[];
     cards: Card[];
-    // Single source of truth shared with the cockpit hook — the same state that
-    // computes `force` on Advance. Deriving the green check from this guarantees:
-    // box green by manual action  <=>  force=true is sent on the next Advance.
+    // Local selection only. Persisted green state still comes from server data;
+    // a selected exception is authorized explicitly when the human advances.
     manualOverrides: Record<string, boolean>;
     onRequirementToggle?: (requirementKey: string, value: boolean) => Promise<void>;
 }
@@ -42,8 +41,7 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
 
     const toggleRequirement = async (key: string) => {
         const newValue = !manualRequirements[key];
-        // Drive the shared hook state directly (sets force + best-effort persist).
-        // No local mirror state, so the green check can never diverge from `force`.
+        // Selecting a condition is not itself an approval or a persisted override.
         if (onRequirementToggle) {
             try {
                 await onRequirementToggle(key, newValue);
