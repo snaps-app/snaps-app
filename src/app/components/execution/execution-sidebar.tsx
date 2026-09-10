@@ -99,18 +99,9 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     };
 
     const handleRequirementToggle = async (requirementKey: string, value: boolean) => {
-        // Primary bypass path: mark the override locally so the next Advance sends force=true.
+        // This only selects the named condition. The authenticated human must
+        // still provide a reason and create a scoped approval when advancing.
         setManualOverride(requirementKey, value);
-        // Secondary: persist the override server-side (best-effort, non-blocking).
-        try {
-            const { api } = await import('@/services/client');
-            await api.patch(`/api/agent-executions/${execution.id}/manual-requirement`, {
-                requirement_key: requirementKey,
-                value
-            });
-        } catch (err) {
-            console.error('Failed to persist requirement override:', err);
-        }
     };
 
     return (
@@ -385,7 +376,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                                         <>
                                             {isDone
                                                 ? 'Execution Complete — Exit'
-                                                : (force ? 'Force Advance to Next Phase' : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase'))
+                                                : (force ? 'Approve Override & Advance' : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase'))
                                             }
                                             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                         </>
