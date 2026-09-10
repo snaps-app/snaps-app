@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Plan, PlanCreate } from './types';
+import type { Plan, PlanCreate, PlanUpdate } from './types';
 
 export const getPlans = async (projectId: string, sprintId?: string): Promise<Plan[]> => {
     const response = await api.get(`/projects/${projectId}/plans/`, {
@@ -13,8 +13,20 @@ export const createPlan = async (projectId: string, data: Omit<PlanCreate, 'proj
     return response.data;
 };
 
-export const updatePlan = async (planId: string, data: Partial<PlanCreate>): Promise<Plan> => {
+export const updatePlan = async (planId: string, data: PlanUpdate): Promise<Plan> => {
     const response = await api.patch(`/plans/${planId}`, data);
+    return response.data;
+};
+
+export const approvePlan = async (
+    planId: string,
+    expectedContentRevision: number,
+    evidenceRef = 'cockpit:explicit-confirmation',
+): Promise<Plan> => {
+    const response = await api.post(`/plans/${planId}/approve`, {
+        expected_content_revision: expectedContentRevision,
+        evidence_ref: evidenceRef,
+    });
     return response.data;
 };
 

@@ -172,11 +172,18 @@ export interface Plan {
     sprint_id?: string;
     title: string;
     content?: string;
-    status: 'draft' | 'approved' | 'executed' | 'archived';
+    status: 'draft' | 'review' | 'approved' | 'selected' | 'in_execution' | 'executed' | 'archived';
     author?: string;
     execution_order?: number;
     created_at: string;
     updated_at: string;
+    content_revision: number;
+    approved_content_hash?: string | null;
+    approved_at?: string | null;
+    approved_by?: string | null;
+    approved_revision?: number | null;
+    approval_event_id?: string | null;
+    approval_canonicalizer_version?: string | null;
 }
 
 export interface PlanCreate {
@@ -187,6 +194,10 @@ export interface PlanCreate {
     author?: string;
     sprint_id?: string;
     execution_order?: number;
+}
+
+export interface PlanUpdate extends Partial<PlanCreate> {
+    expected_content_revision?: number;
 }
 
 // --- Decision Interfaces ---
