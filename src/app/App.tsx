@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Home } from '@/app/components/layout/home';
 import { ProjectWorkspace } from '@/app/components/project/project-workspace';
 import { ActiveChat } from '@/app/components/chat/active-chat';
@@ -119,10 +119,23 @@ export default function App() {
                         <Route path="/project/:projectId/time" element={<ProjectTimeView />} />
                     </Route>
 
-                    {/* Execution Cockpit — standalone fullscreen, no sidebar */}
-                    <Route path="/project/:projectId/execution/:executionId" element={<ExecutionCockpit />} />
-                    {/* Scratchpad — standalone fullscreen, no sidebar */}
-                    <Route path="/project/:projectId/execution/:executionId/scratch" element={<ScratchView />} />
+                    {/* Fullscreen sem sidebar, mas NAO sem autenticacao.
+                        Estas duas rotas ficavam fora do bloco protegido: a
+                        guarda estava presa ao `MainLayout`, entao sair do
+                        layout era sair da autenticacao junto. Aqui o
+                        `ProtectedRoute` envolve um `Outlet`, e nao o layout —
+                        e o que desacopla as duas coisas e impede a proxima
+                        tela fullscreen de repetir o erro. */}
+                    <Route
+                        element={
+                            <ProtectedRoute>
+                                <Outlet />
+                            </ProtectedRoute>
+                        }
+                    >
+                        <Route path="/project/:projectId/execution/:executionId" element={<ExecutionCockpit />} />
+                        <Route path="/project/:projectId/execution/:executionId/scratch" element={<ScratchView />} />
+                    </Route>
 
                     {/* Fallback */}
                     <Route path="*" element={<Navigate to="/" replace />} />

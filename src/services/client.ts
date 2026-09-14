@@ -72,6 +72,25 @@ api.interceptors.response.use(
         return response;
     },
     (error) => {
+        // Depois da Sprint 20 o 401 deixou de ser excecao e virou caminho
+        // normal: as rotas passaram a exigir sessao. Sem este ramo, sessao
+        // expirada chegava a tela como `AxiosError: Network Error` — o usuario
+        // via "falhou" e concluia que a API caiu, quando bastava entrar de novo.
+        if (error?.response?.status === 401) {
+            cachedSession = null;   // forca releitura; o token em cache morreu
+            lastSessionFetch = 0;
+            const naTelaDeLogin = window.location.pathname.startsWith('/login');
+            if (!naTelaDeLogin) {
+                // `replace` e nao `href`: o historico nao deve guardar uma tela
+                // que so existiu porque a sessao tinha acabado.
+                window.location.replace(
+                    `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`
+                );
+            }
+            return Promise.reject(
+                new Error('Sua sessao expirou. Entre novamente para continuar.')
+            );
+        }
         return Promise.reject(error);
     }
 );
