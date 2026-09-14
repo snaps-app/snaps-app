@@ -172,11 +172,18 @@ export interface Plan {
     sprint_id?: string;
     title: string;
     content?: string;
-    status: 'draft' | 'approved' | 'executed' | 'archived';
+    status: 'draft' | 'review' | 'approved' | 'selected' | 'in_execution' | 'executed' | 'archived';
     author?: string;
     execution_order?: number;
     created_at: string;
     updated_at: string;
+    content_revision: number;
+    approved_content_hash?: string | null;
+    approved_at?: string | null;
+    approved_by?: string | null;
+    approved_revision?: number | null;
+    approval_event_id?: string | null;
+    approval_canonicalizer_version?: string | null;
 }
 
 export interface PlanCreate {
@@ -187,6 +194,10 @@ export interface PlanCreate {
     author?: string;
     sprint_id?: string;
     execution_order?: number;
+}
+
+export interface PlanUpdate extends Partial<PlanCreate> {
+    expected_content_revision?: number;
 }
 
 // --- Decision Interfaces ---
@@ -223,7 +234,26 @@ export type GovernanceDocType = 'playbook' | 'strategy' | 'prd' | 'PRD' | 'tool_
 export type SkillScope = 'global' | 'project';
 export type ResourceType = 'api_proxy' | 'ui_component' | 'documentation' | 'other';
 
-export interface AgentInstruction {
+/**
+ * Concorrência otimista nas entidades de governança (migration 058 da API).
+ *
+ * `lock_version` é o contador que o banco move a cada escrita relevante. A UI
+ * o recebe na leitura e o devolve na escrita: se alguém tiver gravado nesse
+ * intervalo, a API responde 409 em vez de deixar a tela sobrescrever o trabalho
+ * de quem salvou primeiro.
+ *
+ * NÃO confundir com `Skill.version`, que é a versão semântica da skill,
+ * escolhida por gente.
+ */
+export interface VersionedEntity {
+    lock_version: number;
+    last_modified_by?: string | null;
+    /** `unknown` honesto: registros anteriores à 056 não têm autor conhecido. */
+    last_modified_actor_kind?: string | null;
+    last_modified_at?: string | null;
+}
+
+export interface AgentInstruction extends VersionedEntity {
     id: string;
     name: string;
     type: AgentInstructionType;
@@ -235,7 +265,7 @@ export interface AgentInstruction {
     skills?: Skill[];
 }
 
-export interface GovernanceDoc {
+export interface GovernanceDoc extends VersionedEntity {
     id: string;
     name: string;
     type: GovernanceDocType;
@@ -247,7 +277,7 @@ export interface GovernanceDoc {
     updated_at: string;
 }
 
-export interface Skill {
+export interface Skill extends VersionedEntity {
     id: string;
     name: string;
     content: string;
@@ -429,14 +459,12 @@ export interface GithubConfig {
     id: string;
     project_id: string;
     repo_owner: string;
-    repo_name: string;
-    github_pat: string;
+    repo_names: string;
     last_sync_at?: string;
     sync_status?: string;
     sync_error?: string;
     created_at: string;
     updated_at: string;
-    repo_names?: string;
 }
 
 export interface GithubConfigCreate {
@@ -492,7 +520,7 @@ export interface PhaseConfigItem {
     execution_mode?: 'sequential' | 'parallel';
 }
 
-export interface WorkflowTemplate {
+export interface WorkflowTemplate extends VersionedEntity {
     id: string;
     name: string;
     phases: PhaseConfigItem[];
@@ -524,6 +552,7 @@ export interface AgentTaskExecution {
     root_id?: string;
     branch_type?: string;
     workflow_template_id?: string;
+    lock_version: number;
     created_at: string;
     updated_at: string;
 }

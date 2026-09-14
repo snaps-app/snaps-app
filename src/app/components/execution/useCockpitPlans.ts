@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { updatePlan, deletePlan } from '@/services/plans';
+import { approvePlan, updatePlan, deletePlan } from '@/services/plans';
 import type { AgentTaskExecution } from '@/services/types';
 
 export const useCockpitPlans = (
@@ -35,14 +35,18 @@ export const useCockpitPlans = (
         if (!editingPlanId) return;
         setIsSavingPlan(true);
         try {
-            await updatePlan(editingPlanId, {
+            const current = (execution?.context_data?.plans || []).find(
+                (plan: any) => plan.id === editingPlanId
+            );
+            const saved = await updatePlan(editingPlanId, {
                 title: planTitle,
-                content: planContent
+                content: planContent,
+                expected_content_revision: current?.content_revision,
             });
 
             if (execution && execution.context_data?.plans) {
                 const updatedPlans = execution.context_data.plans.map((p: any) =>
-                    p.id === editingPlanId ? { ...p, title: planTitle, content: planContent } : p
+                    p.id === editingPlanId ? { ...p, ...saved } : p
                 );
                 setExecution({
                     ...execution,
@@ -66,7 +70,20 @@ export const useCockpitPlans = (
     const updatePlanStatus = async (planId: string, status: string, getAgentExecutionFn: (id: string) => Promise<AgentTaskExecution>) => {
         if (!execution) return;
         try {
-            await updatePlan(planId, { status });
+            const plan = (execution.context_data?.plans || []).find(
+                (candidate: any) => candidate.id === planId
+            );
+            if (status === 'approved' && !plan?.approved_content_hash) {
+                if (typeof plan?.content_revision !== 'number') {
+                    throw new Error('Plan revision is missing; reload before approving.');
+                }
+                await approvePlan(planId, plan.content_revision);
+            } else {
+                await updatePlan(planId, {
+                    status,
+                    expected_content_revision: plan?.content_revision,
+                });
+            }
             const updated = await getAgentExecutionFn(execution.id);
             setExecution(updated);
         } catch (err) {

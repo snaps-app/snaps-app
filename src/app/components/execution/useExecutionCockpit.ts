@@ -40,6 +40,7 @@ export const useExecutionCockpit = () => {
     const actions = useCockpitActions({
         projectId,
         executionId,
+        execution: state.execution,
         missionInstructions: state.missionInstructions,
         selectedDocIds: docsHook.selectedDocIds,
         selectedDecisionIds: docsHook.selectedDecisionIds,

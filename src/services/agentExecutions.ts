@@ -1,8 +1,20 @@
 import { api } from './client';
 import type { AgentTaskExecution, AgentTaskExecutionCreate } from './types';
 
+const commandConfig = () => ({
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+});
+
+export interface OverrideDecision {
+    decision_id: string;
+    conditions: string[];
+    expires_at: string;
+    gate_hash: string;
+    execution_revision: number;
+}
+
 export const createAgentExecution = async (data: AgentTaskExecutionCreate): Promise<AgentTaskExecution> => {
-    const response = await api.post('/api/agent-executions/', data);
+    const response = await api.post('/api/agent-executions/', data, commandConfig());
     return response.data;
 };
 
@@ -31,24 +43,36 @@ export const advanceAgentExecution = async (
     instructions?: string,
     docIds?: string[],
     decisionIds?: string[],
-    force?: boolean
+    force = false,
+    expectedRevision?: number,
+    overrideDecisionId?: string,
+    overrideConditions: string[] = [],
 ): Promise<AgentTaskExecution> => {
     const response = await api.patch(`/api/agent-executions/${executionId}/advance`, {
         instructions,
         doc_ids: docIds,
         decision_ids: decisionIds,
-        force: force ?? false
-    });
+        force,
+        override_decision_id: overrideDecisionId,
+        override_conditions: overrideConditions,
+        expected_revision: expectedRevision,
+    }, commandConfig());
     return response.data;
 };
 
-export const updateAgentExecutionStatus = async (executionId: string, status: string): Promise<AgentTaskExecution> => {
-    const response = await api.patch(`/api/agent-executions/${executionId}/status`, { status });
+export const updateAgentExecutionStatus = async (executionId: string, status: string, expectedRevision?: number): Promise<AgentTaskExecution> => {
+    const response = await api.patch(`/api/agent-executions/${executionId}/status`, {
+        status, expected_revision: expectedRevision,
+    }, commandConfig());
     return response.data;
 };
 
-export const rollbackAgentExecution = async (executionId: string, targetPhase: string): Promise<AgentTaskExecution> => {
-    const response = await api.patch(`/api/agent-executions/${executionId}/rollback?target_phase=${targetPhase}`);
+export const rollbackAgentExecution = async (executionId: string, targetPhase: string, expectedRevision?: number): Promise<AgentTaskExecution> => {
+    const response = await api.patch(
+        `/api/agent-executions/${executionId}/rollback`,
+        undefined,
+        { ...commandConfig(), params: { target_phase: targetPhase, expected_revision: expectedRevision } },
+    );
     return response.data;
 };
 
@@ -57,14 +81,16 @@ export const syncAgentExecution = async (
     instructions?: string,
     docIds?: string[],
     decisionIds?: string[],
-    testPlanIds?: string[]
+    testPlanIds?: string[],
+    expectedRevision?: number,
 ): Promise<AgentTaskExecution> => {
     const response = await api.post(`/api/agent-executions/${executionId}/sync`, {
         instructions,
         doc_ids: docIds,
         decision_ids: decisionIds,
-        test_plan_ids: testPlanIds
-    });
+        test_plan_ids: testPlanIds,
+        expected_revision: expectedRevision,
+    }, commandConfig());
     return response.data;
 };
 
@@ -73,6 +99,20 @@ export const getAllAgentExecutions = async (skip = 0, limit = 100): Promise<Agen
     return response.data;
 };
 
-export const deleteAgentExecution = async (executionId: string): Promise<void> => {
-    await api.delete(`/api/agent-executions/${executionId}`);
+export const deleteAgentExecution = async (executionId: string, expectedRevision?: number): Promise<void> => {
+    await api.delete(`/api/agent-executions/${executionId}`, {
+        ...commandConfig(), params: { expected_revision: expectedRevision },
+    });
+};
+
+export const createExecutionOverrideDecision = async (
+    executionId: string,
+    reason: string,
+    conditions: string[],
+): Promise<OverrideDecision> => {
+    const response = await api.post(
+        `/api/agent-executions/${executionId}/override-decisions`,
+        { reason, conditions },
+    );
+    return response.data;
 };

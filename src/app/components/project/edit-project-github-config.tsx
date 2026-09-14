@@ -11,8 +11,10 @@ interface EditProjectGithubConfigProps {
     setRepoNames: (val: string) => void;
     githubPat: string;
     setGithubPat: (val: string) => void;
+    hasSavedConfig: boolean;
+    hasUnsavedConfigChanges: boolean;
+    setHasSavedConfig: (val: boolean) => void;
     lastSyncAt: string;
-    setLastSyncAt: (val: string) => void;
     syncStatus: string;
     setSyncStatus: (val: string) => void;
 }
@@ -25,28 +27,39 @@ export const EditProjectGithubConfig: React.FC<EditProjectGithubConfigProps> = (
     setRepoNames,
     githubPat,
     setGithubPat,
+    hasSavedConfig,
+    hasUnsavedConfigChanges,
+    setHasSavedConfig,
     lastSyncAt,
-    setLastSyncAt,
     syncStatus,
     setSyncStatus,
 }) => {
     const [isSyncing, setIsSyncing] = useState(false);
+    const canSync = Boolean(
+        projectId && (
+            githubPat
+                ? repoOwner && repoNames
+                : hasSavedConfig && !hasUnsavedConfigChanges
+        )
+    );
 
     const handleSync = async () => {
-        if (!projectId || !repoOwner || !repoNames || !githubPat) return;
+        if (!canSync) return;
         
         setIsSyncing(true);
         try {
-            await upsertGithubConfig(projectId, {
-                repo_owner: repoOwner,
-                repo_names: repoNames,
-                github_pat: githubPat
-            });
+            if (githubPat) {
+                await upsertGithubConfig(projectId, {
+                    repo_owner: repoOwner,
+                    repo_names: repoNames,
+                    github_pat: githubPat
+                });
+                setGithubPat('');
+                setHasSavedConfig(true);
+            }
             await syncGithubProject(projectId);
-            setSyncStatus('success');
-            setLastSyncAt(new Date().toLocaleString());
-        } catch (error) {
-            console.error("Sync trigger failed", error);
+            setSyncStatus('syncing');
+        } catch {
             setSyncStatus('failed');
         } finally {
             setIsSyncing(false);
@@ -126,7 +139,8 @@ export const EditProjectGithubConfig: React.FC<EditProjectGithubConfigProps> = (
                         type="password"
                         value={githubPat}
                         onChange={(e) => setGithubPat(e.target.value)}
-                        placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                        placeholder={hasSavedConfig ? 'Token salvo. Informe um novo apenas para substituir.' : 'Informe o PAT para configurar'}
+                        autoComplete="new-password"
                         className="w-full px-4 py-3 rounded-lg text-sm backdrop-blur-xl focus:outline-none transition-all"
                         style={{
                             background: 'rgba(255, 255, 255, 0.05)',
@@ -134,8 +148,13 @@ export const EditProjectGithubConfig: React.FC<EditProjectGithubConfigProps> = (
                             color: 'var(--snaps-text-primary)'
                         }}
                     />
+                    <p className="text-xs mt-2" style={{ color: 'var(--snaps-text-secondary)' }}>
+                        O PAT nunca é retornado pela API. Sem um novo token, o sync usa a configuração já salva.
+                        Para salvar alterações dos repositórios, informe o PAT novamente.
+                    </p>
                 </div>
-                
+
+                {syncStatus === 'failed' && <p role="alert">Não foi possível iniciar o sync. Confira suas permissões e tente novamente.</p>}
                 {lastSyncAt && (
                     <div className="text-xs mt-2" style={{ color: 'var(--snaps-text-secondary)' }}>
                         Last Sync: {lastSyncAt} <span className={syncStatus === 'success' ? 'text-green-400' : 'text-red-400'}>({syncStatus})</span>
@@ -146,13 +165,13 @@ export const EditProjectGithubConfig: React.FC<EditProjectGithubConfigProps> = (
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleSync}
-                    disabled={!repoOwner || !repoNames || !githubPat || isSyncing}
+                    disabled={!canSync || isSyncing}
                     className="w-full mt-4 py-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2"
                     style={{
-                        background: (repoOwner && repoNames && githubPat) ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                        color: (repoOwner && repoNames && githubPat) ? 'white' : 'var(--snaps-text-secondary)',
+                        background: canSync ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                        color: canSync ? 'white' : 'var(--snaps-text-secondary)',
                         border: '1px solid rgba(255, 255, 255, 0.1)',
-                        cursor: (repoOwner && repoNames && githubPat && !isSyncing) ? 'pointer' : 'not-allowed'
+                        cursor: (canSync && !isSyncing) ? 'pointer' : 'not-allowed'
                     }}
                 >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />

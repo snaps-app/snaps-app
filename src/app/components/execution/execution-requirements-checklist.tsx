@@ -5,9 +5,8 @@ interface ExecutionRequirementsChecklistProps {
     execution: AgentTaskExecution;
     templates: WorkflowTemplate[];
     cards: Card[];
-    // Single source of truth shared with the cockpit hook — the same state that
-    // computes `force` on Advance. Deriving the green check from this guarantees:
-    // box green by manual action  <=>  force=true is sent on the next Advance.
+    // Local selection only. Persisted green state still comes from server data;
+    // a selected exception is authorized explicitly when the human advances.
     manualOverrides: Record<string, boolean>;
     onRequirementToggle?: (requirementKey: string, value: boolean) => Promise<void>;
 }
@@ -20,6 +19,20 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
     onRequirementToggle,
 }) => {
     const manualRequirements = manualOverrides;
+    const plans = execution.context_data?.plans || [];
+    // Approval is a signed projection of a concrete content hash. A status is
+    // workflow metadata and can be changed by agents, so it must never turn an
+    // approval gate green on its own.
+    const hasCurrentApproval = (plan: any) => Boolean(plan.approved_content_hash);
+    const strategicPlans = plans.filter((plan: any) => plan.author === 'macro-planner');
+    const tacticalPlans = plans.filter((plan: any) =>
+        plan.author !== 'macro-planner'
+        && ['selected', 'in_execution', 'executed'].includes(plan.status)
+    );
+    const strategicPlanApproved = (
+        strategicPlans.length > 0 ? strategicPlans : plans.length === 1 ? plans : []
+    ).some(hasCurrentApproval);
+    const tacticalPlansApproved = tacticalPlans.length > 0 && tacticalPlans.every(hasCurrentApproval);
     const activeTemplate = templates.find(t => t.id === execution.workflow_template_id) || templates[0];
     const activePhaseConfig = activeTemplate?.phases?.find((p: any) => p.key === execution.phase);
 
@@ -42,8 +55,7 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
 
     const toggleRequirement = async (key: string) => {
         const newValue = !manualRequirements[key];
-        // Drive the shared hook state directly (sets force + best-effort persist).
-        // No local mirror state, so the green check can never diverge from `force`.
+        // Selecting a condition is not itself an approval or a persisted override.
         if (onRequirementToggle) {
             try {
                 await onRequirementToggle(key, newValue);
@@ -80,39 +92,39 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
             )}
 
             {activeRules.plan_approved && (
-                <button
-                    onClick={() => toggleRequirement('plan_approved')}
-                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
-                >
-                    {((execution.context_data?.plans || []).some((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['plan_approved'] ? (
+                <div className="flex items-center gap-3 w-full">
+                    {strategicPlanApproved || manualRequirements['plan_approved'] ? (
                         <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
                         <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${((execution.context_data?.plans || []).some((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['plan_approved'] ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${strategicPlanApproved || manualRequirements['plan_approved'] ? 'text-white/60' : 'text-white/30'}`}>
                         Strategic Plan Approved
+                        {!strategicPlanApproved && !manualRequirements['plan_approved'] && (
+                            <span className="ml-1.5 text-[9px] text-amber-300/70">(missing or stale)</span>
+                        )}
                     </span>
-                </button>
+                </div>
             )}
 
             {activeRules.tactical_plans_approved && (
-                <button
-                    onClick={() => toggleRequirement('tactical_plans_approved')}
-                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
-                >
-                    {((execution.context_data?.plans || []).every((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['tactical_plans_approved'] ? (
+                <div className="flex items-center gap-3 w-full">
+                    {tacticalPlansApproved || manualRequirements['tactical_plans_approved'] ? (
                         <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
                         </div>
                     ) : (
                         <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
                     )}
-                    <span className={`text-[11px] ${((execution.context_data?.plans || []).every((p: any) => ['approved', 'selected', 'in_execution', 'executed'].includes(p.status))) || manualRequirements['tactical_plans_approved'] ? 'text-white/60' : 'text-white/30'}`}>
+                    <span className={`text-[11px] ${tacticalPlansApproved || manualRequirements['tactical_plans_approved'] ? 'text-white/60' : 'text-white/30'}`}>
                         All Tactical Plans Approved
+                        {!tacticalPlansApproved && !manualRequirements['tactical_plans_approved'] && (
+                            <span className="ml-1.5 text-[9px] text-amber-300/70">(missing or stale)</span>
+                        )}
                     </span>
-                </button>
+                </div>
             )}
 
             {activeRules.plan_selected && (
