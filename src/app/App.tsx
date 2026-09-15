@@ -41,18 +41,31 @@ function AuthRedirector() {
     const navigate = useNavigate();
 
     useEffect(() => {
+        // Convites/recovery mais recentes do Supabase chegam via query string
+        // (?token_hash=...&type=invite ou PKCE ?code=...), nao so via hash
+        // fragment (#access_token=...&type=invite). Checar so o hash deixava
+        // esses links caindo direto no /login por falta de sessao.
+        const search = window.location.search;
         const hash = window.location.hash;
-        if (hash && (hash.includes('type=invite') || hash.includes('type=recovery'))) {
+        const authLinkPattern = /type=invite|type=recovery|token_hash=|[?&]code=/;
+        const isAuthLink = authLinkPattern.test(search) || authLinkPattern.test(hash);
+
+        const redirectToUpdatePassword = () => {
             if (window.location.pathname !== '/update-password') {
-                navigate('/update-password' + hash);
+                navigate('/update-password' + search + hash);
             }
+        };
+
+        if (isAuthLink) {
+            redirectToUpdatePassword();
         }
 
         const { data } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'PASSWORD_RECOVERY') {
-                if (window.location.pathname !== '/update-password') {
-                    navigate('/update-password');
-                }
+            // Convite dispara SIGNED_IN, nao PASSWORD_RECOVERY. So redireciona
+            // por esse evento quando a URL de entrada era mesmo um link de
+            // convite/recovery, senao todo login normal cairia aqui tambem.
+            if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && isAuthLink)) {
+                redirectToUpdatePassword();
             }
         });
         return () => data.subscription.unsubscribe();
