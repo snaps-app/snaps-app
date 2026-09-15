@@ -13,7 +13,10 @@ export const getProjectMembers = async (projectId: string): Promise<ProjectMembe
 };
 
 export const addProjectMember = async (projectId: string, data: { email: string; role: string }) => {
-  const response = await api.post(`/projects/${projectId}/members/`, data);
+  const response = await api.post(`/projects/${projectId}/members/`, {
+    ...data,
+    redirect_to: `${window.location.origin}/update-password`,
+  });
   return response.data;
 };
 
