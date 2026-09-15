@@ -4,17 +4,15 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { Button } from './button';
 import { Input } from './input';
+import { Card } from './card';
+import { Dialog, DialogContent, DialogTitle } from './dialog';
 
 const HEX_COLOR = /#[0-9a-fA-F]{3,8}\b/;
+const PRIMITIVE_FILES = ['button.tsx', 'input.tsx', 'card.tsx', 'dialog.tsx'];
 
 describe('primitivos de components/ui (B1) — sem hex literal', () => {
-  it('button.tsx nao contem cor hex literal', () => {
-    const src = readFileSync(path.resolve(__dirname, './button.tsx'), 'utf-8');
-    expect(src).not.toMatch(HEX_COLOR);
-  });
-
-  it('input.tsx nao contem cor hex literal', () => {
-    const src = readFileSync(path.resolve(__dirname, './input.tsx'), 'utf-8');
+  it.each(PRIMITIVE_FILES)('%s nao contem cor hex literal', (file) => {
+    const src = readFileSync(path.resolve(__dirname, `./${file}`), 'utf-8');
     expect(src).not.toMatch(HEX_COLOR);
   });
 
@@ -28,5 +26,22 @@ describe('primitivos de components/ui (B1) — sem hex literal', () => {
     render(<Input placeholder="nome" />);
     const el = screen.getByPlaceholderText('nome');
     expect(el.className).toContain('bg-input-background');
+  });
+
+  it('Card renderiza usando classes de token (bg-card)', () => {
+    render(<Card data-testid="card">conteudo</Card>);
+    expect(screen.getByTestId('card').className).toContain('bg-card');
+  });
+
+  it('Dialog abre e expoe o titulo via Radix (acessibilidade ja paga)', () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Titulo do dialogo</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Titulo do dialogo')).toBeInTheDocument();
   });
 });
