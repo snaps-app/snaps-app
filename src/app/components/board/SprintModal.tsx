@@ -1,6 +1,7 @@
 import type { Sprint } from '@/services/types';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Zap, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Button, Input } from '@/app/components/ui';
 
 interface SprintModalProps {
   isOpen: boolean;
@@ -71,19 +72,18 @@ export function SprintModal({
                 <div key={sprint.id} className="group bg-white/5 border border-white/10 rounded-xl p-3">
                   {editingSprintId === sprint.id ? (
                     <div className="flex flex-col gap-3">
-                      <input
+                      <Input
                         type="text"
                         value={sprintNameInput}
                         onChange={(e) => setSprintNameInput(e.target.value)}
-                        className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white"
                         placeholder="Sprint Name"
                         autoFocus
                       />
-                      <input
+                      <Input
                         type="text"
                         value={sprintTagInput}
                         onChange={(e) => setSprintTagInput(e.target.value)}
-                        className="bg-black/20 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500 text-white font-mono"
+                        className="font-mono"
                         placeholder="sprint-tag"
                       />
                       <textarea
@@ -93,18 +93,20 @@ export function SprintModal({
                         placeholder="Objective..."
                       />
                       <div className="flex items-center gap-2 justify-end">
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setEditingSprintId(null)}
-                          className="p-2 rounded hover:bg-white/10 text-xs text-white"
                         >
                           Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => handleUpdateSprint(sprint.id)}
-                          className="p-2 rounded bg-purple-500/20 text-purple-400 text-xs font-bold"
                         >
                           Save
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -126,18 +128,22 @@ export function SprintModal({
                         )}
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-gray-400 hover:text-white"
                           onClick={() => startEditingSprint(sprint)}
-                          className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10"
                           onClick={() => handleDeleteSprint(sprint.id)}
-                          className="p-1.5 rounded hover:bg-red-500/10 text-red-500 hover:text-red-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
