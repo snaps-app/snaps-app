@@ -11,6 +11,23 @@ interface ExecutionRequirementsChecklistProps {
     onRequirementToggle?: (requirementKey: string, value: boolean) => Promise<void>;
 }
 
+// Condições que têm bloco próprio abaixo, cada uma com rótulo e fonte de
+// verdade específicos (status de CI, `pr_merged` no context_data, etc). O que
+// NÃO estiver aqui cai no bloco genérico do fim, em vez de sumir da tela.
+const CONDICOES_COM_BLOCO_PROPRIO = new Set([
+    'sprint_linked', 'plan_approved', 'tactical_plans_approved', 'plan_selected',
+    'bdd_scenarios_generated', 'tasks_finished', 'cards_done', 'bdd_validated',
+    'ci_passed', 'pr_merged', 'peer_review_generated', 'sprint_closed',
+    'sprint_branch_merged',
+]);
+
+const ROTULOS_DE_CONDICAO: Record<string, string> = {
+    diff_reviewed: 'Diff Reviewed (peer review registrado)',
+    tasks_created: 'Tasks Created',
+    entities_created_and_linked: 'Entities Created and Linked',
+    pr_opened: 'Pull Request Opened',
+};
+
 export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsChecklistProps> = ({
     execution,
     templates,
@@ -311,6 +328,42 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
                     </span>
                 </button>
             )}
+
+            {/* Qualquer condição do gate SEM bloco próprio acima.
+
+                Cada condição tinha um bloco hardcoded, e a lista derivou do
+                motor: ele implementa 17 e esta tela renderizava 13. As quatro
+                ausentes — diff_reviewed, tasks_created,
+                entities_created_and_linked e pr_opened — ficavam INVISÍVEIS: a
+                fase não avançava, o requisito que bloqueava não aparecia, e não
+                dava para selecioná-lo para override. Um requisito invisível é
+                pior que um reprovado, porque não há o que fazer a respeito.
+
+                Este bloco garante que nenhuma condição nova nasça invisível.
+                Ele não tenta adivinhar se foi satisfeita: quem sabe isso é o
+                motor, e a recusa dele já vem escrita em
+                `advance_conditions.error`. Aqui a condição aparece e pode ser
+                selecionada; o estado exibido é o da seleção manual. */}
+            {Object.entries(activeRules || {})
+                .filter(([key, enabled]) => enabled && !CONDICOES_COM_BLOCO_PROPRIO.has(key))
+                .map(([key]) => (
+                    <button
+                        key={key}
+                        onClick={() => toggleRequirement(key)}
+                        className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                    >
+                        {manualRequirements[key] ? (
+                            <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
+                                <Check className="w-2.5 h-2.5 text-green-400" />
+                            </div>
+                        ) : (
+                            <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex-shrink-0" />
+                        )}
+                        <span className={`text-[11px] ${manualRequirements[key] ? 'text-white/60' : 'text-white/30'}`}>
+                            {ROTULOS_DE_CONDICAO[key] ?? key}
+                        </span>
+                    </button>
+                ))}
         </div>
     );
 };
