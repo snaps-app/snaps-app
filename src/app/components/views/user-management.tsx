@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, RefreshCw, Mail, Calendar, Plus, X, Shield, Check } from 'lucide-react';
+import { Users, RefreshCw, Mail, Calendar, Plus, X, Shield, Check, Send, Trash2, AlertTriangle } from 'lucide-react';
 import { api } from '@/services/client';
+import { getUser } from '@/services/auth.service';
 
 interface AppUser {
     id: string;
@@ -23,6 +24,18 @@ export function UserManagement() {
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteSuccess, setInviteSuccess] = useState(false);
     const [inviteError, setInviteError] = useState<string | null>(null);
+
+    // Current admin id — hides/blocks self-deletion, mirroring the backend guard
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+    // Resend invite: transient per-row feedback
+    const [resendingId, setResendingId] = useState<string | null>(null);
+    const [resendFeedback, setResendFeedback] = useState<{ id: string; type: 'success' | 'error'; text: string } | null>(null);
+
+    // Delete confirmation
+    const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -69,8 +82,40 @@ export function UserManagement() {
         }
     };
 
+    const handleResendInvite = async (user: AppUser) => {
+        setResendingId(user.id);
+        setResendFeedback(null);
+        try {
+            await api.post(`/users/${user.id}/resend-invite`, {
+                redirect_to: `${window.location.origin}/update-password`,
+            });
+            setResendFeedback({ id: user.id, type: 'success', text: 'Invite resent' });
+        } catch (err: any) {
+            setResendFeedback({ id: user.id, type: 'error', text: err?.response?.data?.detail ?? 'Failed to resend invite' });
+        } finally {
+            setResendingId(null);
+            setTimeout(() => setResendFeedback((current) => (current?.id === user.id ? null : current)), 3000);
+        }
+    };
+
+    const handleDeleteUser = async () => {
+        if (!deleteTarget) return;
+        setDeleteLoading(true);
+        setDeleteError(null);
+        try {
+            await api.delete(`/users/${deleteTarget.id}`);
+            setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+            setDeleteTarget(null);
+        } catch (err: any) {
+            setDeleteError(err?.response?.data?.detail ?? 'Failed to delete user');
+        } finally {
+            setDeleteLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchUsers();
+        getUser().then((u) => setCurrentUserId(u?.id ?? null)).catch(() => {});
     }, []);
 
     return (
@@ -198,8 +243,44 @@ export function UserManagement() {
                                 </div>
                             </div>
 
-                            <div className="text-right text-xs text-zinc-600 font-mono">
-                                ID: {user.id}
+                            <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                    <div className="text-xs text-zinc-600 font-mono">ID: {user.id}</div>
+                                    {resendFeedback?.id === user.id && (
+                                        <div
+                                            className="text-xs mt-1"
+                                            style={{ color: resendFeedback.type === 'success' ? '#34D399' : '#EF4444' }}
+                                        >
+                                            {resendFeedback.text}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleResendInvite(user)}
+                                        disabled={resendingId === user.id}
+                                        title="Resend invite"
+                                        className="p-2 rounded-lg text-zinc-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all disabled:opacity-40"
+                                    >
+                                        <Send size={15} className={resendingId === user.id ? 'animate-pulse' : ''} />
+                                    </button>
+
+                                    {user.id !== currentUserId && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDeleteError(null);
+                                                setDeleteTarget(user);
+                                            }}
+                                            title="Delete user"
+                                            className="p-2 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </motion.div>
                     ))}
@@ -325,6 +406,84 @@ export function UserManagement() {
                                     </div>
                                 </form>
                             )}
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Delete User Confirmation Modal */}
+            <AnimatePresence>
+                {deleteTarget && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => !deleteLoading && setDeleteTarget(null)}
+                            className="absolute inset-0 bg-[#000000]/70 backdrop-blur-sm"
+                        />
+
+                        {/* Modal Box */}
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                            className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 p-6 z-10"
+                            style={{
+                                background: 'rgba(15, 15, 15, 0.9)',
+                                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+                            }}
+                        >
+                            <div className="flex items-center justify-between mb-5">
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <AlertTriangle size={18} className="text-red-400" />
+                                    Delete User
+                                </h3>
+                                <button
+                                    onClick={() => setDeleteTarget(null)}
+                                    disabled={deleteLoading}
+                                    className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/5 transition-all"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <p className="text-sm text-zinc-400">
+                                This will permanently delete{' '}
+                                <span className="text-white font-semibold">{deleteTarget.email}</span> from Supabase
+                                Auth and remove their platform profile. This cannot be undone.
+                            </p>
+
+                            {deleteError && (
+                                <div className="mt-4 p-3.5 rounded-xl text-xs bg-red-500/10 border border-red-500/25 text-red-400">
+                                    {deleteError}
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-end gap-3 pt-5">
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(null)}
+                                    disabled={deleteLoading}
+                                    className="px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDeleteUser}
+                                    disabled={deleteLoading}
+                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-lg transition-all disabled:opacity-40"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #EF4444 0%, #B91C1C 100%)',
+                                        boxShadow: '0 4px 15px rgba(239, 68, 68, 0.15)',
+                                    }}
+                                >
+                                    {deleteLoading ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                    Delete User
+                                </button>
+                            </div>
                         </motion.div>
                     </div>
                 )}
