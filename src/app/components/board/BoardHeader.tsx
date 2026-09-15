@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Zap, Play, Settings, Check, Layers } from 'lucide-react';
 import { FilterMultiSelect } from '@/app/components/shared/FilterMultiSelect';
 import { BOARD_COLORS } from '@/app/components/board/board-constants';
+import { Button } from '@/app/components/ui';
 
 interface BoardHeaderProps {
   projectId?: string;
@@ -202,13 +203,15 @@ export function BoardHeader({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-xl text-white/20 hover:text-white"
             onClick={() => setIsSprintModalOpen(true)}
-            className="p-2.5 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all text-white/20 hover:text-white"
             title="Sprint Management"
           >
             <Zap className="w-4 h-4" />
-          </button>
+          </Button>
 
           {(isDirty || !boardId) && (
             <div className="flex items-center gap-2">
