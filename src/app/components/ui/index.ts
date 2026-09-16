@@ -16,3 +16,13 @@ export {
   DialogTitle,
   DialogDescription,
 } from '@/app/components/ui/dialog';
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuPortal,
+  DropdownMenuGroup,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/app/components/ui/dropdown-menu';
