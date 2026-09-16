@@ -7,6 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner } from '@/app/components/ui/spinner';
 import { ProjectApiKeysPanel } from '@/app/components/project/project-api-keys-panel';
 import { EditProjectGithubConfig } from '@/app/components/project/edit-project-github-config';
+import { ProjectConfigEntriesPanel } from '@/app/components/project/project-config-entries-panel';
 import { EditProjectTemplateSelector } from '@/app/components/project/edit-project-template-selector';
 
 export function EditProject() {
@@ -495,6 +496,12 @@ export function EditProject() {
                     syncStatus={syncStatus}
                     setSyncStatus={setSyncStatus}
                 />
+              )}
+
+              {/* Configuracao do projeto (Sprint 21.5). Vem DEPOIS do GitHub
+                  porque usa `repoNames` para oferecer os escopos possiveis. */}
+              {projectId && (
+                <ProjectConfigEntriesPanel projectId={projectId} repoNames={repoNames} />
               )}
 
               {/* API Keys Panel */}
