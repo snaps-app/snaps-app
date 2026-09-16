@@ -16,3 +16,4 @@ export {
   DialogTitle,
   DialogDescription,
 } from '@/app/components/ui/dialog';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';

@@ -15,7 +15,17 @@ const ROLE_COLORS: Record<string, { bg: string; border: string; text: string }> 
   visualizer: { bg: 'rgba(113, 113, 122, 0.1)', border: 'rgba(113, 113, 122, 0.3)', text: '#71717A' },
 };
 
-export function MembersView() {
+interface MembersViewProps {
+  /**
+   * Renderizada como aba do Hub de Settings (B3), e nao como rota propria.
+   * Nesse modo o hub ja decidiu a visibilidade pelo papel e ja desenhou o
+   * cabecalho da pagina, entao aqui nao ha redirecionamento nem `h1` -- dois
+   * `h1` na mesma tela sao um erro de estrutura, nao de estilo.
+   */
+  embedded?: boolean;
+}
+
+export function MembersView({ embedded = false }: MembersViewProps = {}) {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { can, loading: roleLoading, } = useProjectRole();
@@ -31,10 +41,11 @@ export function MembersView() {
   // controls below stay gated on can('manage_members') so visualizer is
   // read-only. NOTE: this narrows the blanket read-only access from ADR-0020.
   useEffect(() => {
+    if (embedded) return;
     if (!roleLoading && !can('view_members')) {
       navigate(`/project/${projectId}`);
     }
-  }, [roleLoading, can, navigate, projectId]);
+  }, [embedded, roleLoading, can, navigate, projectId]);
 
   const loadData = async () => {
     if (!projectId) return;
@@ -113,7 +124,7 @@ export function MembersView() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8">
+    <div className={embedded ? 'space-y-8' : 'p-6 max-w-5xl mx-auto space-y-8'}>
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -127,9 +138,15 @@ export function MembersView() {
             <Users size={24} style={{ color: '#00D4FF' }} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">
-              Membros do Projeto
-            </h1>
+            {embedded ? (
+              <h2 className="text-xl font-bold tracking-tight text-white">
+                Membros do Projeto
+              </h2>
+            ) : (
+              <h1 className="text-2xl font-bold tracking-tight text-white">
+                Membros do Projeto
+              </h1>
+            )}
             <p className="text-sm text-zinc-400">
               Gerencie quem tem acesso a este projeto e defina seus papéis de segurança.
             </p>
