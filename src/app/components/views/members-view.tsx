@@ -12,7 +12,7 @@ const ROLE_COLORS: Record<string, { bg: string; border: string; text: string }> 
   owner:      { bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.3)', text: '#A855F7' },
   admin:      { bg: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.3)', text: '#3B82F6' },
   member:     { bg: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.3)', text: '#10B981' },
-  visualizer: { bg: 'rgba(113, 113, 122, 0.1)', border: 'rgba(113, 113, 122, 0.3)', text: '#71717A' },
+  viewer:     { bg: 'rgba(113, 113, 122, 0.1)', border: 'rgba(113, 113, 122, 0.3)', text: '#71717A' },
 };
 
 export function MembersView() {
@@ -26,9 +26,9 @@ export function MembersView() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // View gate: owner/admin/visualizer may open this screen; a plain member may
+  // View gate: owner/admin/viewer may open this screen; a plain member may
   // not (managing members isn't one of a member's "specific things"). Edit
-  // controls below stay gated on can('manage_members') so visualizer is
+  // controls below stay gated on can('manage_members') so viewer is
   // read-only. NOTE: this narrows the blanket read-only access from ADR-0020.
   useEffect(() => {
     if (!roleLoading && !can('view_members')) {
@@ -249,7 +249,7 @@ export function MembersView() {
                     >
                       <option value="admin" className="bg-zinc-900">Admin</option>
                       <option value="member" className="bg-zinc-900">Member</option>
-                      <option value="visualizer" className="bg-zinc-900">Visualizer</option>
+                      <option value="viewer" className="bg-zinc-900">Viewer</option>
                     </select>
 
                     <motion.button
@@ -406,7 +406,7 @@ function InviteMemberModal({ projectId, onClose, onSuccess }: {
               >
                 <option value="admin" className="bg-zinc-900">Admin</option>
                 <option value="member" className="bg-zinc-900">Member</option>
-                <option value="visualizer" className="bg-zinc-900">Visualizer</option>
+                <option value="viewer" className="bg-zinc-900">Viewer</option>
               </select>
             </div>
 

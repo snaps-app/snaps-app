@@ -3,7 +3,7 @@ import { api } from './client';
 export interface ProjectMember {
   user_id: string;
   email: string;
-  role: 'owner' | 'admin' | 'member' | 'visualizer';
+  role: 'owner' | 'admin' | 'member' | 'viewer';
   global_role?: string;
 }
 

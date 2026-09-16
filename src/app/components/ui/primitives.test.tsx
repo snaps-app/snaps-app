@@ -8,7 +8,7 @@ import { Card } from './card';
 import { Dialog, DialogContent, DialogTitle } from './dialog';
 
 const HEX_COLOR = /#[0-9a-fA-F]{3,8}\b/;
-const PRIMITIVE_FILES = ['button.tsx', 'input.tsx', 'card.tsx', 'dialog.tsx'];
+const PRIMITIVE_FILES = ['button.tsx', 'input.tsx', 'card.tsx', 'dialog.tsx', 'dropdown-menu.tsx'];
 
 describe('primitivos de components/ui (B1) — sem hex literal', () => {
   it.each(PRIMITIVE_FILES)('%s nao contem cor hex literal', (file) => {

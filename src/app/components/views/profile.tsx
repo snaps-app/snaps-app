@@ -3,11 +3,23 @@ import { ArrowLeft, User, Key, HardDrive, Server, Eye, EyeOff, Copy, Check } fro
 import { motion, AnimatePresence } from 'motion/react';
 import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { StorageTabContent } from '@/app/components/views/profile-storage-tab';
 import { McpServersTabContent } from '@/app/components/views/profile-mcp-servers-tab';
 
 type TabType = 'account' | 'ai-models' | 'storage' | 'mcp-servers';
+
+const TAB_IDS: TabType[] = ['account', 'ai-models', 'storage', 'mcp-servers'];
+
+/**
+ * A aba vem da URL para que a Zona do Usuário possa apontar direto para
+ * Storage (card 10159d7e). Sem isso, "Storage" no menu do avatar só poderia
+ * levar ao Perfil genérico — um item que aceita o clique e não leva aonde
+ * promete, que é o padrão morto do C17.
+ */
+function tabDaUrl(valor: string | null): TabType {
+  return TAB_IDS.includes(valor as TabType) ? (valor as TabType) : 'account';
+}
 
 interface ToggleProps {
   label: string;
@@ -97,7 +109,10 @@ function ScanLine() {
 
 export function Profile() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('account');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = tabDaUrl(searchParams.get('tab'));
+  const setActiveTab = (tab: TabType) =>
+    setSearchParams(tab === 'account' ? {} : { tab }, { replace: true });
   const [settings, setSettings] = useState({
     emailNotifications: true,
     autoSave: true,
