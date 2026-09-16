@@ -8,7 +8,10 @@ import type {
     GithubConfigCreate,
     ProjectApiKeyPublic,
     ProjectApiKeyCreate,
-    ProjectApiKeyCreated
+    ProjectApiKeyCreated,
+    ProjectConfigEntry,
+    ProjectConfigEntryWrite,
+    ProjectConfigImportResult
 } from './types';
 
 export const getProjects = async (skip = 0, limit = 100): Promise<Project[]> => {
@@ -68,4 +71,48 @@ export const createProjectApiKey = async (projectId: string, data: ProjectApiKey
 
 export const revokeProjectApiKey = async (projectId: string, keyId: string): Promise<void> => {
     await api.delete(`/projects/${projectId}/api-keys/${keyId}`);
+};
+
+// ── Configuracao de projeto (Sprint 21.5) ──────────────────────────────────
+
+export const getProjectConfigEntries = async (
+    projectId: string, repoName?: string,
+): Promise<ProjectConfigEntry[]> => {
+    const response = await api.get(`/projects/${projectId}/config-entries`, {
+        params: repoName ? { repo_name: repoName } : undefined,
+    });
+    return response.data;
+};
+
+export const upsertProjectConfigEntry = async (
+    projectId: string, data: ProjectConfigEntryWrite,
+): Promise<ProjectConfigEntry> => {
+    const response = await api.put(`/projects/${projectId}/config-entries`, data);
+    return response.data;
+};
+
+export const deleteProjectConfigEntry = async (
+    projectId: string, entryId: string,
+): Promise<void> => {
+    await api.delete(`/projects/${projectId}/config-entries/${entryId}`);
+};
+
+/**
+ * Importa um arquivo `.env`.
+ *
+ * O conteudo vai como TEXTO e e parseado no SERVIDOR, pelo mesmo `dotenv` que
+ * le o arquivo no workspace. Parsear aqui criaria uma segunda gramatica para o
+ * mesmo formato, e a divergencia apareceria como "a chave existe mas o valor
+ * esta errado".
+ *
+ * `apply=false` (o default) nao grava: devolve o que seria criado, o que seria
+ * sobrescrito e o que ja esta igual.
+ */
+export const importProjectConfigEntries = async (
+    projectId: string, content: string, repoName?: string | null, apply = false,
+): Promise<ProjectConfigImportResult> => {
+    const response = await api.post(`/projects/${projectId}/config-entries/import`, {
+        content, repo_name: repoName || null, apply,
+    });
+    return response.data;
 };

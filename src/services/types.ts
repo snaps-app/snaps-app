@@ -607,3 +607,49 @@ export interface ReviewPending {
     total_pendente: number;
     grupos: ReviewGroup[];
 }
+
+// ── Configuracao de projeto (Sprint 21.5) ──────────────────────────────────
+//
+// O VALOR nunca chega ao cliente. A API devolve `value_length`, que diz se a
+// chave esta preenchida e se mudou, sem transportar o conteudo. Nao ha campo
+// `value` nestas interfaces de propósito: se ele existisse, alguem acabaria
+// pedindo ao backend para preenche-lo.
+
+export interface ProjectConfigEntry {
+    id: string;
+    project_id: string;
+    repo_name?: string | null;
+    key: string;
+    kind: 'config' | 'secret';
+    description?: string | null;
+    value_length: number;
+    created_by_actor_kind: 'human' | 'agent';
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface ProjectConfigEntryWrite {
+    key: string;
+    value: string;
+    repo_name?: string | null;
+    kind?: 'config' | 'secret';
+    description?: string | null;
+}
+
+export interface ProjectConfigImportItem {
+    key: string;
+    value_length: number;
+    /** Presente so quando a chave ja existia — permite dizer "de 25 para 30". */
+    current_value_length?: number | null;
+    description?: string | null;
+}
+
+export interface ProjectConfigImportResult {
+    repo_name?: string | null;
+    applied: boolean;
+    parsed: number;
+    will_create: ProjectConfigImportItem[];
+    will_overwrite: ProjectConfigImportItem[];
+    unchanged: ProjectConfigImportItem[];
+    warnings: string[];
+}
