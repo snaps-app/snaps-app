@@ -6,6 +6,7 @@ import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { ArrowLeft, Plus, Edit2, Trash2, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Spinner } from '@/app/components/ui/spinner';
+import { MemoryTabs } from '@/app/components/project/memory-tabs';
 
 const INPUT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-red-500 text-white placeholder:text-gray-600';
 const SELECT_CLS = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-red-500 text-white';
@@ -123,6 +124,12 @@ export function DecisionsView() {
       </AnimatePresence>
 
       <div className="relative z-10 h-screen flex flex-col max-w-5xl mx-auto p-6">
+        {projectId && (
+          <div className="mb-4">
+            <MemoryTabs projectId={projectId} />
+          </div>
+        )}
+
         {/* Header */}
         <motion.div
           className="p-6 border-b border-white/10 backdrop-blur-3xl rounded-3xl mb-6 flex items-center justify-between"

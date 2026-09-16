@@ -15,6 +15,7 @@ import { SnapCard } from '@/app/components/shared/snap-card';
 import { BoardListModal } from '@/app/components/modals/board-list-modal';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner } from '@/app/components/ui/spinner';
+import { ProjectContextualDestinations } from '@/app/components/project/project-contextual-destinations';
 
 
 // ... interface Conversation ... (keep or import if shared)
@@ -274,7 +275,9 @@ export function ProjectWorkspace() {
           </motion.div>
 
           {/* Snaps Grid */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+            {projectId && <ProjectContextualDestinations projectId={projectId} />}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               <AnimatePresence>
                 {snaps.map((snap) => (
