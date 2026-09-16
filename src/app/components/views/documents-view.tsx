@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { PrdImportModal } from '@/app/components/modals/prd-import-modal';
 import { Spinner } from '@/app/components/ui/spinner';
+import { MemoryTabs } from '@/app/components/project/memory-tabs';
 
 import { DocEditorModal } from '@/app/components/documents/doc-editor-modal';
 import { DocViewerModal } from '@/app/components/documents/doc-viewer-modal';
@@ -133,6 +134,12 @@ export function DocumentsView() {
           transition={{ duration: 0.6, ease: 'easeOut' }}
           className="max-w-7xl mx-auto"
         >
+          {projectId && (
+            <div className="mb-6">
+              <MemoryTabs projectId={projectId} />
+            </div>
+          )}
+
           {/* Header */}
           <div className="mb-8">
             <motion.h1

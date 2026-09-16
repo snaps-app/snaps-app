@@ -280,9 +280,22 @@ export interface GovernanceDoc extends VersionedEntity {
 export interface Skill extends VersionedEntity {
     id: string;
     name: string;
+    /** SKILL.md: Markdown, nao um bloco de codigo com linguagem (B5). */
     content: string;
+    /**
+     * @deprecated Legado. Nenhuma tela le nem oferece este campo desde B5 --
+     * o editor da skill e `content`, em Markdown. Continua no tipo porque a API
+     * ainda o devolve e ainda o exige na criacao. Torna-lo opcional no schema e
+     * o passo N+1 e o `DROP COLUMN` o N+2 da regra das tres releases
+     * (playbook "Migrations do snaps-api", secao 3).
+     */
     language: string;
     params_schema?: Record<string, any>;
+    /**
+     * Versao semantica em texto, sem historico e sem hash. Nao e exibida na UI:
+     * um selo de versao promete versionamento imutavel e diff, que sao E12
+     * (Sprint 26.0).
+     */
     version?: string;
     scope: SkillScope;
     project_id?: string;

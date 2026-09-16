@@ -3,12 +3,14 @@ import { getProjects } from '@/services/projects';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
 import type { AgentInstruction, GovernanceDoc, Resource, Skill } from '@/services/types';
 import { useState, useEffect } from 'react';
-import { Bot, FileText, Wrench, Database, Plus, Edit2, Trash2, X, Shield, Link, Eye, Upload, GitBranch } from 'lucide-react';
+import { Bot, FileText, Wrench, Database, Plus, Edit2, Trash2, X, Shield, Link, Eye, Upload, GitBranch, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PrdImportModal } from '@/app/components/modals/prd-import-modal';
 import { WorkflowEditorCanvas } from '@/app/components/workflow/workflow-editor';
 import { DocumentViewModal } from '@/app/components/modals/document-view-modal';
 import { GovernanceFormModal } from '@/app/components/modals/governance-form-modal';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { Input } from '@/app/components/ui/input';
 
 type Tab = 'agents' | 'docs' | 'skills' | 'resources' | 'workflows';
 
@@ -42,6 +44,9 @@ export function GovernanceView() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Filters
+  // Busca por nome + filtro de escopo sao o catalogo pesquisavel do Skills
+  // Center (B5). Valem para todas as abas: a lista e a mesma estrutura.
+  const [busca, setBusca] = useState('');
   const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'project'>('all');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
@@ -102,6 +107,9 @@ export function GovernanceView() {
     tab === 'workflows' ? [] :
     resources
   ).filter((item: any) => {
+      const termo = busca.trim().toLowerCase();
+      if (termo && !String(item.name || item.title || '').toLowerCase().includes(termo)) return false;
+
       const scope = deriveScope(item);
       if (scopeFilter === 'global') return scope === 'global';
       if (scopeFilter === 'project') {
@@ -143,11 +151,13 @@ export function GovernanceView() {
                   {itemProject.name}
                 </span>
               )}
-              {item.version && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded font-mono text-gray-500 bg-white/5 border border-white/10">
-                  v{item.version}
-                </span>
-              )}
+              {/* Versao NAO aparece aqui (B5). `skills.version` e um texto
+                  solto, sem historico e sem hash: hoje as nove skills estao
+                  todas em "1.0.0". Um selo de versao promete versionamento
+                  imutavel e diff, que sao E12 (Sprint 26.0). Listar um numero
+                  nao comprova nenhuma das duas coisas. Pela mesma razao nao ha
+                  selo de origem nem de confianca: `origin`, `trust_level` e
+                  `content_hash` nao existem na tabela. */}
             </div>
             <p className="text-sm text-gray-400 line-clamp-2">{item.instructions || item.content || ''}</p>
 
@@ -187,6 +197,10 @@ export function GovernanceView() {
 
   return (
     <div className="h-full flex flex-col p-6 max-w-6xl mx-auto">
+      {/* Abas do primitivo compartilhado (B3). Antes era uma barra de botoes
+          escrita a mao aqui dentro: sem papel ARIA, sem navegacao por seta e
+          divergindo do resto do produto sem ninguem notar. */}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="h-full flex flex-col min-h-0">
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -201,6 +215,21 @@ export function GovernanceView() {
           </h1>
           {tab !== 'workflows' && (
             <div className="flex items-center gap-3">
+              {/* Busca por nome: o catalogo de skills precisa ser pesquisavel
+                  por nome e por escopo (B5), e a lista e a mesma para as
+                  demais abas. */}
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                <Input
+                  type="search"
+                  aria-label="Buscar por nome"
+                  placeholder="Buscar por nome"
+                  value={busca}
+                  onChange={e => setBusca(e.target.value)}
+                  className="h-10 w-56 rounded-xl pl-9"
+                />
+              </div>
+
               {/* Scope Filters */}
               <div className="flex p-1 bg-white/5 rounded-xl border border-white/10">
                 {(['all', 'global', 'project'] as const).map(s => (
@@ -243,7 +272,7 @@ export function GovernanceView() {
           )}
         </div>
 
-        <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10">
+        <TabsList>
           {(Object.keys(TAB_CONFIG) as Tab[]).map(t => {
             const c = TAB_CONFIG[t];
             const Icon = c.icon;
@@ -256,27 +285,19 @@ export function GovernanceView() {
               resources.length
             );
             return (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg font-medium transition-all text-sm ${
-                  isActive
-                    ? 'bg-white/10 text-white shadow-lg'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                }`}
-              >
+              <TabsTrigger key={t} value={t}>
                 <Icon className="w-4 h-4" />
                 {c.label}
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-600'}`}>
                   {count}
                 </span>
-              </button>
+              </TabsTrigger>
             );
           })}
-        </div>
+        </TabsList>
       </motion.div>
 
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-hide">
+      <TabsContent value={tab} className="mt-0 flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-hide">
         <AnimatePresence mode="wait">
           {tab === 'workflows' ? (
             <motion.div
@@ -301,7 +322,8 @@ export function GovernanceView() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </TabsContent>
+      </Tabs>
 
       <GovernanceFormModal
         isOpen={modalOpen}
@@ -339,7 +361,8 @@ export function GovernanceView() {
                       }`}>
                       <div>
                         <div className="font-medium text-white">{s.name}</div>
-                        <div className="text-xs text-gray-500">{s.language} · v{s.version}</div>
+                        {/* Escopo, nao linguagem nem versao (B5). */}
+                        <div className="text-xs text-gray-500">{deriveScope(s)}</div>
                       </div>
                       {alreadyBound ? <span className="text-[10px] text-green-500">Bound</span> : <Plus className="w-4 h-4 text-gray-500" />}
                     </button>

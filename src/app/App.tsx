@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { Home } from '@/app/components/layout/home';
 import { ProjectWorkspace } from '@/app/components/project/project-workspace';
 import { ActiveChat } from '@/app/components/chat/active-chat';
 import { BoardView } from '@/app/components/views/board-view';
 import { NewProject } from '@/app/components/project/new-project';
-import { EditProject } from '@/app/components/project/edit-project';
+import { ProjectSettings } from '@/app/components/project/project-settings';
 import { GenerateDocument } from '@/app/components/views/generate-document';
 import { DocumentsView } from '@/app/components/views/documents-view';
 import { SourceDocumentView } from '@/app/components/views/source-document-view';
@@ -32,10 +32,21 @@ import { RetroView } from '@/app/components/views/retro-view';
 import { TimelineView } from '@/app/components/views/timeline-view';
 import { ExecutionCockpit } from '@/app/components/execution/execution-cockpit';
 import { ScratchView } from '@/app/components/views/scratch-view';
-import { MembersView } from '@/app/components/views/members-view';
 import { TimeView } from '@/app/views/TimeView';
 import { ProjectTimeView } from '@/app/views/ProjectTimeView';
 import { supabase } from '@/lib/supabaseClient';
+
+/**
+ * Rota antiga -> aba do Hub de Settings (B3).
+ *
+ * `/edit` e `/members` continuam respondendo. Link salvo por alguem no
+ * navegador, num card ou num e-mail nao pode virar 404 porque a tela foi
+ * reorganizada -- a mudanca e nossa, o custo nao e de quem guardou o link.
+ */
+function RedirecionaParaSettings({ aba }: { aba: string }) {
+    const { projectId } = useParams<{ projectId: string }>();
+    return <Navigate to={`/project/${projectId}/settings/${aba}`} replace />;
+}
 
 function AuthRedirector() {
     const navigate = useNavigate();
@@ -114,7 +125,9 @@ export default function App() {
 
                         {/* Project Routes */}
                         <Route path="/project/:projectId" element={<ProjectWorkspace />} />
-                        <Route path="/project/:projectId/edit" element={<EditProject />} />
+                        <Route path="/project/:projectId/settings" element={<RedirecionaParaSettings aba="general" />} />
+                        <Route path="/project/:projectId/settings/:tab" element={<ProjectSettings />} />
+                        <Route path="/project/:projectId/edit" element={<RedirecionaParaSettings aba="general" />} />
                         <Route path="/project/:projectId/docs" element={<DocumentsView />} />
                         <Route path="/project/:projectId/documents/:docId" element={<SourceDocumentView />} />
                         <Route path="/project/:projectId/generate" element={<GenerateDocument />} />
@@ -128,7 +141,7 @@ export default function App() {
                         <Route path="/project/:projectId/retro" element={<RetroView />} />
                         <Route path="/project/:projectId/timeline" element={<TimelineView />} />
                         <Route path="/project/:projectId/executions" element={<AIExecutions />} />
-                        <Route path="/project/:projectId/members" element={<MembersView />} />
+                        <Route path="/project/:projectId/members" element={<RedirecionaParaSettings aba="members" />} />
                         <Route path="/project/:projectId/time" element={<ProjectTimeView />} />
                     </Route>
 

@@ -6,9 +6,10 @@ import { Button } from './button';
 import { Input } from './input';
 import { Card } from './card';
 import { Dialog, DialogContent, DialogTitle } from './dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
 
 const HEX_COLOR = /#[0-9a-fA-F]{3,8}\b/;
-const PRIMITIVE_FILES = ['button.tsx', 'input.tsx', 'card.tsx', 'dialog.tsx'];
+const PRIMITIVE_FILES = ['button.tsx', 'input.tsx', 'card.tsx', 'dialog.tsx', 'tabs.tsx', 'dropdown-menu.tsx'];
 
 describe('primitivos de components/ui (B1) — sem hex literal', () => {
   it.each(PRIMITIVE_FILES)('%s nao contem cor hex literal', (file) => {
@@ -31,6 +32,24 @@ describe('primitivos de components/ui (B1) — sem hex literal', () => {
   it('Card renderiza usando classes de token (bg-card)', () => {
     render(<Card data-testid="card">conteudo</Card>);
     expect(screen.getByTestId('card').className).toContain('bg-card');
+  });
+
+  it('Tabs expoe papeis ARIA e so o painel ativo (acessibilidade ja paga)', () => {
+    render(
+      <Tabs defaultValue="um">
+        <TabsList>
+          <TabsTrigger value="um">Um</TabsTrigger>
+          <TabsTrigger value="dois">Dois</TabsTrigger>
+        </TabsList>
+        <TabsContent value="um">painel um</TabsContent>
+        <TabsContent value="dois">painel dois</TabsContent>
+      </Tabs>
+    );
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    expect(screen.getByRole('tab', { name: 'Um' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('painel um')).toBeInTheDocument();
+    expect(screen.queryByText('painel dois')).not.toBeInTheDocument();
   });
 
   it('Dialog abre e expoe o titulo via Radix (acessibilidade ja paga)', () => {

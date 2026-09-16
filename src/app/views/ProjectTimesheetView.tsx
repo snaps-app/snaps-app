@@ -85,7 +85,7 @@ interface TimesheetRow extends RowKey {
 }
 
 // Rows are grouped per task AND per collaborator, so a privileged viewer sees
-// who logged what (owner/admin/visualizer see everyone; member only their own).
+// who logged what (owner/admin/viewer see everyone; member only their own).
 function rowKeyOf(r: RowKey): string {
     return `${r.type}:${r.refId}:${r.userId}`;
 }
@@ -120,7 +120,7 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
         setIsLoading(true);
         try {
             // No user_id filter: the backend scopes visibility by project role
-            // (owner/admin/visualizer see everyone; member sees only their own).
+            // (owner/admin/viewer see everyone; member sees only their own).
             const data = await getProjectTimeLogs(projectId, {
                 start_date: toISODate(weekStart),
                 end_date: toISODate(weekEnd),
