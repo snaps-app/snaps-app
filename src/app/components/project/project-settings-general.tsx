@@ -4,22 +4,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import { getProject, updateProject } from '@/services/projects';
 import { Spinner } from '@/app/components/ui/spinner';
 import { Button } from '@/app/components/ui/button';
-import { ProjectConfigEntriesPanel } from '@/app/components/project/project-config-entries-panel';
 import { EditProjectTemplateSelector } from '@/app/components/project/edit-project-template-selector';
 
 interface ProjectSettingsGeneralProps {
     projectId: string;
     /** Papel do usuario ja resolvido pelo hub; `false` deixa a aba em leitura. */
     canWrite: boolean;
-    /** Repositorios configurados na aba GitHub -- a lista de escopos do .env vem deles. */
-    repoNames: string;
     onProjectNameChange?: (name: string) => void;
 }
 
 export function ProjectSettingsGeneral({
     projectId,
     canWrite,
-    repoNames,
     onProjectNameChange,
 }: ProjectSettingsGeneralProps) {
     const [projectName, setProjectName] = useState('');
@@ -49,7 +45,7 @@ export function ProjectSettingsGeneral({
                 onProjectNameChange?.(project.name);
             } catch (error) {
                 console.error('Failed to load project:', error);
-                if (ativo) setSaveError('Nao foi possivel carregar o projeto.');
+                if (ativo) setSaveError('Could not load the project.');
             } finally {
                 if (ativo) setIsLoading(false);
             }
@@ -111,7 +107,7 @@ export function ProjectSettingsGeneral({
             // o motivo, nao "tente de novo" (U38).
             setSaveError(
                 error?.response?.data?.detail ||
-                'Nao foi possivel salvar. Confira suas permissoes e tente novamente.'
+                'Could not save. Check your permissions and try again.'
             );
         } finally {
             setIsSaving(false);
@@ -121,7 +117,7 @@ export function ProjectSettingsGeneral({
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-24">
-                <Spinner size="lg" label="Carregando projeto..." color="orange" />
+                <Spinner size="lg" label="Loading project..." color="orange" />
             </div>
         );
     }
@@ -144,7 +140,7 @@ export function ProjectSettingsGeneral({
                         color: 'var(--snaps-text-secondary)'
                     }}
                 >
-                    Seu papel neste projeto e de leitura. Os campos abaixo mostram a configuracao atual e nao podem ser alterados.
+                    Your role in this project is read-only. The fields below show the current settings and cannot be changed.
                 </p>
             )}
 
@@ -289,22 +285,15 @@ export function ProjectSettingsGeneral({
                 </div>
             </div>
 
-            {/* Configuracao do projeto (Sprint 21.5). Fica aqui, e nao numa aba
-                propria: "Environments" e requisito registrado do E22 (Sprint
-                30.0) e nao se antecipa o nome dele com o painel de hoje. Usa
-                `repoNames` da aba GitHub para oferecer os escopos possiveis --
-                por isso o hub guarda esse valor e o repassa. */}
-            <ProjectConfigEntriesPanel projectId={projectId} repoNames={repoNames} />
-
             {saveError && <p role="alert" className="text-sm text-red-400">{saveError}</p>}
             {savedAt && !saveError && (
-                <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>Salvo as {savedAt}.</p>
+                <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>Saved at {savedAt}.</p>
             )}
 
             {canWrite && (
-                <div className="pt-2">
-                    <Button onClick={handleSave} disabled={!projectName || isSaving} size="lg" className="w-full">
-                        {isSaving ? 'Salvando...' : 'Salvar alteracoes'}
+                <div className="pt-2 flex justify-end">
+                    <Button onClick={handleSave} disabled={!projectName || isSaving} size="lg" variant="cta">
+                        {isSaving ? 'Saving...' : 'Save changes'}
                     </Button>
                 </div>
             )}

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, Github, Key, Settings as SettingsIcon, SlidersHorizontal, Users } from 'lucide-react';
+import { ArrowLeft, Github, Key, Settings as SettingsIcon, SlidersHorizontal, Users, Variable } from 'lucide-react';
 import { getGithubConfig, upsertGithubConfig } from '@/services/projects';
 import { useProjectRole } from '@/contexts/project-role-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Button } from '@/app/components/ui/button';
 import { Spinner } from '@/app/components/ui/spinner';
 import { ProjectSettingsGeneral } from '@/app/components/project/project-settings-general';
+import { ProjectConfigEntriesPanel } from '@/app/components/project/project-config-entries-panel';
 import { EditProjectGithubConfig } from '@/app/components/project/edit-project-github-config';
 import { ProjectApiKeysPanel } from '@/app/components/project/project-api-keys-panel';
 import { MembersView } from '@/app/components/views/members-view';
@@ -21,18 +22,20 @@ import { MembersView } from '@/app/components/views/members-view';
  * nada e a mesma familia do botao morto (C17/E19). O encaixe para elas e esta
  * estrutura de codigo, nao um rotulo visivel.
  */
-export const SETTINGS_TABS = ['general', 'members', 'github', 'api-keys'] as const;
+export const SETTINGS_TABS = ['general', 'config', 'members', 'github', 'api-keys'] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 const TAB_LABEL: Record<SettingsTab, string> = {
-    general: 'Geral',
-    members: 'Membros',
+    general: 'General',
+    config: 'Config',
+    members: 'Members',
     github: 'GitHub',
     'api-keys': 'API Keys',
 };
 
 const TAB_ICON = {
     general: SlidersHorizontal,
+    config: Variable,
     members: Users,
     github: Github,
     'api-keys': Key,
@@ -106,7 +109,7 @@ export function ProjectSettings() {
         setGithubSavedAt('');
         if (!repoOwner || !repoNames || !githubPat) {
             setGithubError(
-                'Para salvar alteracoes do GitHub, informe os repositorios e o PAT. O token salvo nunca e exibido.'
+                'To save the GitHub settings, provide the repositories and the PAT. The stored token is never shown.'
             );
             return;
         }
@@ -124,7 +127,7 @@ export function ProjectSettings() {
         } catch (error: any) {
             setGithubError(
                 error?.response?.data?.detail ||
-                'Nao foi possivel salvar. Confira suas permissoes e tente novamente.'
+                'Could not save. Check your permissions and try again.'
             );
         } finally {
             setIsSavingGithub(false);
@@ -136,7 +139,7 @@ export function ProjectSettings() {
     if (roleLoading) {
         return (
             <div className="flex items-center justify-center py-24 min-h-[500px]">
-                <Spinner size="lg" label="Carregando permissoes..." color="orange" />
+                <Spinner size="lg" label="Loading permissions..." color="orange" />
             </div>
         );
     }
@@ -150,7 +153,7 @@ export function ProjectSettings() {
                     style={{ color: 'var(--snaps-text-secondary)' }}
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    Voltar ao projeto
+                    Back to project
                 </button>
 
                 <div className="flex items-center gap-3">
@@ -166,7 +169,7 @@ export function ProjectSettings() {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-white">Settings</h1>
                         <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                            {projectName || 'Configuracao do projeto'}
+                            {projectName || 'Project configuration'}
                         </p>
                     </div>
                 </div>
@@ -192,9 +195,22 @@ export function ProjectSettings() {
                     <ProjectSettingsGeneral
                         projectId={projectId}
                         canWrite={canWrite}
-                        repoNames={repoNames}
                         onProjectNameChange={setProjectName}
                     />
+                </TabsContent>
+
+                {/* Aba propria, e nao um bloco no fim da Geral: estas chaves
+                    viram o `.env` do workspace de cada execucao, que nao e o
+                    mesmo assunto que nome, descricao e template. Junto, o
+                    "Save changes" da Geral aparecia embaixo de um painel que
+                    salva sozinho e que ele nao salva — dois modelos de gravacao
+                    na mesma tela, sem nada distinguindo um do outro.
+
+                    O rotulo e `Config`, e nao `Environments`: esse nome e
+                    requisito registrado do E22 (Sprint 30.0) e cobre mais coisa
+                    do que o painel de hoje. */}
+                <TabsContent value="config">
+                    <ProjectConfigEntriesPanel projectId={projectId} repoNames={repoNames} />
                 </TabsContent>
 
                 {canViewMembers && (
@@ -213,7 +229,7 @@ export function ProjectSettings() {
                                 color: 'var(--snaps-text-secondary)',
                             }}
                         >
-                            Seu papel neste projeto e de leitura. A integracao aparece como esta configurada e nao pode ser alterada.
+                            Your role in this project is read-only. The integration is shown as configured and cannot be changed.
                         </p>
                     )}
                     <div className={canWrite ? undefined : 'pointer-events-none opacity-60'}>
@@ -239,16 +255,16 @@ export function ProjectSettings() {
                     {githubError && <p role="alert" className="text-sm text-red-400 mt-4">{githubError}</p>}
                     {githubSavedAt && !githubError && (
                         <p className="text-sm mt-4" style={{ color: 'var(--snaps-text-secondary)' }}>
-                            Configuracao salva as {githubSavedAt}.
+                            Configuration saved at {githubSavedAt}.
                         </p>
                     )}
                     {canWrite && (
                         // Botao proprio porque o "Update Project" da tela antiga
                         // salvava projeto e GitHub no mesmo clique. Separadas as
                         // abas, cada uma salva o que mostra.
-                        <div className="pt-4">
-                            <Button onClick={handleSaveGithub} disabled={isSavingGithub} size="lg" className="w-full">
-                                {isSavingGithub ? 'Salvando...' : 'Salvar configuracao do GitHub'}
+                        <div className="pt-4 flex justify-end">
+                            <Button onClick={handleSaveGithub} disabled={isSavingGithub} size="lg" variant="cta">
+                                {isSavingGithub ? 'Saving...' : 'Save GitHub settings'}
                             </Button>
                         </div>
                     )}

@@ -13,6 +13,12 @@ const buttonVariants = cva(
         outline: 'border border-border bg-transparent hover:bg-accent hover:text-accent-foreground',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        // Acao primaria de formulario. `default` e `bg-primary`, que na base
+        // dark-only do TP-B0 e quase branco: em largura total virava uma barra
+        // branca atravessando a tela. A convencao que o produto ja usava (o
+        // "Create Project") e o gradiente de acento — mora aqui, e nao em
+        // style inline de cada tela, para nao divergir na proxima.
+        cta: 'snaps-cta text-white hover:brightness-110',
       },
       size: {
         default: 'h-9 px-4 py-2',

@@ -262,3 +262,16 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+/* Acao primaria de formulario (ver a variante `cta` do Button).
+
+   Os valores vem dos tokens de acento; nenhum hex literal entra no primitivo,
+   que e o que `primitives.test.tsx` verifica. */
+.snaps-cta {
+  background: linear-gradient(135deg, var(--snaps-accent-blue) 0%, var(--snaps-accent-sky) 100%);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--snaps-accent-blue) 35%, transparent);
+}
+.snaps-cta:disabled {
+  background: var(--snaps-surface);
+  color: var(--snaps-text-secondary);
+  box-shadow: none;
+}

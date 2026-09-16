@@ -16,12 +16,12 @@ export function MemoryTabs({ projectId }: { projectId: string }) {
   const { pathname } = useLocation();
 
   const abas = [
-    { label: 'Documentos', icon: FolderOpen, path: `/project/${projectId}/docs` },
+    { label: 'Documents', icon: FolderOpen, path: `/project/${projectId}/docs` },
     { label: 'ADRs', icon: FileText, path: `/project/${projectId}/decisions` },
   ];
 
   return (
-    <nav aria-label="Memory do projeto" className="flex items-center gap-2">
+    <nav aria-label="Project memory" className="flex items-center gap-2">
       {abas.map((aba) => {
         const ativa = pathname === aba.path;
 

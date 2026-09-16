@@ -47,7 +47,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
       setEntries(await getProjectConfigEntries(projectId, scope || undefined));
       setError(null);
     } catch {
-      setError('Nao foi possivel carregar a configuracao do projeto.');
+      setError('Could not load the project configuration.');
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +67,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
       setNewValue('');
       await loadEntries();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Nao foi possivel salvar a chave.');
+      setError(err.response?.data?.detail || 'Could not save the key.');
     } finally {
       setIsSaving(false);
     }
@@ -79,7 +79,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
       await deleteProjectConfigEntry(projectId, entry.id);
       await loadEntries();
     } catch {
-      setError('Nao foi possivel remover a chave.');
+      setError('Could not remove the key.');
     }
   };
 
@@ -99,7 +99,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
       setPendingContent(content);
       setPreview(resultado);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Nao foi possivel ler o arquivo.');
+      setError(err.response?.data?.detail || 'Could not read the file.');
     } finally {
       setIsImporting(false);
       if (fileInput.current) fileInput.current.value = '';
@@ -116,7 +116,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
       setPendingContent(null);
       await loadEntries();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Nao foi possivel importar.');
+      setError(err.response?.data?.detail || 'Could not import.');
     } finally {
       setIsImporting(false);
     }
@@ -131,25 +131,25 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
     <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-5">
       <header className="flex items-center gap-2">
         <Settings2 className="h-5 w-5 text-cyan-400" />
-        <h3 className="text-base font-medium text-white">Configuracao do Projeto</h3>
+        <h3 className="text-base font-medium text-white">Project Configuration</h3>
       </header>
 
       <p className="text-sm text-slate-400">
-        Estas chaves viram o <code className="text-slate-300">.env</code> do workspace de cada
-        execucao. Elas existem para o agente <strong>rodar o projeto</strong>, nao apenas coletar a
-        suite de testes. O valor nunca volta para esta tela.
+        These keys become the <code className="text-slate-300">.env</code> of every execution
+        workspace. They exist so the agent can <strong>run the project</strong>, not just collect the
+        test suite. A value is never shown again on this screen.
       </p>
 
       {/* Escopo. Uma chave de repo vence a global de mesmo nome. */}
       <div className="flex items-center gap-2">
-        <label htmlFor="config-scope" className="text-sm text-slate-400">Escopo</label>
+        <label htmlFor="config-scope" className="text-sm text-slate-400">Scope</label>
         <select
           id="config-scope"
           value={scope}
           onChange={(e) => setScope(e.target.value)}
           className="rounded-lg border border-white/10 bg-slate-900 px-3 py-1.5 text-sm text-white"
         >
-          <option value={ESCOPO_GLOBAL}>Todos os repositorios</option>
+          <option value={ESCOPO_GLOBAL}>All repositories</option>
           {repos.map((r) => (
             <option key={r} value={r}>{r}</option>
           ))}
@@ -173,10 +173,10 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
             disabled={isImporting || !!preview}
             className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
-            {isImporting ? 'Lendo...' : 'Enviar arquivo .env'}
+            {isImporting ? 'Reading...' : 'Upload .env file'}
           </button>
           <span className="text-xs text-slate-500">
-            nada e gravado antes de voce confirmar
+            nothing is saved before you confirm
           </span>
           <input
             ref={fileInput}
@@ -204,21 +204,21 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
             className="overflow-hidden rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-4"
           >
             <p className="mb-3 text-sm text-white">
-              {preview.parsed} chave(s) lidas do arquivo. <strong>Nada foi gravado ainda.</strong>
+              {preview.parsed} key(s) read from the file. <strong>Nothing has been saved yet.</strong>
             </p>
 
             {preview.will_overwrite.length > 0 && (
               <div className="mb-3">
                 <p className="mb-1 flex items-center gap-1.5 text-sm font-medium text-amber-300">
                   <AlertTriangle className="h-4 w-4" />
-                  {preview.will_overwrite.length} sera(ao) SOBRESCRITA(S)
+                  {preview.will_overwrite.length} will be OVERWRITTEN
                 </p>
                 <ul className="space-y-0.5 text-xs text-slate-300">
                   {preview.will_overwrite.map((i) => (
                     <li key={i.key}>
                       <code>{i.key}</code>{' '}
                       <span className="text-slate-500">
-                        de {i.current_value_length} para {i.value_length} caracteres
+                        from {i.current_value_length} to {i.value_length} characters
                       </span>
                     </li>
                   ))}
@@ -229,13 +229,13 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
             {preview.will_create.length > 0 && (
               <div className="mb-3">
                 <p className="mb-1 text-sm font-medium text-emerald-300">
-                  {preview.will_create.length} nova(s)
+                  {preview.will_create.length} new
                 </p>
                 <ul className="space-y-0.5 text-xs text-slate-300">
                   {preview.will_create.map((i) => (
                     <li key={i.key}>
                       <code>{i.key}</code>{' '}
-                      <span className="text-slate-500">{i.value_length} caracteres</span>
+                      <span className="text-slate-500">{i.value_length} characters</span>
                     </li>
                   ))}
                 </ul>
@@ -244,7 +244,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
 
             {preview.unchanged.length > 0 && (
               <p className="mb-3 text-xs text-slate-500">
-                {preview.unchanged.length} ja esta(ao) igual(is) e nao muda(m).
+                {preview.unchanged.length} already identical — unchanged.
               </p>
             )}
 
@@ -262,7 +262,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
                 className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
               >
                 <Upload className="h-4 w-4" />
-                {isImporting ? 'Importando...' : 'Confirmar importacao'}
+                {isImporting ? 'Importing...' : 'Confirm import'}
               </button>
               <button
                 type="button"
@@ -270,7 +270,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
                 disabled={isImporting}
                 className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-300"
               >
-                Cancelar
+                Cancel
               </button>
             </div>
           </motion.div>
@@ -280,7 +280,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
       {/* Uma chave por vez */}
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex-1 min-w-[10rem]">
-          <label htmlFor="config-key" className="mb-1 block text-xs text-slate-400">Chave</label>
+          <label htmlFor="config-key" className="mb-1 block text-xs text-slate-400">Key</label>
           <input
             id="config-key"
             value={newKey}
@@ -290,7 +290,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
           />
         </div>
         <div className="flex-1 min-w-[10rem]">
-          <label htmlFor="config-value" className="mb-1 block text-xs text-slate-400">Valor</label>
+          <label htmlFor="config-value" className="mb-1 block text-xs text-slate-400">Value</label>
           <input
             id="config-value"
             type="password"
@@ -306,7 +306,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
           className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white disabled:opacity-40"
         >
           <Plus className="h-4 w-4" />
-          Adicionar
+          Add
         </button>
       </div>
 
@@ -315,7 +315,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
         <Spinner />
       ) : entries.length === 0 ? (
         <p className="text-sm text-slate-500">
-          Nenhuma chave neste escopo. Envie um <code>.env</code> ou adicione uma acima.
+          No keys in this scope. Upload a <code>.env</code> or add one above.
         </p>
       ) : (
         <ul className="divide-y divide-white/5">
@@ -334,14 +334,14 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
                   )}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {e.value_length} caracteres · definida por {e.created_by_actor_kind === 'agent' ? 'um agente' : 'um humano'}
+                  {e.value_length} characters · set by {e.created_by_actor_kind === 'agent' ? 'an agent' : 'a human'}
                   {e.description ? ` · ${e.description}` : ''}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => handleDelete(e)}
-                aria-label={`Remover ${e.key}`}
+                aria-label={`Remove ${e.key}`}
                 className="shrink-0 rounded p-1.5 text-slate-500 hover:text-red-400"
               >
                 <Trash2 className="h-4 w-4" />
