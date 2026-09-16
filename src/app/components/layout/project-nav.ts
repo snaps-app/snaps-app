@@ -11,6 +11,12 @@
  * Até lá, todo destino que sai da lateral continua alcançável por URL e por
  * entrada contextual. Remover a rota antes de o substituto existir é o padrão
  * do "Add Snap" morto (C17): o clique é aceito e nada acontece.
+ *
+ * INTEGRAÇÃO B1+B2: o Hub de Settings (card 6ea66bc6) chegou na MESMA sprint,
+ * então `/edit` e `/members` deixaram de ser destino e viraram redirect. Apontar
+ * a navegação para o redirect funcionaria — e envelheceria calada, um salto
+ * atrás do produto. Os caminhos aqui são os definitivos; os antigos seguem
+ * respondendo no router para quem guardou o link.
  */
 import {
   LayoutDashboard,
@@ -73,7 +79,7 @@ export function buildProjectNav(projectId: string, boards: Board[]): ProjectNavS
     },
     {
       group: 'CONFIGURAÇÃO',
-      items: [{ label: 'Settings', icon: Settings, path: `/project/${projectId}/edit` }],
+      items: [{ label: 'Settings', icon: Settings, path: `/project/${projectId}/settings/general` }],
     },
   ];
 }
@@ -127,8 +133,8 @@ export function buildContextualDestinations(projectId: string): ContextualDestin
     {
       label: 'Members',
       icon: Users,
-      path: `/project/${projectId}/members`,
-      aguarda: 'vira aba de Settings no card 6ea66bc6',
+      path: `/project/${projectId}/settings/members`,
+      aguarda: 'já é aba do Hub de Settings (card 6ea66bc6, entregue nesta sprint)',
       requerVerMembros: true,
     },
   ];

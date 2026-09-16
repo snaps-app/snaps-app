@@ -19,6 +19,38 @@ import { buildProjectNav, buildContextualDestinations, PROJECT_NAV_GROUPS } from
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const APP = readFileSync(join(AQUI, '..', '..', 'App.tsx'), 'utf-8');
 
+/** Cada `<Route>` do App.tsx: template de caminho -> trecho do elemento. */
+const ROTAS_DO_ROUTER = new Map<string, string>(
+  [...APP.matchAll(/<Route\s+path="([^"]+)"\s+element=\{([\s\S]*?)\}\s*\/?>/g)].map(
+    (m) => [m[1], m[2]] as [string, string],
+  ),
+);
+
+/** `/settings/general` casa com o template `/settings/:tab` que o B2 declarou. */
+function casaComTemplate(rota: string, template: string): boolean {
+  const alvo = rota.split('/');
+  const modelo = template.split('/');
+  return (
+    alvo.length === modelo.length &&
+    alvo.every((seg, i) => modelo[i] === seg || modelo[i].startsWith(':'))
+  );
+}
+
+function existeNoRouter(rota: string): boolean {
+  const semQuery = rota.split('?')[0];
+  return [...ROTAS_DO_ROUTER.keys()].some((template) => casaComTemplate(semQuery, template));
+}
+
+/**
+ * Depois do Hub de Settings (B2) uma rota antiga pode estar coberta de duas
+ * formas: continuar sendo destino oferecido, ou ser um redirect para o destino
+ * que a substituiu. `/edit` e `/members` viraram o segundo caso. Redirect conta
+ * como alcançável — o que o checklist proíbe é a rota sumir, não ela encaminhar.
+ */
+function ehRedirect(rota: string): boolean {
+  return (ROTAS_DO_ROUTER.get(rota) ?? '').includes('RedirecionaParaSettings');
+}
+
 /**
  * Montar a navegação com os próprios nomes de parâmetro devolve os templates de
  * rota, e não caminhos concretos — o que deixa comparar direto com o router.
@@ -68,14 +100,11 @@ describe('Zona Projeto reagrupada', () => {
   });
 
   it.each(MENU_ANTIGO)('%s continua alcançável (%s)', (_rotulo, rota) => {
-    expect(COBERTOS.has(rota)).toBe(true);
+    expect(COBERTOS.has(rota) || ehRedirect(rota)).toBe(true);
   });
 
   it('nenhum destino oferecido é item morto — todos existem no router', () => {
-    const mortos = [...COBERTOS].filter((rota) => {
-      const semQuery = rota.split('?')[0];
-      return !APP.includes(`path="${semQuery}"`);
-    });
+    const mortos = [...COBERTOS].filter((rota) => !existeNoRouter(rota));
     expect(mortos).toEqual([]);
   });
 

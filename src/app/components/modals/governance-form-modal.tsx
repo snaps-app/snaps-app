@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { Eye, Pencil, X } from 'lucide-react';
 import { motion } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     createAgent, updateAgent,
     createGovernanceDoc, updateGovernanceDoc,
@@ -27,6 +29,20 @@ interface GovernanceFormModalProps {
 
 const INPUT = 'w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder:text-gray-600 focus:outline-none';
 const SELECT = `${INPUT}`;
+
+/**
+ * Valor unico gravado em `skills.language` na CRIACAO, e so por obrigacao do
+ * schema (B5).
+ *
+ * Ninguem mais escolhe linguagem: o editor da skill e SKILL.md, em Markdown.
+ * Nenhuma tela le esta coluna. Ela continua `NOT NULL` no banco e obrigatoria
+ * em `SkillCreate` no snaps-api, entao a criacao ainda precisa mandar algo --
+ * vai um valor fixo, que nao representa escolha de ninguem. Tornar o campo
+ * opcional no schema e o passo N+1 e o `DROP COLUMN` o N+2 da regra das tres
+ * releases (playbook "Migrations do snaps-api", secao 3). Na EDICAO o campo
+ * nao e enviado, entao o valor que ja estava la e preservado intacto.
+ */
+const LINGUAGEM_LEGADA = 'markdown';
 
 export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
     isOpen,
@@ -69,8 +85,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
     // Skill form
     const [skillName, setSkillName] = useState('');
     const [skillContent, setSkillContent] = useState('');
-    const [skillLang, setSkillLang] = useState('python');
-    const [skillVersion, setSkillVersion] = useState('1.0.0');
+    const [skillPreview, setSkillPreview] = useState(false);
     const [skillScope, setSkillScope] = useState<string>('global');
     const [skillProjectId, setSkillProjectId] = useState<string>('');
 
@@ -98,7 +113,7 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                 } else if (tab === 'skills') {
                     const item = skills.find(s => s.id === editingId);
                     if (item) {
-                        setSkillName(item.name); setSkillContent(item.content); setSkillLang(item.language); setSkillVersion(item.version || '1.0.0'); setSkillScope(item.scope || 'global'); setSkillProjectId(item.project_id || '');
+                        setSkillName(item.name); setSkillContent(item.content); setSkillScope(item.scope || 'global'); setSkillProjectId(item.project_id || '');
                         setBaseLockVersion(item.lock_version);
                     }
                 } else {
@@ -111,10 +126,11 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
             } else {
                 setAgentName(''); setAgentType('ide_persona'); setAgentInstructions(''); setAgentScope('global'); setAgentProjectId('');
                 setDocName(''); setDocType('playbook'); setDocScope('global'); setDocProjectId(''); setDocContent('');
-                setSkillName(''); setSkillContent(''); setSkillLang('python'); setSkillVersion('1.0.0'); setSkillScope('global'); setSkillProjectId('');
+                setSkillName(''); setSkillContent(''); setSkillScope('global'); setSkillProjectId('');
                 setResName(''); setResType('documentation'); setResProjectId(''); setResContent('');
                 setBaseLockVersion(undefined);
             }
+            setSkillPreview(false);
             setSaveError(null);
         }
         // As listas NAO entram nas dependencias de proposito.
@@ -156,17 +172,18 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     ? await updateGovernanceDoc(editingId, data, baseLockVersion)
                     : await createGovernanceDoc(data);
             } else if (tab === 'skills') {
-                const data = { 
-                    name: skillName, 
-                    content: skillContent, 
-                    language: skillLang, 
-                    version: skillVersion, 
+                const data = {
+                    name: skillName,
+                    content: skillContent,
                     scope: skillScope as any,
                     project_id: skillScope === 'project' ? skillProjectId : undefined
                 };
                 editingId
+                    // Sem `language` e sem `version`: campos opcionais em
+                    // `SkillUpdate`, entao o que ja estava gravado sobrevive. A
+                    // edicao nao toca mais nessas duas colunas.
                     ? await updateSkill(editingId, data, baseLockVersion)
-                    : await createSkill(data);
+                    : await createSkill({ ...data, language: LINGUAGEM_LEGADA });
             } else {
                 const data = { 
                     name: resName, 
@@ -287,22 +304,17 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
                     <input value={skillName} onChange={e => setSkillName(e.target.value)} className={`${INPUT} focus:border-green-500`} placeholder="Skill name" autoFocus />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Language</label>
-                        <input value={skillLang} onChange={e => setSkillLang(e.target.value)} className={`${INPUT} font-mono focus:border-green-500`} placeholder="python" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Version</label>
-                        <input value={skillVersion} onChange={e => setSkillVersion(e.target.value)} className={`${INPUT} font-mono focus:border-green-500`} placeholder="1.0.0" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Scope</label>
-                        <select value={skillScope} onChange={e => setSkillScope(e.target.value)} className={`${SELECT} focus:border-green-500`}>
-                            <option value="global">Global</option>
-                            <option value="project">Project</option>
-                        </select>
-                    </div>
+                {/* Sem seletor de linguagem e sem campo de versao (B5).
+                    Linguagem deixou de ser escolha: o editor da skill e
+                    SKILL.md. Versao imutavel com hash e diff entre versoes sao
+                    E12 (Sprint 26.0) e nao tem onde se apoiar hoje -- um campo
+                    que ninguem le nao fica na tela so por ja existir. */}
+                <div>
+                    <label htmlFor="skill-scope" className="block text-sm font-medium text-gray-300 mb-1">Scope</label>
+                    <select id="skill-scope" value={skillScope} onChange={e => setSkillScope(e.target.value)} className={`${SELECT} focus:border-green-500`}>
+                        <option value="global">Global</option>
+                        <option value="project">Project</option>
+                    </select>
                 </div>
                 {skillScope === 'project' && (
                     <div>
@@ -314,8 +326,34 @@ export const GovernanceFormModal: React.FC<GovernanceFormModalProps> = ({
                     </div>
                 )}
                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Content (Code)</label>
-                    <textarea value={skillContent} onChange={e => setSkillContent(e.target.value)} className={`${INPUT} h-48 resize-none font-mono text-sm focus:border-green-500`} placeholder="def execute(params):&#10;    ..." />
+                    <div className="flex items-center justify-between mb-1">
+                        <label htmlFor="skill-content" className="block text-sm font-medium text-gray-300">SKILL.md</label>
+                        <button
+                            type="button"
+                            onClick={() => setSkillPreview(v => !v)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-400 border border-white/10 hover:text-white hover:bg-white/5 transition-all"
+                        >
+                            {skillPreview ? <><Pencil className="w-3.5 h-3.5" /> Editar</> : <><Eye className="w-3.5 h-3.5" /> Pre-visualizar</>}
+                        </button>
+                    </div>
+                    {skillPreview ? (
+                        <div className="prose prose-invert max-w-none bg-black/40 border border-white/10 rounded-lg px-4 py-3 h-48 overflow-y-auto scrollbar-hide text-sm">
+                            {skillContent.trim()
+                                ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{skillContent}</ReactMarkdown>
+                                : <p className="text-gray-600">Nada escrito ainda.</p>}
+                        </div>
+                    ) : (
+                        <textarea
+                            id="skill-content"
+                            value={skillContent}
+                            onChange={e => setSkillContent(e.target.value)}
+                            className={`${INPUT} h-48 resize-none font-mono text-sm focus:border-green-500`}
+                            placeholder="# Skill: ...&#10;&#10;> Objetivo: ...&#10;&#10;## Prompt de Ativacao"
+                        />
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                        O conteudo da skill e um SKILL.md: Markdown, nao um bloco de codigo com linguagem.
+                    </p>
                 </div>
             </>
         );
