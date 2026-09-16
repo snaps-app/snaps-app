@@ -19,7 +19,7 @@ export function SidebarNavSkeleton({ isCollapsed = false }: { isCollapsed?: bool
     <div
       className="flex-1 py-4 flex flex-col gap-1 px-3"
       role="status"
-      aria-label="Carregando navegação"
+      aria-label="Loading navigation"
     >
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-3 py-3">
@@ -43,7 +43,7 @@ export function ContextSidebarSkeleton() {
     <div
       className="flex-1 py-4 flex flex-col gap-5 px-3"
       role="status"
-      aria-label="Carregando navegação do projeto"
+      aria-label="Loading project navigation"
     >
       {grupos.map((quantidade, indice) => (
         <div key={indice} className="flex flex-col gap-1">
@@ -65,7 +65,7 @@ export function ContextSidebarSkeleton() {
 /** Zona do usuário: avatar do rodapé mais nome e papel (card 10159d7e). */
 export function UserZoneSkeleton({ isCollapsed = false }: { isCollapsed?: boolean }) {
   return (
-    <div className="flex items-center gap-3 px-2" role="status" aria-label="Carregando usuário">
+    <div className="flex items-center gap-3 px-2" role="status" aria-label="Loading user">
       <Skeleton className="w-8 h-8 rounded-full shrink-0" />
       {!isCollapsed && (
         <div className="flex flex-col gap-1.5 flex-1">
@@ -80,7 +80,7 @@ export function UserZoneSkeleton({ isCollapsed = false }: { isCollapsed?: boolea
 /** Lista genérica de zona (Dashboard, listagens): cartões de mesma altura. */
 export function ZoneListSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="flex flex-col gap-3" role="status" aria-label="Carregando conteúdo">
+    <div className="flex flex-col gap-3" role="status" aria-label="Loading content">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2">
           <Skeleton className="h-4 w-2/5 rounded" />

@@ -63,7 +63,7 @@ export function ContextSidebar() {
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? 'Recolher navegação do projeto' : 'Expandir navegação do projeto'}
+        aria-label={isOpen ? 'Collapse project navigation' : 'Expand project navigation'}
         className="absolute -left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[var(--snaps-bg)] border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all z-[60] shadow-xl"
       >
         {isOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -85,7 +85,7 @@ export function ContextSidebar() {
           <ContextSidebarSkeleton />
         ) : (
           <nav
-            aria-label="Navegação do projeto"
+            aria-label="Project navigation"
             className={`flex-1 overflow-y-auto scrollbar-hide py-4 flex flex-col gap-5 px-3 transition-all duration-300 ${
               isNavigating ? 'opacity-50 pointer-events-none' : 'opacity-100'
             }`}

@@ -64,11 +64,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Hub de Settings (B3)', () => {
-    it('as quatro abas com conteudo real aparecem, e nenhuma outra', async () => {
+    // Cinco, e nao quatro: `Config` saiu do fim da aba Geral e virou aba
+    // propria. Estava no mesmo painel que nome, descricao e template, e o
+    // "Save changes" da Geral ficava logo abaixo de um painel que salva
+    // sozinho — dois modelos de gravacao na mesma tela, indistinguiveis.
+    it('as cinco abas com conteudo real aparecem, e nenhuma outra', async () => {
         abrir();
 
         const abas = await screen.findAllByRole('tab');
-        expect(abas.map((a) => a.textContent)).toEqual(['Geral', 'Membros', 'GitHub', 'API Keys']);
+        expect(abas.map((a) => a.textContent)).toEqual(['General', 'Config', 'Members', 'GitHub', 'API Keys']);
     });
 
     it('nao oferece aba do E22 nem como placeholder (C17/E19: aba vazia e botao morto)', async () => {
@@ -104,7 +108,7 @@ describe('Hub de Settings (B3)', () => {
         abrir();
 
         const abas = await screen.findAllByRole('tab');
-        expect(abas.map((a) => a.textContent)).toEqual(['Geral', 'GitHub', 'API Keys']);
+        expect(abas.map((a) => a.textContent)).toEqual(['General', 'Config', 'GitHub', 'API Keys']);
     });
 
     it('URL de uma aba que o papel nao alcanca cai na Geral, nao em tela vazia', async () => {
@@ -112,7 +116,7 @@ describe('Hub de Settings (B3)', () => {
         abrir('members');
 
         await waitFor(() =>
-            expect(screen.getByRole('tab', { name: /Geral/ })).toHaveAttribute('aria-selected', 'true')
+            expect(screen.getByRole('tab', { name: /General/ })).toHaveAttribute('aria-selected', 'true')
         );
         expect(screen.queryByText('lista de membros')).toBeNull();
     });
@@ -122,14 +126,14 @@ describe('Hub de Settings (B3)', () => {
         abrir();
 
         expect(await screen.findByDisplayValue('Snaps')).toBeDisabled();
-        expect(screen.queryByRole('button', { name: /Salvar alteracoes/i })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Save changes/i })).toBeNull();
     });
 
     it('papel com escrita edita e salva', async () => {
         abrir();
 
         expect(await screen.findByDisplayValue('Snaps')).toBeEnabled();
-        expect(screen.getByRole('button', { name: /Salvar alteracoes/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Save changes/i })).toBeInTheDocument();
     });
 });
 
@@ -147,6 +151,10 @@ describe('Hub de Settings: rotas antigas (B3)', () => {
     });
 
     it('a lista de abas do hub e a que o card entrega', () => {
-        expect([...SETTINGS_TABS]).toEqual(['general', 'members', 'github', 'api-keys']);
+        // `config` nao e aba do E22 antecipada: e o painel da Sprint 21.5, que
+        // ja existe e ja tem conteudo. O rotulo deliberadamente NAO e
+        // "Environments" — esse nome e requisito registrado do E22 e cobre
+        // mais coisa do que este painel.
+        expect([...SETTINGS_TABS]).toEqual(['general', 'config', 'members', 'github', 'api-keys']);
     });
 });

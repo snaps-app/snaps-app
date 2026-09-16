@@ -99,7 +99,7 @@ describe('destinos do menu', () => {
 
     renderizar();
     await screen.findByText('Usuário');
-    await userEvent.click(screen.getByLabelText('Abrir menu do usuário'));
+    await userEvent.click(screen.getByLabelText('Open user menu'));
 
     expect(await screen.findByRole('menuitem', { name: 'Perfil' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Storage' })).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe('destinos do menu', () => {
 
     renderizar();
     await screen.findByText('Super Admin');
-    await userEvent.click(screen.getByLabelText('Abrir menu do usuário'));
+    await userEvent.click(screen.getByLabelText('Open user menu'));
     await screen.findByRole('menuitem', { name: 'Perfil' });
 
     for (const morto of ['Axon Connections', 'Minhas Máquinas', 'MCP Servers']) {
@@ -127,7 +127,7 @@ describe('destinos do menu', () => {
 
     renderizar();
     await screen.findByText('Usuário');
-    await userEvent.click(screen.getByLabelText('Abrir menu do usuário'));
+    await userEvent.click(screen.getByLabelText('Open user menu'));
     await screen.findByRole('menuitem', { name: 'Perfil' });
 
     expect(screen.queryByRole('menuitem', { name: 'Users' })).not.toBeInTheDocument();

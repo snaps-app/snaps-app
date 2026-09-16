@@ -51,13 +51,13 @@ describe('Configuracao do projeto: o valor nunca chega a tela', () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
 
     expect(await screen.findByText('DATABASE_URL')).toBeTruthy();
-    expect(screen.getByText(/42 caracteres/)).toBeTruthy();
+    expect(screen.getByText(/42 characters/)).toBeTruthy();
   });
 
   it('esconde o valor enquanto ele e digitado', async () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
 
-    const campo = await screen.findByLabelText('Valor');
+    const campo = await screen.findByLabelText('Value');
     expect(campo.getAttribute('type')).toBe('password');
   });
 });
@@ -81,9 +81,9 @@ describe('Upload de .env: nada e gravado antes da confirmacao', () => {
 
     await enviar();
 
-    expect(await screen.findByText(/SOBRESCRITA/i)).toBeTruthy();
-    expect(screen.getByText(/de 42 para 30 caracteres/)).toBeTruthy();
-    expect(screen.getByText(/Nada foi gravado ainda/i)).toBeTruthy();
+    expect(await screen.findByText(/OVERWRITTEN/i)).toBeTruthy();
+    expect(screen.getByText(/from 42 to 30 characters/)).toBeTruthy();
+    expect(screen.getByText(/Nothing has been saved yet/i)).toBeTruthy();
   });
 
   it('so grava depois de confirmar, e ai com apply verdadeiro', async () => {
@@ -91,10 +91,10 @@ describe('Upload de .env: nada e gravado antes da confirmacao', () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
     await screen.findByText('DATABASE_URL');
     await enviar();
-    await screen.findByText(/Nada foi gravado ainda/i);
+    await screen.findByText(/Nothing has been saved yet/i);
 
     vi.mocked(importProjectConfigEntries).mockResolvedValue(previsao({ applied: true }));
-    fireEvent.click(screen.getByRole('button', { name: /Confirmar importacao/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Confirm import/i }));
 
     await waitFor(() => expect(importProjectConfigEntries).toHaveBeenLastCalledWith(
       'p1', 'DATABASE_URL=novo\nNOVA=valor\n', null, true));
@@ -105,11 +105,11 @@ describe('Upload de .env: nada e gravado antes da confirmacao', () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
     await screen.findByText('DATABASE_URL');
     await enviar();
-    await screen.findByText(/Nada foi gravado ainda/i);
+    await screen.findByText(/Nothing has been saved yet/i);
 
-    fireEvent.click(screen.getByRole('button', { name: /Cancelar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
 
-    await waitFor(() => expect(screen.queryByText(/Nada foi gravado ainda/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Nothing has been saved yet/i)).toBeNull());
     expect(importProjectConfigEntries).toHaveBeenCalledTimes(1);
   });
 
@@ -143,7 +143,7 @@ describe('Escopo', () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api, snaps-app" />);
     await screen.findByText('DATABASE_URL');
 
-    fireEvent.change(screen.getByLabelText('Escopo'), { target: { value: 'snaps-app' } });
+    fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'snaps-app' } });
 
     await waitFor(() => expect(getProjectConfigEntries).toHaveBeenLastCalledWith('p1', 'snaps-app'));
   });
@@ -152,7 +152,7 @@ describe('Escopo', () => {
     vi.mocked(importProjectConfigEntries).mockResolvedValue(previsao());
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
     await screen.findByText('DATABASE_URL');
-    fireEvent.change(screen.getByLabelText('Escopo'), { target: { value: 'snaps-api' } });
+    fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'snaps-api' } });
     await waitFor(() => expect(getProjectConfigEntries).toHaveBeenLastCalledWith('p1', 'snaps-api'));
 
     await enviar();
@@ -168,9 +168,9 @@ describe('Uma chave por vez', () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
     await screen.findByText('DATABASE_URL');
 
-    fireEvent.change(screen.getByLabelText('Chave'), { target: { value: 'NOVA' } });
-    fireEvent.change(screen.getByLabelText('Valor'), { target: { value: 'v' } });
-    fireEvent.click(screen.getByRole('button', { name: /Adicionar/i }));
+    fireEvent.change(screen.getByLabelText('Key'), { target: { value: 'NOVA' } });
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'v' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add/i }));
 
     await waitFor(() => expect(upsertProjectConfigEntry).toHaveBeenCalledWith(
       'p1', { key: 'NOVA', value: 'v', repo_name: null }));
@@ -180,7 +180,7 @@ describe('Uma chave por vez', () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
     await screen.findByText('DATABASE_URL');
 
-    const botao = screen.getByRole('button', { name: /Adicionar/i }) as HTMLButtonElement;
+    const botao = screen.getByRole('button', { name: /Add/i }) as HTMLButtonElement;
 
     expect(botao.disabled).toBe(true);
     fireEvent.click(botao);
@@ -192,7 +192,7 @@ describe('Uma chave por vez', () => {
     render(<ProjectConfigEntriesPanel projectId="p1" repoNames="snaps-api" />);
     await screen.findByText('DATABASE_URL');
 
-    fireEvent.click(screen.getByRole('button', { name: /Remover DATABASE_URL/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Remove DATABASE_URL/i }));
 
     expect(confirmar).toHaveBeenCalled();
     expect(deleteProjectConfigEntry).not.toHaveBeenCalled();

@@ -89,7 +89,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         <SidebarNavSkeleton isCollapsed={isCollapsed} />
       ) : (
         <nav
-          aria-label="Navegação principal"
+          aria-label="Main navigation"
           className="flex-1 overflow-y-auto scrollbar-hide py-4 flex flex-col gap-1 px-3"
         >
           {navItems.map((item) => {
