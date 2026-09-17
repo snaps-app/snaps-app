@@ -20,6 +20,8 @@ import { ExecutionAgentContext } from '@/app/components/execution/execution-agen
 interface ExecutionSidebarProps {
     projectId: string;
     execution: AgentTaskExecution;
+    /** A execucao que esta fase gerou ao avancar, quando ja avancou (SNA-SUP-71). */
+    sucessora?: AgentTaskExecution | null;
     project: ProjectDetail | null;
     sprints: Sprint[];
     templates: WorkflowTemplate[];
@@ -51,6 +53,7 @@ interface ExecutionSidebarProps {
 
 export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     projectId,
+    sucessora,
     execution,
     project,
     sprints,
@@ -355,6 +358,25 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                                     {execution.advance_conditions.info}
                                 </p>
                             </div>
+                        )}
+                        {sucessora && (
+                            // O botao abaixo CONTINUA disponivel de proposito: ver o
+                            // comentario sobre `wait_all`. O que faltava era a tela
+                            // dizer que esta fase ja terminou e para onde ela foi —
+                            // sem isso, quem chega por um link antigo age sobre a
+                            // fase errada sem nenhum sinal.
+                            <button
+                                onClick={() => navigate(`/project/${projectId}/execution/${sucessora.id}`)}
+                                className="w-full mb-3 p-3 rounded-xl bg-white/5 border border-white/10 text-left transition-all hover:bg-white/10"
+                            >
+                                <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">
+                                    Esta fase ja avancou
+                                </p>
+                                <p className="text-[11px] text-zinc-300 flex items-center gap-1.5">
+                                    Ir para <span className="text-white font-medium">{sucessora.phase}</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                </p>
+                            </button>
                         )}
                         {(() => {
                             const force = Object.values(manualOverrides).some(Boolean);

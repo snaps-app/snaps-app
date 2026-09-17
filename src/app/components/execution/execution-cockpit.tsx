@@ -30,6 +30,7 @@ export const ExecutionCockpit: React.FC = () => {
         execution,
         project,
         cards,
+        sucessora,
         setCards,
         epics,
         sprints,
@@ -168,6 +169,7 @@ export const ExecutionCockpit: React.FC = () => {
                 sprints={sprints}
                 templates={templates}
                 executionTree={executionTree}
+                sucessora={sucessora}
                 sisterExecutions={sisterExecutions}
                 troubleReport={troubleReport}
                 cards={cards}
