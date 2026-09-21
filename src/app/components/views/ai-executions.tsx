@@ -20,6 +20,7 @@ import { WorkflowFlowPreview } from '@/app/components/workflow/workflow-flow-pre
 import { Spinner } from '@/app/components/ui/spinner';
 import { StrategyConfiguratorModal } from '@/app/components/modals/strategy-configurator-modal';
 import { useAiExecutions } from '@/app/components/views/useAiExecutions';
+import { estaEmVoo, foiDescartada } from '@/services/executionStatus';
 
 export const AIExecutions = () => {
     const {
@@ -167,10 +168,17 @@ export const AIExecutions = () => {
                 {!isLoading && executions.length > 0 && (
                     <div className="flex items-center gap-6 mb-8 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
                         {[
+                            // `Done` contava so `status === 'done'` e ignorava
+                            // `completed`, que e o que o motor grava ao concluir
+                            // uma fase — dai 31 de 267. E `Active` era tudo que
+                            // nao fosse done/failed, entao lapide e execucao
+                            // concluida entravam como em voo: 236 "ativas" num
+                            // projeto sem nenhuma rodando.
                             { label: 'Total', value: executions.length, color: 'text-white' },
-                            { label: 'Done', value: executions.filter(e => e.status === 'done').length, color: 'text-green-400' },
-                            { label: 'Active', value: executions.filter(e => e.status !== 'done' && e.status !== 'failed').length, color: 'text-purple-400' },
+                            { label: 'Done', value: executions.filter(e => !foiDescartada(e) && (e.status === 'done' || e.status === 'completed')).length, color: 'text-green-400' },
+                            { label: 'Active', value: executions.filter(estaEmVoo).length, color: 'text-purple-400' },
                             { label: 'Failed', value: executions.filter(e => e.status === 'failed').length, color: 'text-red-400' },
+                            { label: 'Discarded', value: executions.filter(foiDescartada).length, color: 'text-white/30' },
                         ].map((stat, i) => (
                             <React.Fragment key={stat.label}>
                                 {i > 0 && <div className="w-px h-8 bg-white/10" />}

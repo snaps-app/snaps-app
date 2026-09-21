@@ -552,7 +552,15 @@ export interface WorkflowTemplateCreate {
 export interface AgentTaskExecution {
     id: string;
     project_id: string;
-    status: 'pending' | 'in_progress' | 'awaiting_advance' | 'done' | 'failed' | 'completed';
+    // `cancelled`, `rolled_back` e `superseded` FALTAVAM aqui, embora a API
+    // sempre os devolvesse. O tipo parecia autoritativo e nao era, entao cada
+    // tela inventou a propria lista de "status terminal" — ver
+    // `services/executionStatus.ts`, que agora e a unica.
+    status: 'pending' | 'in_progress' | 'awaiting_advance' | 'done' | 'failed'
+        | 'completed' | 'cancelled' | 'rolled_back' | 'superseded';
+    /** Preenchido quando a execucao foi descartada (lapide). */
+    tombstoned_at?: string | null;
+    tombstone_reason?: string | null;
     phase: string;
     sprint_ids: string[];
     card_ids: string[];
