@@ -5,6 +5,7 @@ import { getProjectBoard } from '@/services/boards';
 import { getProjects } from '@/services/projects';
 import { getSprints } from '@/services/sprints';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
+import { estaEncerrada } from '@/services/executionStatus';
 import type { AgentTaskExecution, Project, Sprint, WorkflowTemplate } from '@/services/types';
 
 export function useAiExecutions() {
@@ -81,7 +82,10 @@ export function useAiExecutions() {
         projects.find(p => p.id === projectId)?.name || 'Unknown Project';
 
     const isExecutionStuck = (exec: AgentTaskExecution) => {
-        if (exec.status === 'done' || exec.status === 'failed') {
+        // Encerrada nao trava. A lista de status terminal mora em
+        // `services/executionStatus.ts` — escrita a mao aqui, ela nao conhecia
+        // `cancelled`, e toda lapide virava ⚠️ TRAVADA para sempre.
+        if (estaEncerrada(exec)) {
             return false;
         }
         const updatedAtTime = new Date(exec.updated_at).getTime();
@@ -103,8 +107,13 @@ export function useAiExecutions() {
     };
 
     const isBranchStuck = (allInBranch: AgentTaskExecution[]) => {
-        const branchStatus = getBranchStatus(allInBranch);
-        if (branchStatus === 'done' || branchStatus === 'completed' || branchStatus === 'failed') {
+        // Esta era a SEGUNDA copia da mesma lista, e divergia da primeira:
+        // conhecia `completed`, que a outra nao conhecia. Duas implementacoes
+        // da mesma regra divergem — foi assim que a lapide passou.
+        const ultima = [...allInBranch].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )[allInBranch.length - 1];
+        if (ultima && estaEncerrada(ultima)) {
             return false;
         }
         return allInBranch.some(exec => isExecutionStuck(exec));
