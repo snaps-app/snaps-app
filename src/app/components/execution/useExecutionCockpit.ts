@@ -8,6 +8,8 @@ import { useCockpitPlans } from '@/app/components/execution/useCockpitPlans';
 import { useCockpitSisterExecutions } from '@/app/components/execution/useCockpitSisterExecutions';
 import { useCockpitState } from '@/app/components/execution/useCockpitState';
 import { useCockpitActions } from '@/app/components/execution/useCockpitActions';
+import { useExecutionStream } from '@/app/components/execution/useExecutionStream';
+import { estaEncerrada } from '@/services/executionStatus';
 
 export const useExecutionCockpit = () => {
     const { projectId, executionId } = useParams<{ projectId: string; executionId: string }>();
@@ -27,6 +29,21 @@ export const useExecutionCockpit = () => {
     const sucessora = state.execution?.status === 'completed'
         ? executionTree.find(e => e.parent_id === state.execution?.id) || null
         : null;
+
+    // E20: a tela acompanha a execucao pelo stream de eventos. Evento de
+    // status/fase -> uma leitura pontual da execucao e da arvore. Encerrada
+    // (a definicao unica do SNA-SUP-73), o stream nao tem mais o que dizer.
+    const setExecution = state.setExecution;
+    const { estado: estadoStream } = useExecutionStream(executionId, {
+        ativo: !!state.execution && !estaEncerrada(state.execution),
+        onRevalidar: () => {
+            if (!executionId) return;
+            getAgentExecution(executionId)
+                .then(setExecution)
+                .catch((err) => console.error('Failed to revalidate execution:', err));
+            fetchSisters?.();
+        },
+    });
 
     // Sub-hooks delegation
     const walkthroughsHook = useCockpitWalkthroughs(projectId, state.execution);
@@ -78,6 +95,7 @@ export const useExecutionCockpit = () => {
         executionId,
         execution: state.execution,
         setExecution: state.setExecution,
+        estadoStream,
         project: state.project,
         cards: state.cards,
         sucessora,
