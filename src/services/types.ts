@@ -649,6 +649,20 @@ export interface ProjectConfigEntry {
     updated_at?: string;
 }
 
+// Environments de projeto (Sprint 21.7). `stage` distingue `preview` de
+// `production` — a tela de Config nunca deve escolher `production` sozinha,
+// so mostrar as opcoes e deixar quem opera escolher (card SNA-RD-163).
+export interface ProjectEnvironment {
+    id: string;
+    project_id: string;
+    name: string;
+    stage: 'preview' | 'production';
+    is_default: boolean;
+    entry_count: number;
+    materialized_in_workspaces: boolean;
+    materialization_note?: string | null;
+}
+
 export interface ProjectConfigEntryWrite {
     key: string;
     value: string;

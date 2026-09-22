@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, FileUp, KeyRound, Lock, Plus, Settings2, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, FileUp, KeyRound, Lock, Plus, Settings2, ShieldAlert, Trash2, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Spinner } from '@/app/components/ui/spinner';
 import {
   deleteProjectConfigEntry,
   getProjectConfigEntries,
+  getProjectEnvironments,
   importProjectConfigEntries,
   upsertProjectConfigEntry,
 } from '@/services/projects';
-import type { ProjectConfigEntry, ProjectConfigImportResult } from '@/services/types';
+import type { ProjectConfigEntry, ProjectConfigImportResult, ProjectEnvironment } from '@/services/types';
 
 interface ProjectConfigEntriesPanelProps {
   projectId: string;
@@ -21,6 +22,9 @@ const ESCOPO_GLOBAL = '';
 
 export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfigEntriesPanelProps) {
   const [entries, setEntries] = useState<ProjectConfigEntry[]>([]);
+  const [environments, setEnvironments] = useState<ProjectEnvironment[]>([]);
+  const [environmentId, setEnvironmentId] = useState<string>('');
+  const [isLoadingEnvironments, setIsLoadingEnvironments] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<string>(ESCOPO_GLOBAL);
@@ -36,15 +40,39 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
   const fileInput = useRef<HTMLInputElement>(null);
 
   const repos = repoNames.split(',').map((r) => r.trim()).filter(Boolean);
+  const ambienteAtual = environments.find((e) => e.id === environmentId);
+  const ehProduction = ambienteAtual?.stage === 'production';
+
+  // Carrega os ambientes do projeto UMA vez. Nunca escolhe `production`
+  // sozinho: com mais de um ambiente, o default e o `preview` (ou, na
+  // ausencia de um `preview`, nenhum — obrigando escolha explicita). Card
+  // SNA-RD-163: a tela nunca deve tocar producao por omissao.
+  useEffect(() => {
+    (async () => {
+      setIsLoadingEnvironments(true);
+      try {
+        const lista = await getProjectEnvironments(projectId);
+        setEnvironments(lista);
+        const preview = lista.find((e) => e.stage === 'preview');
+        setEnvironmentId(preview ? preview.id : (lista.length === 1 ? lista[0].id : ''));
+        setError(null);
+      } catch {
+        setError('Could not load the project environments.');
+      } finally {
+        setIsLoadingEnvironments(false);
+      }
+    })();
+  }, [projectId]);
 
   useEffect(() => {
+    if (!environmentId) return;
     loadEntries();
-  }, [projectId, scope]);
+  }, [projectId, scope, environmentId]);
 
   const loadEntries = async () => {
     setIsLoading(true);
     try {
-      setEntries(await getProjectConfigEntries(projectId, scope || undefined));
+      setEntries(await getProjectConfigEntries(projectId, scope || undefined, environmentId));
       setError(null);
     } catch {
       setError('Could not load the project configuration.');
@@ -54,7 +82,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
   };
 
   const handleAdd = async () => {
-    if (!newKey.trim() || !newValue) return;
+    if (!newKey.trim() || !newValue || !environmentId) return;
     setIsSaving(true);
     setError(null);
     try {
@@ -62,7 +90,7 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
         key: newKey.trim(),
         value: newValue,
         repo_name: scope || null,
-      });
+      }, environmentId);
       setNewKey('');
       setNewValue('');
       await loadEntries();
@@ -91,11 +119,13 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
    * Esta chamada NAO grava: `apply` fica falso e o retorno e a previsao.
    */
   const handleFile = async (file: File) => {
+    if (!environmentId) return;
     setIsImporting(true);
     setError(null);
     try {
       const content = await file.text();
-      const resultado = await importProjectConfigEntries(projectId, content, scope || null, false);
+      const resultado = await importProjectConfigEntries(
+        projectId, content, scope || null, false, environmentId);
       setPendingContent(content);
       setPreview(resultado);
     } catch (err: any) {
@@ -107,11 +137,11 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
   };
 
   const confirmImport = async () => {
-    if (!pendingContent) return;
+    if (!pendingContent || !environmentId) return;
     setIsImporting(true);
     setError(null);
     try {
-      await importProjectConfigEntries(projectId, pendingContent, scope || null, true);
+      await importProjectConfigEntries(projectId, pendingContent, scope || null, true, environmentId);
       setPreview(null);
       setPendingContent(null);
       await loadEntries();
@@ -140,6 +170,40 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
         test suite. A value is never shown again on this screen.
       </p>
 
+      {/* Ambiente. Nunca escolhido implicitamente quando ha mais de um — o
+          projeto pode ter `preview` e `production`, e gravar na errada por
+          engano e exatamente o risco que este seletor existe para fechar
+          (card SNA-RD-163). */}
+      <div className="flex items-center gap-2">
+        <label htmlFor="config-environment" className="text-sm text-slate-400">Environment</label>
+        <select
+          id="config-environment"
+          value={environmentId}
+          onChange={(e) => setEnvironmentId(e.target.value)}
+          disabled={isLoadingEnvironments || environments.length === 0}
+          className="rounded-lg border border-white/10 bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+        >
+          {!environmentId && <option value="">Select an environment…</option>}
+          {environments.map((e) => (
+            <option key={e.id} value={e.id}>{e.name} ({e.stage})</option>
+          ))}
+        </select>
+      </div>
+
+      {ehProduction && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{ambienteAtual?.materialization_note ||
+            'This is a production environment. No execution workspace ever materializes these values.'}</span>
+        </div>
+      )}
+
+      {!environmentId && !isLoadingEnvironments && (
+        <p className="text-sm text-slate-500">
+          Select an environment above to view or edit its configuration.
+        </p>
+      )}
+
       {/* Escopo. Uma chave de repo vence a global de mesmo nome. */}
       <div className="flex items-center gap-2">
         <label htmlFor="config-scope" className="text-sm text-slate-400">Scope</label>
@@ -163,6 +227,10 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
 
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
 
+      {/* O resto do painel so faz sentido com um ambiente escolhido —
+          `loadEntries` nem roda sem `environmentId` (ver useEffect acima). */}
+      {environmentId && (
+      <>
       {/* Upload de .env */}
       <div className="rounded-lg border border-dashed border-white/15 p-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -349,6 +417,8 @@ export function ProjectConfigEntriesPanel({ projectId, repoNames }: ProjectConfi
             </li>
           ))}
         </ul>
+      )}
+      </>
       )}
     </div>
   );
