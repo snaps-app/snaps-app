@@ -1,17 +1,18 @@
 import { api, getCachedData, setCachedData } from './client';
-import type { 
-    Project, 
-    ProjectDetail, 
-    ProjectCreate, 
-    GovernanceDoc, 
-    GithubConfig, 
+import type {
+    Project,
+    ProjectDetail,
+    ProjectCreate,
+    GovernanceDoc,
+    GithubConfig,
     GithubConfigCreate,
     ProjectApiKeyPublic,
     ProjectApiKeyCreate,
     ProjectApiKeyCreated,
     ProjectConfigEntry,
     ProjectConfigEntryWrite,
-    ProjectConfigImportResult
+    ProjectConfigImportResult,
+    ProjectEnvironment
 } from './types';
 
 export const getProjects = async (skip = 0, limit = 100): Promise<Project[]> => {
@@ -73,21 +74,41 @@ export const revokeProjectApiKey = async (projectId: string, keyId: string): Pro
     await api.delete(`/projects/${projectId}/api-keys/${keyId}`);
 };
 
+// ── Environments de projeto (Sprint 21.7) ──────────────────────────────────
+
+export const getProjectEnvironments = async (
+    projectId: string,
+): Promise<ProjectEnvironment[]> => {
+    const response = await api.get(`/projects/${projectId}/environments`);
+    return response.data;
+};
+
 // ── Configuracao de projeto (Sprint 21.5) ──────────────────────────────────
+//
+// `environmentId` (card SNA-RD-163): explicito, escolhido na tela pelo
+// seletor de ambiente. Omitido, o backend cai em `preview` por default —
+// nunca em `production` por omissao — mas a tela SEMPRE o envia a partir do
+// momento em que carrega a lista de ambientes, para nunca deixar essa
+// decisao implicita.
 
 export const getProjectConfigEntries = async (
-    projectId: string, repoName?: string,
+    projectId: string, repoName?: string, environmentId?: string,
 ): Promise<ProjectConfigEntry[]> => {
     const response = await api.get(`/projects/${projectId}/config-entries`, {
-        params: repoName ? { repo_name: repoName } : undefined,
+        params: {
+            ...(repoName ? { repo_name: repoName } : {}),
+            ...(environmentId ? { environment_id: environmentId } : {}),
+        },
     });
     return response.data;
 };
 
 export const upsertProjectConfigEntry = async (
-    projectId: string, data: ProjectConfigEntryWrite,
+    projectId: string, data: ProjectConfigEntryWrite, environmentId?: string,
 ): Promise<ProjectConfigEntry> => {
-    const response = await api.put(`/projects/${projectId}/config-entries`, data);
+    const response = await api.put(`/projects/${projectId}/config-entries`, data, {
+        params: environmentId ? { environment_id: environmentId } : undefined,
+    });
     return response.data;
 };
 
@@ -110,9 +131,12 @@ export const deleteProjectConfigEntry = async (
  */
 export const importProjectConfigEntries = async (
     projectId: string, content: string, repoName?: string | null, apply = false,
+    environmentId?: string,
 ): Promise<ProjectConfigImportResult> => {
     const response = await api.post(`/projects/${projectId}/config-entries/import`, {
         content, repo_name: repoName || null, apply,
+    }, {
+        params: environmentId ? { environment_id: environmentId } : undefined,
     });
     return response.data;
 };

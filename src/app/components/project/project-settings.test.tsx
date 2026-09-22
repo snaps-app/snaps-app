@@ -7,7 +7,7 @@ import path from 'path';
 import { ProjectSettings, SETTINGS_TABS } from './project-settings';
 import { useProjectRole } from '@/contexts/project-role-context';
 import { getGithubConfig, getProject, getProjectApiKeys } from '@/services/projects';
-import { getProjectConfigEntries } from '@/services/projects';
+import { getProjectConfigEntries, getProjectEnvironments } from '@/services/projects';
 
 vi.mock('@/services/projects', () => ({
     getProject: vi.fn(),
@@ -18,6 +18,7 @@ vi.mock('@/services/projects', () => ({
     getProjectApiKeys: vi.fn(),
     createProjectApiKey: vi.fn(),
     revokeProjectApiKey: vi.fn(),
+    getProjectEnvironments: vi.fn(),
     getProjectConfigEntries: vi.fn(),
     upsertProjectConfigEntry: vi.fn(),
     deleteProjectConfigEntry: vi.fn(),
@@ -58,6 +59,7 @@ beforeEach(() => {
         repo_owner: 'snaps-app', repo_names: 'snaps-api', sync_status: 'success', last_sync_at: null,
     } as any);
     vi.mocked(getProjectApiKeys).mockResolvedValue([]);
+    vi.mocked(getProjectEnvironments).mockResolvedValue([]);
     vi.mocked(getProjectConfigEntries).mockResolvedValue([]);
     papel(['write', 'manage_members', 'view_members']);
 });
