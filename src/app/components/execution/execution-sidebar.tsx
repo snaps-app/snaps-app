@@ -16,6 +16,7 @@ import { ExecutionRequirementsChecklist } from '@/app/components/execution/execu
 import { ExecutionPromptSnapshot } from '@/app/components/execution/execution-prompt-snapshot';
 import { ExecutionProjectSprintDetails } from '@/app/components/execution/execution-project-sprint-details';
 import { ExecutionAgentContext } from '@/app/components/execution/execution-agent-context';
+import { ContextSelectionReview } from '@/app/components/execution/context-selection-review';
 
 interface ExecutionSidebarProps {
     projectId: string;
@@ -49,6 +50,7 @@ interface ExecutionSidebarProps {
     handleRollback: (targetPhase?: string) => Promise<void>;
     setIsAgentModalOpen: (open: boolean) => void;
     setIsToolsModalOpen: (open: boolean) => void;
+    onExecutionUpdated: (execution: AgentTaskExecution) => void;
 }
 
 export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
@@ -77,7 +79,8 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     setIsTimeTrackingModalOpen,
     handleRollback,
     setIsAgentModalOpen,
-    setIsToolsModalOpen
+    setIsToolsModalOpen,
+    onExecutionUpdated,
 }) => {
     const navigate = useNavigate();
 
@@ -275,13 +278,19 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                                 isRefreshing={isRefreshing}
                             />
 
-                            {/* Mission Inputs */}
+                            {/* Camada 2 (D84): selecao descoberta, revisavel antes do dispatch */}
+                            <ContextSelectionReview
+                                execution={execution}
+                                onExecutionUpdated={onExecutionUpdated}
+                            />
+
+                            {/* Camada 3 (D84): so texto escrito por humano, com autoria registrada */}
                             <div className="pt-4 space-y-3">
-                                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">Mission Inputs</p>
+                                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">Mission Context (opcional)</p>
                                 <textarea
                                     value={missionInstructions}
                                     onChange={(e) => setMissionInstructions(e.target.value)}
-                                    placeholder="Add Figma links, API keys, or custom instructions for the next phase..."
+                                    placeholder="Vazio e o estado normal. Escreva so o que nao esta nos artefatos (links do Figma, uma restricao, um foco)..."
                                     className="w-full h-24 p-4 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-white/70 placeholder:text-white/20 focus:outline-none focus:border-purple-500/30 transition-all resize-none"
                                 />
                             </div>

@@ -28,6 +28,7 @@ export const ExecutionCockpit: React.FC = () => {
     const {
         projectId,
         execution,
+        setExecution,
         project,
         cards,
         sucessora,
@@ -193,6 +194,7 @@ export const ExecutionCockpit: React.FC = () => {
                 handleRollback={handleRollback}
                 setIsAgentModalOpen={setIsAgentModalOpen}
                 setIsToolsModalOpen={setIsToolsModalOpen}
+                onExecutionUpdated={setExecution}
             />
 
             {/* Right Panel: Context Dashboard */}
