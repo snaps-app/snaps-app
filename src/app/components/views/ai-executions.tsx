@@ -21,6 +21,7 @@ import { WorkflowFlowPreview } from '@/app/components/workflow/workflow-flow-pre
 import { Spinner } from '@/app/components/ui/spinner';
 import { StrategyConfiguratorModal } from '@/app/components/modals/strategy-configurator-modal';
 import { useAiExecutions } from '@/app/components/views/useAiExecutions';
+import { CloseDeliveredModal, DiscardExecutionModal } from '@/app/components/modals/execution-close-modals';
 import { estaEmVoo, foiDescartada } from '@/services/executionStatus';
 
 export const AIExecutions = () => {
@@ -41,6 +42,16 @@ export const AIExecutions = () => {
         templates,
         handleDeleteExecution,
         handleCloseDelivered,
+        closeTarget,
+        closeError,
+        closeSubmitting,
+        confirmForceClose,
+        cancelClose,
+        notice,
+        discardTarget,
+        discardSubmitting,
+        confirmDiscard,
+        cancelDiscard,
         getProjectName,
         isExecutionStuck,
         getBranchStatus,
@@ -193,6 +204,29 @@ export const AIExecutions = () => {
                     </div>
                 )}
 
+                {closeTarget && (
+                    <CloseDeliveredModal
+                        key={closeTarget.exec.id}
+                        refusal={closeTarget.refusal}
+                        submitting={closeSubmitting}
+                        error={closeError}
+                        onConfirm={confirmForceClose}
+                        onClose={cancelClose}
+                    />
+                )}
+                {discardTarget && (
+                    <DiscardExecutionModal
+                        submitting={discardSubmitting}
+                        onConfirm={confirmDiscard}
+                        onClose={cancelDiscard}
+                    />
+                )}
+                {notice && (
+                    <div role="status" className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
+                        {notice}
+                    </div>
+                )}
+
                 {/* Error state */}
                 {error && (
                     <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
@@ -293,7 +327,8 @@ export const AIExecutions = () => {
                                                     handleDeleteExecution(root.id);
                                                 }}
                                                 className="p-2 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 shrink-0"
-                                                title="Descartar (lapide na arvore inteira)"
+                                                title="Descartar"
+                                                aria-label="Descartar"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>

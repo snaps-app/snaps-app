@@ -118,9 +118,13 @@ export const deleteAgentExecution = async (executionId: string, expectedRevision
 export const closeDeliveredExecution = async (
     executionId: string,
     expectedRevision?: number,
+    forcar?: { motivo: string },
 ): Promise<AgentTaskExecution> => {
+    // Fechamento forcado (hotfix 22.0): so humano admin, com motivo. A API
+    // decide; aqui so se envia a intencao.
+    const body = forcar ? { force: true, motivo: forcar.motivo } : null;
     const response = await api.post(
-        `/api/agent-executions/${executionId}/close-delivered`, null,
+        `/api/agent-executions/${executionId}/close-delivered`, body,
         { params: { expected_revision: expectedRevision } },
     );
     return response.data;

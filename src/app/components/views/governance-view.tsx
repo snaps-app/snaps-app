@@ -28,6 +28,13 @@ const TAB_CONFIG = {
   workflows: { label: 'Workflows', icon: GitBranch,  accent: 'purple' },
 } as const;
 
+function mensagemDeFalha(reason: any): string {
+  const status = reason?.response?.status;
+  const detail = reason?.response?.data?.detail;
+  const texto = typeof detail === 'string' ? detail : reason?.message || 'erro desconhecido';
+  return status ? `HTTP ${status}: ${texto}` : texto;
+}
+
 export function GovernanceView() {
   const [tab, setTab] = useState<Tab>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -61,15 +68,29 @@ export function GovernanceView() {
   // Import modal
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [templatesCount, setTemplatesCount] = useState(0);
+  // Erro por aba (SNA-RD-170): com Promise.all, uma requisicao com erro zerava
+  // Agents, Docs, Skills, Resources e Workflows juntos.
+  const [tabErrors, setTabErrors] = useState<Partial<Record<Tab, string>>>({});
 
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     try {
-      const [a, d, s, r, p, w] = await Promise.all([
+      const [a, d, s, r, p, w] = await Promise.allSettled([
         getAgents(), getGovernanceDocs(), getSkills(), getResources(), getProjects(), getWorkflowTemplates()
       ]);
-      setAgents(a); setDocs(d); setSkills(s); setResources(r); setProjects(p); setTemplatesCount(w.length);
+      const erros: Partial<Record<Tab, string>> = {};
+      const aplicar = <T,>(res: PromiseSettledResult<T>, aba: Tab | null, set: (v: T) => void) => {
+        if (res.status === 'fulfilled') set(res.value);
+        else if (aba) erros[aba] = mensagemDeFalha(res.reason);
+      };
+      aplicar(a, 'agents', setAgents);
+      aplicar(d, 'docs', setDocs);
+      aplicar(s, 'skills', setSkills);
+      aplicar(r, 'resources', setResources);
+      aplicar(p, null, setProjects);
+      aplicar(w, 'workflows', (v: any[]) => setTemplatesCount(v.length));
+      setTabErrors(erros);
     } catch (e) { console.error('Fetch error:', e); }
   };
 
@@ -226,7 +247,7 @@ export function GovernanceView() {
                   placeholder="Buscar por nome"
                   value={busca}
                   onChange={e => setBusca(e.target.value)}
-                  className="h-10 w-56 rounded-xl pl-9"
+                  className="h-10 w-56 rounded-xl pl-9 bg-white/5 border-white/10 text-[var(--snaps-text-primary)] placeholder:text-[var(--snaps-placeholder)] focus-visible:border-[var(--snaps-accent-purple)] focus-visible:ring-[var(--snaps-accent-purple)]/30"
                 />
               </div>
 
@@ -312,7 +333,13 @@ export function GovernanceView() {
             </motion.div>
           ) : (
             <motion.div key={tab + scopeFilter + selectedProjectId} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-3">
-              {currentItems.length === 0 ? (
+              {tabErrors[tab] ? (
+                <div role="alert" className="text-center py-16 text-[var(--snaps-error)] border border-dashed border-red-500/30 bg-red-500/5 rounded-2xl">
+                  <cfg.icon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Falha ao carregar {cfg.label}</p>
+                  <p className="text-sm mt-1 text-[var(--snaps-text-secondary)]">{tabErrors[tab]}</p>
+                </div>
+              ) : currentItems.length === 0 ? (
                 <div className="text-center py-16 text-gray-500 border border-dashed border-white/10 rounded-2xl">
                   <cfg.icon className="w-12 h-12 mx-auto mb-4 opacity-30" />
                   <p className="text-lg font-medium">No items found with current filters</p>

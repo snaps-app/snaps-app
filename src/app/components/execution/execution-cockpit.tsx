@@ -72,6 +72,7 @@ export const ExecutionCockpit: React.FC = () => {
         governanceDocs,
         setGovernanceDocs,
         isLoadingDocs,
+        docsError,
         selectedDocIds,
         docsModalTab,
         setDocsModalTab,
@@ -418,6 +419,7 @@ export const ExecutionCockpit: React.FC = () => {
                 docsModalTab={docsModalTab}
                 setDocsModalTab={setDocsModalTab}
                 isLoadingDocs={isLoadingDocs}
+                docsError={docsError}
                 governanceDocs={governanceDocs}
                 selectedDocIds={selectedDocIds}
                 toggleDocSelection={toggleDocSelection}
