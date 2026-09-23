@@ -360,11 +360,9 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                             </div>
                         )}
                         {sucessora && (
-                            // O botao abaixo CONTINUA disponivel de proposito: ver o
-                            // comentario sobre `wait_all`. O que faltava era a tela
-                            // dizer que esta fase ja terminou e para onde ela foi —
-                            // sem isso, quem chega por um link antigo age sobre a
-                            // fase errada sem nenhum sinal.
+                            // Sem isto, quem chega por um link antigo age sobre a
+                            // fase errada sem nenhum sinal: a tela diz que esta fase
+                            // ja terminou e para onde ela foi.
                             <button
                                 onClick={() => navigate(`/project/${projectId}/execution/${sucessora.id}`)}
                                 className="w-full mb-3 p-3 rounded-xl bg-white/5 border border-white/10 text-left transition-all hover:bg-white/10"
@@ -381,12 +379,13 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                         {(() => {
                             const force = Object.values(manualOverrides).some(Boolean);
                             const isDone = execution.status === 'done';
-                            // A phase's advance_conditions are evaluated per-phase, server-side, on every
-                            // call — including when status is already 'completed' (e.g. a sibling in a
-                            // wait_all wave). The backend converges/no-ops idempotently, so the button must
-                            // never block a completed execution from re-attempting advance: there is no
-                            // "waiting for siblings" state a user can observe here.
-                            const disabled = isAdvancing;
+                            // Nao existe mais onda `wait_all` (ADR-0045): cada irma
+                            // avanca sozinha, e nenhuma e concluida em nome de outra.
+                            // Uma execucao `completed` ja gerou a sucessora dela;
+                            // avancar de novo criaria a segunda. O caminho e o link
+                            // "Esta fase ja avancou", acima.
+                            const jaAvancou = execution.status === 'completed';
+                            const disabled = isAdvancing || jaAvancou;
 
                             return (
                                 <button
@@ -398,6 +397,8 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                                         <>
                                             {isDone
                                                 ? 'Execution Complete — Exit'
+                                                : jaAvancou
+                                                ? 'Phase already advanced'
                                                 : (force ? 'Approve Override & Advance' : (execution.phase === 'retro' ? 'Finalize & Conclude Sprint' : 'Advance to Next Phase'))
                                             }
                                             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />

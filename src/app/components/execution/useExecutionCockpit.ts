@@ -17,10 +17,10 @@ export const useExecutionCockpit = () => {
 
     const state = useCockpitState(projectId, executionId, fetchSisters);
 
-    // SNA-SUP-71: a execucao que ja avancou continua sendo uma tela valida, e o
-    // botao de avanco continua ali de proposito — ver o comentario em
-    // `execution-sidebar` sobre irmas numa onda `wait_all`. O que faltava era
-    // dizer que a fase terminou e para onde ela foi.
+    // SNA-SUP-71: a execucao que ja avancou continua sendo uma tela valida. Ela
+    // diz que a fase terminou e para onde foi, e o avanco fica travado: sem o
+    // join `wait_all` (ADR-0045), avancar de novo uma execucao concluida criaria
+    // uma segunda sucessora.
     //
     // A arvore ja vem de `useCockpitSisterExecutions`; buscar de novo daria
     // duas respostas possiveis para a mesma pergunta.

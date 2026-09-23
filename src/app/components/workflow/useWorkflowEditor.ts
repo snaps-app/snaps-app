@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { somenteDiretivasLidas } from '@/app/components/workflow/phaseVocabulary';
+import type { PhaseDirectivesVocabulary } from '@/services/workflowTemplates';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useNodesState, useEdgesState, MarkerType } from '@xyflow/react';
 import {
@@ -6,6 +8,7 @@ import {
   deleteWorkflowTemplate,
   getWorkflowTemplates,
   getWorkflowTemplatesMetadata,
+  getPhaseDirectives,
   updateWorkflowTemplate
 } from '@/services/workflowTemplates';
 import { VersionConflictError } from '@/services/versionedWrite';
@@ -23,6 +26,10 @@ export function useWorkflowEditor() {
     available_skills: string[];
     available_agents: string[];
   }>({ available_tools: [], available_skills: [], available_agents: [] });
+
+  // Vocabulario de fase lido da API. `null` = ainda nao carregou (ou falhou), e
+  // entao o editor NAO grava: sem vocabulario nao ha como saber o que filtrar.
+  const [vocabulary, setVocabulary] = useState<PhaseDirectivesVocabulary | null>(null);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
@@ -91,11 +98,16 @@ export function useWorkflowEditor() {
   const fetchMetadataAndTemplates = async () => {
     setLoading(true);
     try {
-      const [meta, tmpls] = await Promise.all([
+      const [meta, tmpls, vocab] = await Promise.all([
         getWorkflowTemplatesMetadata(),
-        getWorkflowTemplates()
+        getWorkflowTemplates(),
+        getPhaseDirectives().catch((e) => {
+          console.error('Error loading phase vocabulary:', e);
+          return null;
+        }),
       ]);
       setMetadata(meta);
+      setVocabulary(vocab);
       setTemplates(tmpls);
 
       if (templateId) {
@@ -126,8 +138,7 @@ export function useWorkflowEditor() {
                 skills: meta.available_skills ? [...meta.available_skills] : [],
                 entry_prompt: null,
                 exit_prompt: null,
-                branching_strategy: null,
-                join_strategy: null
+                branching_strategy: null
               }
             ];
           }
@@ -297,8 +308,7 @@ export function useWorkflowEditor() {
       skills: [...metadata.available_skills],
       entry_prompt: null,
       exit_prompt: null,
-      branching_strategy: null,
-      join_strategy: null
+      branching_strategy: null
     };
 
     const updatedPhases = [...selectedTemplate.phases, newPhase];
@@ -336,9 +346,15 @@ export function useWorkflowEditor() {
     setSaveError(null);
 
     try {
+      if (!vocabulary) {
+        throw new Error(
+          'O vocabulario de fase nao carregou da API; sem ele o editor nao sabe o que gravar. Recarregue a pagina.');
+      }
       const payload: WorkflowTemplateCreate = {
         name: templateName,
-        phases: selectedTemplate.phases,
+        // Diretiva aposentada (ex.: join_strategy de um template antigo) sai
+        // aqui; mandada de volta, a API recusaria o save inteiro.
+        phases: selectedTemplate.phases.map(p => somenteDiretivasLidas(p, vocabulary)),
         default_agents: selectedTemplate.phases.map(p => p.agent).filter(Boolean)
       };
 
@@ -412,6 +428,7 @@ export function useWorkflowEditor() {
     templates,
     selectedTemplate,
     metadata,
+    vocabulary,
     nodes,
     edges,
     onNodesChange,
