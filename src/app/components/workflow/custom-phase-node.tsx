@@ -3,7 +3,7 @@ import { Bot, GitBranch, GitMerge, Settings, Wrench } from 'lucide-react';
 
 export const CustomPhaseNode = ({ data, selected }: any) => {
   const isBranching = data.branching_strategy && data.branching_strategy !== 'None' && data.branching_strategy !== '';
-  const isJoining = data.join_strategy && data.join_strategy !== 'None' && data.join_strategy !== '';
+  const converges = data.convergence === 'sprint';
 
   return (
     <div className={`p-4 rounded-xl border text-left transition-all w-[240px] relative ${
@@ -22,7 +22,7 @@ export const CustomPhaseNode = ({ data, selected }: any) => {
         <span className="text-[10px] font-mono text-white/40 uppercase tracking-wider">{data.key}</span>
         <div className="flex gap-1.5">
           {isBranching && <span title={`Branch: ${data.branching_strategy}`}><GitBranch className="w-3.5 h-3.5 text-blue-400" /></span>}
-          {isJoining && <span title={`Join: ${data.join_strategy}`}><GitMerge className="w-3.5 h-3.5 text-purple-400" /></span>}
+          {converges && <span title="Converge por sprint (ADR-0045)"><GitMerge className="w-3.5 h-3.5 text-purple-400" /></span>}
         </div>
       </div>
 

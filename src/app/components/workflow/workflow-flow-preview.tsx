@@ -55,7 +55,8 @@ export const WorkflowFlowPreview: React.FC<WorkflowFlowPreviewProps> = ({
       const source = phases[i];
       const target = phases[i + 1];
       const isBranch = source.branching_strategy && source.branching_strategy !== 'None' && source.branching_strategy !== '';
-      const isJoin = target.join_strategy && target.join_strategy !== 'None' && target.join_strategy !== '';
+      // Aresta destacada onde as cadeias convergem (ADR-0045), e nao mais no join.
+      const isJoin = target.convergence === 'sprint';
 
       const isEdgeCompleted = isCompleted(source.key, i) && (isCompleted(target.key, i + 1) || target.key === activePhaseKey);
 

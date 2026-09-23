@@ -32,6 +32,7 @@ export function WorkflowEditorCanvas() {
     templates,
     selectedTemplate,
     metadata,
+    vocabulary,
     nodes,
     edges,
     onNodesChange,
@@ -241,6 +242,7 @@ export function WorkflowEditorCanvas() {
                     phase={selectedNode.data as PhaseConfigItem}
                     metadata={metadata}
                     allPhases={nodes.map(n => n.data as PhaseConfigItem)}
+                    vocabulary={vocabulary}
                     onUpdate={handleUpdateNodeData}
                     onDelete={() => handleDeletePhase(selectedNode.id)}
                   />

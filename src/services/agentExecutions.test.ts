@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/services/client';
 import {
   advanceAgentExecution,
+  closeDeliveredExecution,
   createAgentExecution,
   deleteAgentExecution,
   rollbackAgentExecution,
@@ -74,6 +75,15 @@ describe('durable execution client', () => {
         override_conditions: ['ci_passed'],
       }),
       expect.objectContaining({ headers: expect.any(Object) }),
+    );
+  });
+  it('close-delivered sends the revision and NO client key (the API derives it from the evidence)', async () => {
+    await closeDeliveredExecution('execution', 12);
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/agent-executions/execution/close-delivered',
+      null,
+      { params: { expected_revision: 12 } },
     );
   });
 });

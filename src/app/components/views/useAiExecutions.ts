@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { deleteAgentExecution, getAllAgentExecutions, getProjectAgentExecutions } from '@/services/agentExecutions';
+import { closeDeliveredExecution, deleteAgentExecution, getAllAgentExecutions, getProjectAgentExecutions } from '@/services/agentExecutions';
 import { getProjectBoard } from '@/services/boards';
 import { getProjects } from '@/services/projects';
 import { getSprints } from '@/services/sprints';
@@ -75,6 +75,23 @@ export function useAiExecutions() {
             } finally {
                 setIsLoading(false);
             }
+        }
+    };
+
+    /**
+     * "Concluir (entregue)" — distinto de descartar (SNA-RD-166).
+     *
+     * Mexe numa execucao so, e a API so aceita com evidencia no banco (sprint
+     * encerrada ou cards `done`). A recusa vem da API e e mostrada como veio:
+     * reescreve-la aqui apagaria o que ela nomeia (qual sprint, quais cards).
+     */
+    const handleCloseDelivered = async (exec: AgentTaskExecution) => {
+        setError(null);
+        try {
+            await closeDeliveredExecution(exec.id, exec.lock_version);
+            await fetchData();
+        } catch (err: any) {
+            setError(err?.response?.data?.detail ?? err?.message ?? 'Falha ao concluir execucao');
         }
     };
 
@@ -177,6 +194,7 @@ export function useAiExecutions() {
         availableSprints,
         templates,
         handleDeleteExecution,
+        handleCloseDelivered,
         getProjectName,
         isExecutionStuck,
         getBranchStatus,
