@@ -32,4 +32,15 @@ describe('selecao de contexto (E5-e)', () => {
         // Lista vazia (e nao ausente) e o que faz o sync remover o ultimo item.
         expect(listasSemItem(descoberta, { tipo: 'decision', id: 'a1' }).decisionIds).toEqual([]);
     });
+
+    it('remover um snap da busca e recusa-lo, sem mexer nas listas de selecao', () => {
+        const descoberta: ItemDeContexto[] = [
+            { tipo: 'governance_doc', id: 'd1', origem: 'neuron' },
+            { tipo: 'snap', id: 's2', origem: 'neuron' },
+        ];
+
+        expect(listasSemItem(descoberta, { tipo: 'snap', id: 's2' }, ['s1'])).toEqual({
+            rejectedSnapIds: ['s1', 's2'],
+        });
+    });
 });

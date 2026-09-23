@@ -35,6 +35,7 @@ const ROTULO_TIPO: Record<ItemDeContexto['tipo'], string> = {
     governance_doc: 'Doc',
     decision: 'ADR',
     test_plan: 'Test plan',
+    snap: 'Snap',
 };
 
 const Origem: React.FC<{ origem: OrigemDeContexto }> = ({ origem }) => (
@@ -75,11 +76,14 @@ export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecution
 
     const remover = async (item: ItemDeContexto) => {
         if (!selecao) return;
-        const { docIds, decisionIds, testPlanIds } = listasSemItem(selecao.camadas.descoberta, item);
+        const { docIds, decisionIds, testPlanIds, rejectedSnapIds } = listasSemItem(
+            selecao.camadas.descoberta, item, selecao.snaps_recusados,
+        );
         setRemovendo(item.id);
         try {
             const atualizada = await syncAgentExecution(
-                execution.id, undefined, docIds, decisionIds, testPlanIds, execution.lock_version,
+                execution.id, undefined, docIds, decisionIds, testPlanIds,
+                execution.lock_version, rejectedSnapIds,
             );
             onExecutionUpdated(atualizada);
         } catch {

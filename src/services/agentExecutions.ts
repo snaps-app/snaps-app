@@ -83,12 +83,14 @@ export const syncAgentExecution = async (
     decisionIds?: string[],
     testPlanIds?: string[],
     expectedRevision?: number,
+    rejectedSnapIds?: string[],
 ): Promise<AgentTaskExecution> => {
     const response = await api.post(`/api/agent-executions/${executionId}/sync`, {
         instructions,
         doc_ids: docIds,
         decision_ids: decisionIds,
         test_plan_ids: testPlanIds,
+        rejected_snap_ids: rejectedSnapIds,
         expected_revision: expectedRevision,
     }, commandConfig());
     return response.data;

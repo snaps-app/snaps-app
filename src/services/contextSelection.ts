@@ -8,7 +8,7 @@ import { api } from './client';
 export type OrigemDeContexto = 'workflow' | 'herdado' | 'neuron' | 'humano' | 'agente' | 'nao_verificada';
 
 export interface ItemDeContexto {
-    tipo: 'card' | 'sprint' | 'plan' | 'governance_doc' | 'decision' | 'test_plan';
+    tipo: 'card' | 'sprint' | 'plan' | 'governance_doc' | 'decision' | 'test_plan' | 'snap';
     id: string;
     origem: OrigemDeContexto;
     titulo?: string | null;
@@ -39,7 +39,9 @@ export interface SelecaoDeContexto {
         adicionados: { tipo: string; id: string }[];
         removidos: { tipo: string; id: string }[];
     }[];
-    omitted: { secao: string; motivo: string; tokens_estimados: number }[];
+    omitted: { secao: string; motivo: string; tokens_estimados: number; id?: string }[];
+    /** Snaps da descoberta semantica que o humano ja recusou (E5-d). */
+    snaps_recusados: string[];
 }
 
 export const getExecutionContextSelection = async (executionId: string): Promise<SelecaoDeContexto> => {
@@ -47,11 +49,21 @@ export const getExecutionContextSelection = async (executionId: string): Promise
     return response.data;
 };
 
-/** Listas que o `/sync` recebe para deixar a camada 2 sem `removido`. */
+/**
+ * Argumentos do `/sync` para deixar a camada 2 sem `removido`.
+ *
+ * Doc, ADR e test plan saem da lista selecionada. Snap nao e selecionado por
+ * lista: ele vem da busca, entao remove-lo e RECUSA-LO (`rejected_snap_ids`),
+ * e as listas de selecao nao sao enviadas (ficam como estao).
+ */
 export const listasSemItem = (
     descoberta: ItemDeContexto[],
     removido: Pick<ItemDeContexto, 'tipo' | 'id'>,
-): { docIds: string[]; decisionIds: string[]; testPlanIds: string[] } => {
+    snapsRecusados: string[] = [],
+): { docIds?: string[]; decisionIds?: string[]; testPlanIds?: string[]; rejectedSnapIds?: string[] } => {
+    if (removido.tipo === 'snap') {
+        return { rejectedSnapIds: [...new Set([...snapsRecusados, removido.id])] };
+    }
     const restantes = descoberta.filter(i => !(i.tipo === removido.tipo && i.id === removido.id));
     const doTipo = (tipo: ItemDeContexto['tipo']) => restantes.filter(i => i.tipo === tipo).map(i => i.id);
     return {
