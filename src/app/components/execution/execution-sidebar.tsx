@@ -186,7 +186,10 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                             {/* Structured PRs List */}
                             {hasPrsArray ? (
                                 <div className="space-y-1 w-full">
-                                    <p className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1.5">Active Repos & PRs</p>
+                                    <p className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1.5">Active Repos & PRs ({prs.length})</p>
+                                    {/* Altura maxima (~3 itens) com rolagem propria (SNA-RD-170): com
+                                        7 PRs a lista empurrava handoff e requisitos para fora da tela. */}
+                                    <div data-testid="active-prs-list" className="max-h-[132px] overflow-y-auto space-y-1 pr-1">
                                     {prs.map((pr: any, i: number) => (
                                         <div key={i} className="flex items-center justify-between gap-3 px-2.5 py-1.5 bg-white/[0.01] border border-white/5 rounded-lg hover:bg-white/[0.03] hover:border-white/10 transition-all group/pr">
                                             <div className="flex items-center gap-2 min-w-0">
@@ -213,6 +216,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                                             )}
                                         </div>
                                     ))}
+                                    </div>
                                 </div>
                             ) : (
                                 /* Legacy Fallback */

@@ -7,6 +7,7 @@ interface DocsModalProps {
     docsModalTab: 'governance' | 'adrs';
     setDocsModalTab: (tab: 'governance' | 'adrs') => void;
     isLoadingDocs: boolean;
+    docsError?: string | null;
     governanceDocs: GovernanceDoc[];
     selectedDocIds: string[];
     toggleDocSelection: (id: string) => void;
@@ -23,6 +24,7 @@ export const DocsModal: React.FC<DocsModalProps> = ({
     docsModalTab,
     setDocsModalTab,
     isLoadingDocs,
+    docsError,
     governanceDocs,
     selectedDocIds,
     toggleDocSelection,
@@ -81,7 +83,13 @@ export const DocsModal: React.FC<DocsModalProps> = ({
                             <Loader2 className="w-8 h-8 text-blue-500 animate-spin opacity-50" />
                         </div>
                     ) : docsModalTab === 'governance' ? (
-                        governanceDocs.length === 0 ? (
+                        docsError ? (
+                            <div role="alert" className="h-full flex flex-col items-center justify-center text-[var(--snaps-error)]">
+                                <FileText className="w-12 h-12 mb-4 opacity-50" />
+                                <p>Falha ao carregar os governance docs.</p>
+                                <p className="text-sm mt-1 text-[var(--snaps-text-secondary)]">{docsError}</p>
+                            </div>
+                        ) : governanceDocs.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-white/30">
                                 <FileText className="w-12 h-12 mb-4 opacity-50" />
                                 <p>No governance documents found for this project.</p>
