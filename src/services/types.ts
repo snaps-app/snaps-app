@@ -532,6 +532,11 @@ export interface PhaseConfigItem {
     allowed_commands?: string[];
     auto_advance?: boolean;
     execution_mode?: 'sequential' | 'parallel';
+    required_env?: string[];
+    /** Politica de sessao da fase (E4); a forma vem do schema da API. */
+    session_policy?: Record<string, unknown> | null;
+    /** Teto do prompt inicial da fase (D32); a forma vem do schema da API. */
+    context_budget?: Record<string, unknown> | null;
 }
 
 export interface WorkflowTemplate extends VersionedEntity {

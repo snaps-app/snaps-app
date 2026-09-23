@@ -42,6 +42,10 @@ export const deleteWorkflowTemplate = async (templateId: string): Promise<void> 
 export interface PhaseDirectivesVocabulary {
     directives: { name: string; reader: string; schema: Record<string, unknown> }[];
     retired: { name: string; decision: string; reason: string }[];
+    /** `$defs` do schema de fase: resolve os `$ref` de session_policy/context_budget (SNA-RD-176). */
+    defs?: Record<string, Record<string, unknown>>;
+    /** Catalogo de advance_conditions que o motor conhece (SNA-RD-176). */
+    conditions?: { name: string; kind: 'implemented' | 'human_judgment'; label?: string }[];
 }
 
 export const getPhaseDirectives = async (): Promise<PhaseDirectivesVocabulary> => {

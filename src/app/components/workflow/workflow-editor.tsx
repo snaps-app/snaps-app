@@ -224,7 +224,7 @@ export function WorkflowEditorCanvas() {
 
             {/* Right properties Drawer Panel - Only visible when a node is selected */}
             {selectedNode && (
-              <div className="w-96 border-l border-white/10 bg-[#0d0d0f]/90 backdrop-blur-md flex flex-col overflow-y-auto z-10 animate-slide-in">
+              <div className="w-[28rem] border-l border-white/10 bg-[#0d0d0f]/90 backdrop-blur-md flex flex-col min-h-0 z-10 animate-slide-in">
                 <div className="p-4 border-b border-white/10 flex items-center justify-between">
                   <h3 className="font-bold text-white flex items-center gap-2">
                     <Settings className="w-4 h-4 text-purple-400" /> Properties Configurator
@@ -237,7 +237,7 @@ export function WorkflowEditorCanvas() {
                   </button>
                 </div>
 
-                <div className="p-5 space-y-5 flex-1">
+                <div className="p-5 flex-1 min-h-0 flex flex-col">
                   <WorkflowSidebar 
                     phase={selectedNode.data as PhaseConfigItem}
                     metadata={metadata}

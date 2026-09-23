@@ -1,0 +1,551 @@
+{
+ "defs": {
+  "ContextBudget": {
+   "additionalProperties": false,
+   "description": "Orcamento de contexto de uma fase (D32).\n\n`max_tokens` e o teto do prompt montado, em tokens ESTIMADOS (o snapshot\nmarca `estimated=true`). `prioridade` reordena as secoes podaveis, da mais\npara a menos importante; ausente, vale `SECOES_PODAVEIS`.",
+   "properties": {
+    "max_tokens": {
+     "exclusiveMinimum": 0,
+     "title": "Max Tokens",
+     "type": "integer"
+    },
+    "prioridade": {
+     "anyOf": [
+      {
+       "items": {
+        "enum": [
+         "governance_docs",
+         "decisions",
+         "test_plans",
+         "plans",
+         "walkthroughs",
+         "relevant_snaps"
+        ],
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Prioridade"
+    }
+   },
+   "required": [
+    "max_tokens"
+   ],
+   "title": "ContextBudget",
+   "type": "object"
+  },
+  "SessionPolicy": {
+   "additionalProperties": false,
+   "description": "`session_policy` de uma fase (PRD §4.6.2, D69, D72).\n\nSobrescreve o default do provider em `services.session_policy`. Sem campo\nde perfil: o perfil entra na Sprint 23.0 (SNA-RD-169). Chave ausente herda\no default do provider.",
+   "properties": {
+    "mode": {
+     "anyOf": [
+      {
+       "enum": [
+        "auto",
+        "sticky",
+        "fresh"
+       ],
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Mode"
+    },
+    "compact_when": {
+     "anyOf": [
+      {
+       "enum": [
+        "projected_headroom_insufficient",
+        "never"
+       ],
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Compact When"
+    },
+    "new_session_when": {
+     "anyOf": [
+      {
+       "items": {
+        "enum": [
+         "runtime_or_model_change",
+         "access_or_skill_contract_change",
+         "reviewer_independence",
+         "context_contamination",
+         "provider_session_unavailable"
+        ],
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "New Session When"
+    },
+    "max_compactions": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Max Compactions"
+    },
+    "safety_margin": {
+     "anyOf": [
+      {
+       "const": "provider_default",
+       "type": "string"
+      },
+      {
+       "exclusiveMinimum": 0,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Safety Margin"
+    },
+    "carry": {
+     "anyOf": [
+      {
+       "items": {
+        "enum": [
+         "artifact_refs",
+         "decisions",
+         "unresolved_questions",
+         "current_plan",
+         "test_state"
+        ],
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Carry"
+    }
+   },
+   "title": "SessionPolicy",
+   "type": "object"
+  }
+ },
+ "conditions": [
+  {
+   "name": "bdd_scenarios_generated",
+   "kind": "implemented"
+  },
+  {
+   "name": "bdd_validated",
+   "kind": "implemented"
+  },
+  {
+   "name": "cards_done",
+   "kind": "implemented"
+  },
+  {
+   "name": "ci_passed",
+   "kind": "implemented"
+  },
+  {
+   "name": "diff_reviewed",
+   "kind": "implemented"
+  },
+  {
+   "name": "entities_created_and_linked",
+   "kind": "implemented"
+  },
+  {
+   "name": "peer_review_generated",
+   "kind": "implemented"
+  },
+  {
+   "name": "plan_approved",
+   "kind": "implemented"
+  },
+  {
+   "name": "plan_selected",
+   "kind": "implemented"
+  },
+  {
+   "name": "pr_merged",
+   "kind": "implemented"
+  },
+  {
+   "name": "pr_opened",
+   "kind": "implemented"
+  },
+  {
+   "name": "sprint_branch_merged",
+   "kind": "implemented"
+  },
+  {
+   "name": "sprint_closed",
+   "kind": "implemented"
+  },
+  {
+   "name": "sprint_linked",
+   "kind": "implemented"
+  },
+  {
+   "name": "tactical_plans_approved",
+   "kind": "implemented"
+  },
+  {
+   "name": "tasks_created",
+   "kind": "implemented"
+  },
+  {
+   "name": "tasks_finished",
+   "kind": "implemented"
+  },
+  {
+   "name": "proposal_approved",
+   "kind": "human_judgment"
+  },
+  {
+   "name": "questions_answered",
+   "kind": "human_judgment"
+  }
+ ],
+ "directives": [
+  {
+   "name": "key",
+   "reader": "crud.workflow.executions.base:_get_phase_config",
+   "schema": {
+    "title": "Key",
+    "type": "string"
+   }
+  },
+  {
+   "name": "label",
+   "reader": "prompt_engine.sprint_prompt_context:build_sprint_interp_context",
+   "schema": {
+    "title": "Label",
+    "type": "string"
+   }
+  },
+  {
+   "name": "agent",
+   "reader": "crud.workflow.executions.advance:advance_agent_execution",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Agent"
+   }
+  },
+  {
+   "name": "tools",
+   "reader": "prompt_engine.helpers:_get_tools_and_skills_from_phase",
+   "schema": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": [],
+    "title": "Tools"
+   }
+  },
+  {
+   "name": "skills",
+   "reader": "prompt_engine.helpers:_get_tools_and_skills_from_phase",
+   "schema": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": [],
+    "title": "Skills"
+   }
+  },
+  {
+   "name": "entry_prompt",
+   "reader": "prompt_engine.sprint_prompts:_generate_single_sprint_prompt",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Entry Prompt"
+   }
+  },
+  {
+   "name": "exit_prompt",
+   "reader": "prompt_engine.sprint_prompts:_generate_single_sprint_prompt",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Exit Prompt"
+   }
+  },
+  {
+   "name": "branching_strategy",
+   "reader": "crud.workflow.executions.advance:advance_agent_execution",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Branching Strategy"
+   }
+  },
+  {
+   "name": "execution_mode",
+   "reader": "crud.workflow.executions.advance:advance_agent_execution",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Execution Mode"
+   }
+  },
+  {
+   "name": "on_failure",
+   "reader": "mcp_tools.workflow:_validate_succession",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "On Failure"
+   }
+  },
+  {
+   "name": "advance_conditions",
+   "reader": "crud.workflow.executions.advance:advance_agent_execution",
+   "schema": {
+    "anyOf": [
+     {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": {},
+    "title": "Advance Conditions"
+   }
+  },
+  {
+   "name": "max_retries",
+   "reader": "crud.workflow.executions.rollback:rollback_agent_execution",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "integer"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Max Retries"
+   }
+  },
+  {
+   "name": "allowed_commands",
+   "reader": "crud.workflow.executions.advance:advance_agent_execution",
+   "schema": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": [],
+    "title": "Allowed Commands"
+   }
+  },
+  {
+   "name": "required_env",
+   "reader": "crud.workflow.executions.advance:_reject_missing_required_env",
+   "schema": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": [],
+    "title": "Required Env"
+   }
+  },
+  {
+   "name": "stage",
+   "reader": "services.environments:stage_para_fase",
+   "schema": {
+    "anyOf": [
+     {
+      "const": "preview",
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Stage"
+   }
+  },
+  {
+   "name": "auto_advance",
+   "reader": "crud.workflow.executions.advance:advance_agent_execution",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "boolean"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": false,
+    "title": "Auto Advance"
+   }
+  },
+  {
+   "name": "convergence",
+   "reader": "crud.workflow.executions.advance:_sucessora_convergida",
+   "schema": {
+    "anyOf": [
+     {
+      "const": "sprint",
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Convergence"
+   }
+  },
+  {
+   "name": "context_budget",
+   "reader": "prompt_engine.context_builder:_orcamento_da_fase",
+   "schema": {
+    "anyOf": [
+     {
+      "$ref": "#/$defs/ContextBudget"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null
+   }
+  },
+  {
+   "name": "session_policy",
+   "reader": "services.session_policy:resolver_session_policy",
+   "schema": {
+    "anyOf": [
+     {
+      "$ref": "#/$defs/SessionPolicy"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null
+   }
+  }
+ ],
+ "retired": [
+  {
+   "name": "join_strategy",
+   "decision": "ADR-0045",
+   "reason": "sob execucao autonoma, trabalho pronto nao espera: cada irma avanca sozinha, e a convergencia e declarada na fase de sprint com `convergence: sprint`"
+  },
+  {
+   "name": "on_success",
+   "decision": "ADR-0045",
+   "reason": "nunca foi lida pelo motor (adendo A4): a fase seguinte e a proxima da lista do template, e o motor ja a escolhe"
+  }
+ ]
+}

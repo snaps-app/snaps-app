@@ -6,6 +6,14 @@ interface UseWorkflowSidebarProps {
   onUpdate: (phase: PhaseConfigItem) => void;
 }
 
+/**
+ * Estado dos campos com editor proprio. As demais diretivas (stage,
+ * session_policy, context_budget, max_retries...) sao montadas do vocabulario
+ * da API e gravadas por `handleDirective`, que so toca a chave editada.
+ *
+ * Toda edicao sobe na hora por `onUpdate`, com `...phase`: o que nao tem campo
+ * na tela atravessa intacto, e trocar de aba nao perde nada (SNA-RD-176).
+ */
 export function useWorkflowSidebar({ phase, onUpdate }: UseWorkflowSidebarProps) {
   const [label, setLabel] = useState(phase.label);
   const [key, setKey] = useState(phase.key);
@@ -16,11 +24,7 @@ export function useWorkflowSidebar({ phase, onUpdate }: UseWorkflowSidebarProps)
   const [exitPrompt, setExitPrompt] = useState(phase.exit_prompt || '');
   const [branching, setBranching] = useState(phase.branching_strategy || 'None');
   const [onFailure, setOnFailure] = useState(phase.on_failure || 'None');
-  const [convergence, setConvergence] = useState<string>(phase.convergence || 'None');
   const [advanceConditions, setAdvanceConditions] = useState<Record<string, any>>(phase.advance_conditions || {});
-  const [maxRetries, setMaxRetries] = useState<string>(phase.max_retries != null ? String(phase.max_retries) : '');
-  const [allowedCommands, setAllowedCommands] = useState<string>((phase.allowed_commands || []).join(', '));
-  const [autoAdvance, setAutoAdvance] = useState<boolean>(phase.auto_advance || false);
 
   useEffect(() => {
     setLabel(phase.label);
@@ -32,17 +36,10 @@ export function useWorkflowSidebar({ phase, onUpdate }: UseWorkflowSidebarProps)
     setExitPrompt(phase.exit_prompt || '');
     setBranching(phase.branching_strategy || 'None');
     setOnFailure(phase.on_failure || 'None');
-    setConvergence(phase.convergence || 'None');
     setAdvanceConditions(phase.advance_conditions || {});
-    setMaxRetries(phase.max_retries != null ? String(phase.max_retries) : '');
-    setAllowedCommands((phase.allowed_commands || []).join(', '));
-    setAutoAdvance(phase.auto_advance || false);
   }, [phase]);
 
   const handleChange = (field: string, value: any) => {
-    const newMaxRetries = field === 'max_retries' ? value : maxRetries;
-    const newAllowedCommands = field === 'allowed_commands' ? value : allowedCommands;
-    const newAutoAdvance = field === 'auto_advance' ? value : autoAdvance;
     const updated = {
       ...phase,
       label: field === 'label' ? value : label,
@@ -54,15 +51,14 @@ export function useWorkflowSidebar({ phase, onUpdate }: UseWorkflowSidebarProps)
       exit_prompt: field === 'exit_prompt' ? (value || null) : (exitPrompt || null),
       branching_strategy: field === 'branching_strategy' ? (value === 'None' ? null : value) : (branching === 'None' ? null : branching),
       on_failure: field === 'on_failure' ? (value === 'None' ? null : value) : (onFailure === 'None' ? null : onFailure),
-      convergence: field === 'convergence' ? (value === 'None' ? null : value) : (convergence === 'None' ? null : convergence),
       advance_conditions: field === 'advance_conditions' ? value : advanceConditions,
-      max_retries: newMaxRetries !== '' ? Number(newMaxRetries) : null,
-      allowed_commands: typeof newAllowedCommands === 'string'
-        ? newAllowedCommands.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : newAllowedCommands,
-      auto_advance: newAutoAdvance,
     };
     onUpdate(updated);
+  };
+
+  /** Diretiva montada do vocabulario: grava so ela, sobre a fase atual. */
+  const handleDirective = (name: string, value: unknown) => {
+    onUpdate({ ...phase, [name]: value } as PhaseConfigItem);
   };
 
   const handleToggleTool = (tool: string) => {
@@ -98,17 +94,10 @@ export function useWorkflowSidebar({ phase, onUpdate }: UseWorkflowSidebarProps)
     setBranching,
     onFailure,
     setOnFailure,
-    convergence,
-    setConvergence,
     advanceConditions,
     setAdvanceConditions,
-    maxRetries,
-    setMaxRetries,
-    allowedCommands,
-    setAllowedCommands,
-    autoAdvance,
-    setAutoAdvance,
     handleChange,
+    handleDirective,
     handleToggleTool,
     handleToggleSkill
   };
