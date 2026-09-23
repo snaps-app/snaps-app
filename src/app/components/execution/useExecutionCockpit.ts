@@ -140,6 +140,7 @@ export const useExecutionCockpit = () => {
         governanceDocs: docsHook.governanceDocs,
         setGovernanceDocs: docsHook.setGovernanceDocs,
         isLoadingDocs: docsHook.isLoadingDocs,
+        docsError: docsHook.docsError,
         selectedDocIds: docsHook.selectedDocIds,
         setSelectedDocIds: docsHook.setSelectedDocIds,
         docsModalTab: docsHook.docsModalTab,

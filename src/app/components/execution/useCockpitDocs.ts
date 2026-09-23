@@ -14,6 +14,8 @@ export const useCockpitDocs = (projectId: string | undefined, execution: AgentTa
     const [viewDoc, setViewDoc] = useState<GovernanceDoc | null>(null);
     const [isEditingDoc, setIsEditingDoc] = useState(false);
     const [isSavingDoc, setIsSavingDoc] = useState(false);
+    // Falha na carga aparece no modal, e nao como "nenhum documento" (SNA-RD-170).
+    const [docsError, setDocsError] = useState<string | null>(null);
 
     useEffect(() => {
         if (execution?.context_data?.doc_ids) {
@@ -29,13 +31,23 @@ export const useCockpitDocs = (projectId: string | undefined, execution: AgentTa
         setIsDocsModalOpen(true);
         setDocsModalTab('governance');
         setIsLoadingDocs(true);
+        setDocsError(null);
         try {
-            const [docsList, decisionList] = await Promise.all([
+            const [docsRes, decisionRes] = await Promise.allSettled([
                 getGovernanceDocs(projectId),
                 getDecisions(projectId)
             ]);
-            setGovernanceDocs(docsList);
-            setDecisions(decisionList);
+            if (docsRes.status === 'fulfilled') {
+                setGovernanceDocs(docsRes.value);
+            } else {
+                const r: any = docsRes.reason;
+                const detail = r?.response?.data?.detail;
+                setDocsError(
+                    (r?.response?.status ? `HTTP ${r.response.status}: ` : '')
+                    + (typeof detail === 'string' ? detail : r?.message || 'erro desconhecido')
+                );
+            }
+            if (decisionRes.status === 'fulfilled') setDecisions(decisionRes.value);
             if (execution?.context_data?.doc_ids) {
                 setSelectedDocIds(execution.context_data.doc_ids);
             }
@@ -67,6 +79,7 @@ export const useCockpitDocs = (projectId: string | undefined, execution: AgentTa
         governanceDocs,
         setGovernanceDocs,
         isLoadingDocs,
+        docsError,
         selectedDocIds,
         setSelectedDocIds,
         docsModalTab,

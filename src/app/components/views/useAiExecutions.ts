@@ -7,6 +7,31 @@ import { getSprints } from '@/services/sprints';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
 import { estaEncerrada } from '@/services/executionStatus';
 import type { AgentTaskExecution, Project, Sprint, WorkflowTemplate } from '@/services/types';
+import type { CloseRefusal } from '@/app/components/modals/execution-close-modals';
+
+/** A recusa da API como veio: `detail` estruturado (sprint_status, open_cards) ou texto. */
+export function lerRecusa(err: any): CloseRefusal {
+    const detail = err?.response?.data?.detail;
+    if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+        return {
+            message: String(detail.message ?? ''),
+            sprintStatus: detail.sprint_status ?? null,
+            openCards: Array.isArray(detail.open_cards) ? detail.open_cards : [],
+        };
+    }
+    return {
+        message: typeof detail === 'string' ? detail : (err?.message ?? 'Falha ao concluir execucao'),
+        sprintStatus: null,
+        openCards: [],
+    };
+}
+
+function mensagemDeErro(err: any, padrao: string): string {
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (detail && typeof detail === 'object' && detail.message) return String(detail.message);
+    return err?.message ?? padrao;
+}
 
 export function useAiExecutions() {
     const navigate = useNavigate();
@@ -24,6 +49,14 @@ export function useAiExecutions() {
 
     const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
+    // Encerramento no ponto do clique (hotfix 22.0): recusa e descarte em modal.
+    const [closeTarget, setCloseTarget] = useState<{ exec: AgentTaskExecution; refusal: CloseRefusal } | null>(null);
+    const [closeError, setCloseError] = useState<string | null>(null);
+    const [closeSubmitting, setCloseSubmitting] = useState(false);
+    const [notice, setNotice] = useState<string | null>(null);
+    const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+    const [discardSubmitting, setDiscardSubmitting] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -63,18 +96,27 @@ export function useAiExecutions() {
         fetchData();
     }, [projectId]);
 
-    const handleDeleteExecution = async (executionId: string) => {
-        if (window.confirm("Tem certeza que deseja excluir esta execução agêntica? Esta ação apagará permanentemente todos os itens filhos e sub-execuções relacionados.")) {
-            setIsLoading(true);
-            try {
-                await deleteAgentExecution(executionId);
-                await fetchData();
-            } catch (err: any) {
-                console.error('Failed to delete execution:', err);
-                setError(err?.message || 'Falha ao excluir execução');
-            } finally {
-                setIsLoading(false);
-            }
+    /**
+     * Descartar = tombstone (DELETE /api/agent-executions/{id}). Nada e apagado;
+     * a confirmacao diz isso, num modal do design system (nao window.confirm).
+     */
+    const handleDeleteExecution = (executionId: string) => {
+        setDiscardTarget(executionId);
+    };
+
+    const confirmDiscard = async () => {
+        if (!discardTarget) return;
+        setDiscardSubmitting(true);
+        try {
+            await deleteAgentExecution(discardTarget);
+            setDiscardTarget(null);
+            await fetchData();
+        } catch (err: any) {
+            console.error('Failed to discard execution:', err);
+            setDiscardTarget(null);
+            setError(mensagemDeErro(err, 'Falha ao descartar execução'));
+        } finally {
+            setDiscardSubmitting(false);
         }
     };
 
@@ -84,16 +126,39 @@ export function useAiExecutions() {
      * Mexe numa execucao so, e a API so aceita com evidencia no banco (sprint
      * encerrada ou cards `done`). A recusa vem da API e e mostrada como veio:
      * reescreve-la aqui apagaria o que ela nomeia (qual sprint, quais cards).
+     *
+     * Ela abre num modal no ponto do clique — no banner do topo, fora de vista,
+     * o PO nao via nada. O modal oferece o fechamento forcado com motivo.
      */
     const handleCloseDelivered = async (exec: AgentTaskExecution) => {
-        setError(null);
+        setNotice(null);
         try {
             await closeDeliveredExecution(exec.id, exec.lock_version);
+            setNotice('Execução concluída como entregue.');
             await fetchData();
         } catch (err: any) {
-            setError(err?.response?.data?.detail ?? err?.message ?? 'Falha ao concluir execucao');
+            setCloseError(null);
+            setCloseTarget({ exec, refusal: lerRecusa(err) });
         }
     };
+
+    const confirmForceClose = async (motivo: string) => {
+        if (!closeTarget) return;
+        setCloseSubmitting(true);
+        setCloseError(null);
+        try {
+            await closeDeliveredExecution(closeTarget.exec.id, closeTarget.exec.lock_version, { motivo });
+            setCloseTarget(null);
+            setNotice('Execução concluída como entregue (forçado).');
+            await fetchData();
+        } catch (err: any) {
+            setCloseError(mensagemDeErro(err, 'Falha ao concluir execucao'));
+        } finally {
+            setCloseSubmitting(false);
+        }
+    };
+
+    const cancelClose = () => { setCloseTarget(null); setCloseError(null); };
 
     const getProjectName = (projectId: string) =>
         projects.find(p => p.id === projectId)?.name || 'Unknown Project';
@@ -195,6 +260,16 @@ export function useAiExecutions() {
         templates,
         handleDeleteExecution,
         handleCloseDelivered,
+        closeTarget,
+        closeError,
+        closeSubmitting,
+        confirmForceClose,
+        cancelClose,
+        notice,
+        discardTarget,
+        discardSubmitting,
+        confirmDiscard,
+        cancelDiscard: () => setDiscardTarget(null),
         getProjectName,
         isExecutionStuck,
         getBranchStatus,
