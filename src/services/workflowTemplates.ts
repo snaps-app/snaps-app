@@ -38,6 +38,17 @@ export const deleteWorkflowTemplate = async (templateId: string): Promise<void> 
     await api.delete(`/workflow-templates/${templateId}`);
 };
 
+/** Vocabulario de fase servido pela API (SNA-RD-167). */
+export interface PhaseDirectivesVocabulary {
+    directives: { name: string; reader: string; schema: Record<string, unknown> }[];
+    retired: { name: string; decision: string; reason: string }[];
+}
+
+export const getPhaseDirectives = async (): Promise<PhaseDirectivesVocabulary> => {
+    const response = await api.get('/workflow-templates/phase-directives');
+    return response.data;
+};
+
 export const getWorkflowTemplatesMetadata = async (): Promise<{
     available_tools: string[];
     available_skills: string[];

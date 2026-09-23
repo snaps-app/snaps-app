@@ -523,9 +523,10 @@ export interface PhaseConfigItem {
     entry_prompt?: string | null;
     exit_prompt?: string | null;
     branching_strategy?: string | null;
-    join_strategy?: string | null;
     on_failure?: string | null;
-    on_success?: string | null;
+    /** Fase de sprint que converge (ADR-0045): a cadeia que chega depois nao cria outra. */
+    convergence?: 'sprint' | null;
+    stage?: 'preview' | null;
     advance_conditions?: Record<string, any> | null;
     max_retries?: number | null;
     allowed_commands?: string[];

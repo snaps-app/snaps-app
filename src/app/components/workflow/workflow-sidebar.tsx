@@ -1,6 +1,8 @@
 import { Trash2, CheckSquare, Square } from 'lucide-react';
 import type { PhaseConfigItem } from '@/services/types';
 import { useWorkflowSidebar } from '@/app/components/workflow/useWorkflowSidebar';
+import { aposentadasDeclaradas, opcoesDaDiretiva, temDiretiva } from '@/app/components/workflow/phaseVocabulary';
+import type { PhaseDirectivesVocabulary } from '@/services/workflowTemplates';
 
 interface WorkflowSidebarProps {
   phase: PhaseConfigItem;
@@ -10,11 +12,13 @@ interface WorkflowSidebarProps {
     available_agents: string[];
   };
   allPhases: PhaseConfigItem[];
+  /** Vocabulario de fase lido da API; os campos de diretiva vem daqui. */
+  vocabulary: PhaseDirectivesVocabulary | null;
   onUpdate: (phase: PhaseConfigItem) => void;
   onDelete: () => void;
 }
 
-export function WorkflowSidebar({ phase, metadata, allPhases, onUpdate, onDelete }: WorkflowSidebarProps) {
+export function WorkflowSidebar({ phase, metadata, allPhases, vocabulary, onUpdate, onDelete }: WorkflowSidebarProps) {
   const {
     label,
     setLabel,
@@ -30,12 +34,10 @@ export function WorkflowSidebar({ phase, metadata, allPhases, onUpdate, onDelete
     setExitPrompt,
     branching,
     setBranching,
-    join,
-    setJoin,
     onFailure,
     setOnFailure,
-    onSuccess,
-    setOnSuccess,
+    convergence,
+    setConvergence,
     advanceConditions,
     setAdvanceConditions,
     maxRetries,
@@ -48,6 +50,8 @@ export function WorkflowSidebar({ phase, metadata, allPhases, onUpdate, onDelete
     handleToggleTool,
     handleToggleSkill
   } = useWorkflowSidebar({ phase, onUpdate });
+
+  const aposentadas = vocabulary ? aposentadasDeclaradas(phase, vocabulary) : [];
 
   const variableChips = ['{{sprint_name}}', '{{sprint_tag}}', '{{sprint_id}}', '{{project_id}}', '{{execution_id}}', '{{agent_name}}', '{{timestamp}}'];
 
@@ -225,41 +229,38 @@ export function WorkflowSidebar({ phase, metadata, allPhases, onUpdate, onDelete
             <option value="per_selected_plan">Per Selected Plan</option>
           </select>
         </div>
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black uppercase text-white/40 tracking-wider">Join Strategy</label>
-          <select
-            value={join}
-            onChange={(e) => {
-              setJoin(e.target.value);
-              handleChange('join_strategy', e.target.value);
-            }}
-            className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
-          >
-            <option value="None">None</option>
-            <option value="wait_all">Wait All</option>
-            <option value="wait_any">Wait Any</option>
-          </select>
-        </div>
+        {temDiretiva(vocabulary, 'convergence') && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase text-white/40 tracking-wider" title="A cadeia que chega depois se conclui sem criar outra execucao desta fase (ADR-0045)">Convergence</label>
+            <select
+              value={convergence}
+              onChange={(e) => {
+                setConvergence(e.target.value);
+                handleChange('convergence', e.target.value);
+              }}
+              className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+            >
+              <option value="None">None</option>
+              {opcoesDaDiretiva(vocabulary!, 'convergence').map(v => (
+                <option key={`convergence-${v}`} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
+
+      {aposentadas.length > 0 && (
+        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-1">
+          {aposentadas.map(r => (
+            <p key={r.name} className="text-[10px] text-amber-300">
+              <span className="font-mono">{r.name}</span> foi aposentada pela {r.decision} e sai ao salvar — {r.reason}.
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* Conditional Transitions */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black uppercase text-white/40 tracking-wider text-emerald-400">On Success</label>
-          <select
-            value={onSuccess}
-            onChange={(e) => {
-              setOnSuccess(e.target.value);
-              handleChange('on_success', e.target.value);
-            }}
-            className="w-full bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-          >
-            <option value="None">None (Default next)</option>
-            {allPhases.filter(p => p.key !== key).map(p => (
-              <option key={`success-${p.key}`} value={p.key}>{p.label}</option>
-            ))}
-          </select>
-        </div>
         <div className="space-y-1.5">
           <label className="text-[10px] font-black uppercase text-white/40 tracking-wider text-red-400">On Failure</label>
           <select

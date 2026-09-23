@@ -139,6 +139,9 @@ export const useCockpitState = (
 
                 const data = await getAgentExecution(executionId);
                 setExecution(data);
+                // Camada 3 (D84): o campo mostra o mission_context autorado, ou
+                // fica vazio. Sem isto o "Refresh" reenviava '' e apagava o texto.
+                setMissionInstructions(data.context_data?.mission_context?.texto ?? '');
                 const tree = fetchSisters ? await fetchSisters() : [];
 
                 try {

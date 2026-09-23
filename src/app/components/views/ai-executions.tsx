@@ -13,7 +13,8 @@ import {
     Layout as LayoutIcon,
     GitBranch,
     ArrowRight,
-    Trash2
+    Trash2,
+    PackageCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WorkflowFlowPreview } from '@/app/components/workflow/workflow-flow-preview';
@@ -39,6 +40,7 @@ export const AIExecutions = () => {
         setIsModalOpen,
         templates,
         handleDeleteExecution,
+        handleCloseDelivered,
         getProjectName,
         isExecutionStuck,
         getBranchStatus,
@@ -291,7 +293,7 @@ export const AIExecutions = () => {
                                                     handleDeleteExecution(root.id);
                                                 }}
                                                 className="p-2 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 shrink-0"
-                                                title="Excluir Execução"
+                                                title="Descartar (lapide na arvore inteira)"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
@@ -375,6 +377,19 @@ export const AIExecutions = () => {
                                                                             >
                                                                                 ⚠️ Travada
                                                                             </span>
+                                                                        )}
+                                                                        {estaEmVoo(exec) && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleCloseDelivered(exec);
+                                                                                }}
+                                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider text-emerald-400/70 border border-emerald-500/20 hover:bg-emerald-500/10 hover:text-emerald-300 transition-all"
+                                                                                title="Concluir como entregue: so esta execucao, e so com evidencia no banco (sprint encerrada ou cards done). Nao e descarte."
+                                                                            >
+                                                                                <PackageCheck className="w-3 h-3" />
+                                                                                Concluir (entregue)
+                                                                            </button>
                                                                         )}
                                                                         <span className={`text-[10px] font-bold uppercase ${esc.color}`}>{exec.status.replace(/_/g, ' ')}</span>
                                                                         <ArrowRight className="w-3.5 h-3.5 text-white/10 group-hover:text-purple-400 transition-colors" />

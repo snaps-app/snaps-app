@@ -83,12 +83,14 @@ export const syncAgentExecution = async (
     decisionIds?: string[],
     testPlanIds?: string[],
     expectedRevision?: number,
+    rejectedSnapIds?: string[],
 ): Promise<AgentTaskExecution> => {
     const response = await api.post(`/api/agent-executions/${executionId}/sync`, {
         instructions,
         doc_ids: docIds,
         decision_ids: decisionIds,
         test_plan_ids: testPlanIds,
+        rejected_snap_ids: rejectedSnapIds,
         expected_revision: expectedRevision,
     }, commandConfig());
     return response.data;
@@ -103,6 +105,25 @@ export const deleteAgentExecution = async (executionId: string, expectedRevision
     await api.delete(`/api/agent-executions/${executionId}`, {
         ...commandConfig(), params: { expected_revision: expectedRevision },
     });
+};
+
+/**
+ * Conclui a execucao cujo trabalho foi ENTREGUE (SNA-RD-166) — nao e descarte.
+ *
+ * Sem Idempotency-Key de proposito: a API deriva a chave da revisao E do estado
+ * da evidencia (sprint, cards). Uma chave aleatoria por clique exigiria mandar a
+ * revisao junto, e uma chave fixa reapresentaria a recusa antiga mesmo depois
+ * de os cards ficarem `done`.
+ */
+export const closeDeliveredExecution = async (
+    executionId: string,
+    expectedRevision?: number,
+): Promise<AgentTaskExecution> => {
+    const response = await api.post(
+        `/api/agent-executions/${executionId}/close-delivered`, null,
+        { params: { expected_revision: expectedRevision } },
+    );
+    return response.data;
 };
 
 export const createExecutionOverrideDecision = async (
