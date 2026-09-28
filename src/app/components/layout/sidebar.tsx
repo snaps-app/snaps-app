@@ -10,7 +10,8 @@ import {
   Shield,
   Bot,
   Users,
-  Clock
+  Clock,
+  Settings
 } from 'lucide-react';
 
 import { motion } from 'motion/react';
@@ -41,6 +42,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
   if (globalRole === 'super_admin') {
     navItems.push({ label: 'Users', icon: Users, path: '/users' });
+    navItems.push({ label: 'Settings', icon: Settings, path: '/settings' });
   }
 
   return (

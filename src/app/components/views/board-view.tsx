@@ -77,7 +77,6 @@ export function BoardView() {
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
-  const [plannerInput, setPlannerInput] = useState('');
   const [isBulkApplyOpen, setIsBulkApplyOpen] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
@@ -248,7 +247,7 @@ export function BoardView() {
         <SprintModal isOpen={isSprintModalOpen} onClose={() => setIsSprintModalOpen(false)} {...{ sprints, editingSprintId, sprintNameInput, sprintTagInput, sprintObjectiveInput, isSprintFormOpen, isSprintSaving, setSprintNameInput, setSprintTagInput, setSprintObjectiveInput, setIsSprintFormOpen, setEditingSprintId, handleCreateSprint: onCreateSprint, handleUpdateSprint: onUpdateSprint, handleDeleteSprint, startEditingSprint: (s: any) => { setEditingSprintId(s.id); setSprintNameInput(s.name); setSprintTagInput(s.tag); setSprintObjectiveInput(s.objective || ''); } }} />
         <BulkApplyModal isOpen={isBulkApplyOpen} onClose={() => setIsBulkApplyOpen(false)} {...{ isLoadingBoards, allBoards, selectedBoardIds, toggleBoardSelection: (id) => { const n = new Set(selectedBoardIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedBoardIds(n); }, handleBulkApplyConfirm: async () => { if (!board?.columns) return; setIsBulkSaving(true); try { if (isDirty) await handleSaveBoard(); await Promise.all(Array.from(selectedBoardIds).map(id => updateBoard(id, { columns: board.columns }))); setIsBulkApplyOpen(false); setSelectedBoardIds(new Set()); } finally { setIsBulkSaving(false); } }, isBulkSaving }} />
         <VaccinationModal isOpen={isVaccinationModalOpen} onClose={() => setIsVaccinationModalOpen(false)} {...{ vaccinationCard, vaccinationContent, setVaccinationContent, handleVaccinate: async () => { if (!vaccinationCard || !projectId) return; setIsVaccinating(true); try { await createSnap({ project_id: projectId, name: `[VACINA] ${vaccinationCard.title}`, description: `Resolução do bug ${vaccinationCard.code || ''}`, content: vaccinationContent, snadds: { labels: ['bug-vaccination'], status: 'vacinado' } }); setIsVaccinationModalOpen(false); } finally { setIsVaccinating(false); } }, isVaccinating }} />
-        <PlannerPanel isOpen={isPlannerOpen} onClose={() => setIsPlannerOpen(false)} {...{ plannerInput, setPlannerInput }} />
+        <PlannerPanel isOpen={isPlannerOpen} onClose={() => setIsPlannerOpen(false)} projectId={projectId} onBoardChanged={() => { if (localBoardId) fetchBoard(localBoardId); }} />
         {isCardModalOpen && (
           <CardModal 
             isOpen={isCardModalOpen} 

@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import type { Message } from '@/services/types';
+import { perfilDaMensagem } from './perfis';
 
 interface ChatMessageProps {
   message: Message;
@@ -8,6 +9,7 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message, index }: ChatMessageProps) {
   const isAssistant = message.role === 'assistant';
+  const perfil = isAssistant ? perfilDaMensagem(message.tool_calls) : null;
   
   return (
     <motion.div
@@ -49,6 +51,7 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
               className="text-xs mt-2 block"
               style={{ color: 'var(--snaps-text-secondary)' }}
             >
+              {perfil && <span data-testid="perfil-da-resposta">{perfil} · </span>}
               {message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
             </span>
           </div>
