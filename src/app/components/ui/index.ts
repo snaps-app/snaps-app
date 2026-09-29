@@ -17,6 +17,7 @@ export {
   DialogDescription,
 } from '@/app/components/ui/dialog';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';
+export { Pagination } from '@/app/components/ui/pagination';
 export {
   DropdownMenu,
   DropdownMenuTrigger,

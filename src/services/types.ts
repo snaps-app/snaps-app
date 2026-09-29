@@ -584,6 +584,30 @@ export interface AgentTaskExecution {
     updated_at: string;
 }
 
+/** Linha da lista de AI Executions: a API nao manda snapshots nem contexto aqui. */
+export type ExecutionListItem = Pick<AgentTaskExecution,
+    'id' | 'project_id' | 'status' | 'tombstoned_at' | 'phase' | 'sprint_ids' | 'agent_name'
+    | 'parent_id' | 'root_id' | 'branch_type' | 'workflow_template_id' | 'lock_version'
+    | 'created_at' | 'updated_at'>;
+
+/** Contadores do topo, sobre TODAS as execucoes do escopo (nao so a pagina). */
+export interface ExecutionTotals {
+    total: number;
+    done: number;
+    active: number;
+    failed: number;
+    discarded: number;
+}
+
+export interface ExecutionBranchesPage {
+    /** Todas as execucoes das branches desta pagina. */
+    items: ExecutionListItem[];
+    page: number;
+    page_size: number;
+    total_branches: number;
+    totals: ExecutionTotals;
+}
+
 export interface AgentTaskExecutionCreate {
     project_id: string;
     phase: string;

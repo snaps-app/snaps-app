@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { closeDeliveredExecution, deleteAgentExecution, getAllAgentExecutions, getProjectAgentExecutions } from '@/services/agentExecutions';
-import { getProjectBoard } from '@/services/boards';
+import { closeDeliveredExecution, deleteAgentExecution, getExecutionBranchesPage } from '@/services/agentExecutions';
 import { getProjects } from '@/services/projects';
 import { getSprints } from '@/services/sprints';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
 import { estaEncerrada } from '@/services/executionStatus';
-import type { AgentTaskExecution, Project, Sprint, WorkflowTemplate } from '@/services/types';
+import type { ExecutionListItem, ExecutionTotals, Project, Sprint, WorkflowTemplate } from '@/services/types';
 import type { CloseRefusal } from '@/app/components/modals/execution-close-modals';
 
 /** A recusa da API como veio: `detail` estruturado (sprint_status, open_cards) ou texto. */
@@ -33,10 +32,26 @@ function mensagemDeErro(err: any, padrao: string): string {
     return err?.message ?? padrao;
 }
 
+/** Branches por pagina. Paginacao e busca acontecem no servidor. */
+export const EXECUCOES_POR_PAGINA = 20;
+
+/** Espera de digitacao antes de a busca ir ao servidor. */
+const ESPERA_DA_BUSCA_MS = 300;
+
 export function useAiExecutions() {
     const navigate = useNavigate();
     const { projectId } = useParams<{ projectId?: string }>();
-    const [executions, setExecutions] = useState<AgentTaskExecution[]>([]);
+    // So as execucoes das branches da pagina atual. Os contadores do topo NAO
+    // saem daqui: vem prontos em `totals`, contados pelo servidor sobre o
+    // escopo inteiro -- contar sobre a pagina daria 20 branches de total.
+    const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
+    const [totals, setTotals] = useState<ExecutionTotals | null>(null);
+    const [totalBranches, setTotalBranches] = useState(0);
+    const [page, setPage] = useState(1);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [isFetchingPage, setIsFetchingPage] = useState(false);
+    const ultimaRequisicao = useRef(0);
+    const sprintsCarregados = useRef(new Set<string>());
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
@@ -51,50 +66,90 @@ export function useAiExecutions() {
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
     // Encerramento no ponto do clique (hotfix 22.0): recusa e descarte em modal.
-    const [closeTarget, setCloseTarget] = useState<{ exec: AgentTaskExecution; refusal: CloseRefusal } | null>(null);
+    const [closeTarget, setCloseTarget] = useState<{ exec: ExecutionListItem; refusal: CloseRefusal } | null>(null);
     const [closeError, setCloseError] = useState<string | null>(null);
     const [closeSubmitting, setCloseSubmitting] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
     const [discardTarget, setDiscardTarget] = useState<string | null>(null);
     const [discardSubmitting, setDiscardSubmitting] = useState(false);
 
+    /**
+     * Sprints so dos projetos que aparecem na pagina. Antes a visao global
+     * pedia as sprints de TODOS os projetos, uma requisicao por projeto, a
+     * cada carga -- e a tela do projeto baixava o board inteiro sem usa-lo.
+     */
+    const carregarSprints = async (items: ExecutionListItem[]) => {
+        const precisa = projectId ? [projectId] : [...new Set(items.map(e => e.project_id))];
+        const faltando = precisa.filter(id => !sprintsCarregados.current.has(id));
+        if (faltando.length === 0) return;
+        faltando.forEach(id => sprintsCarregados.current.add(id));
+        const lotes = await Promise.all(faltando.map(id => getSprints(id).catch(() => [] as Sprint[])));
+        setAvailableSprints(prev => [...prev, ...lotes.flat()]);
+    };
+
     const fetchData = async () => {
+        const requisicao = ++ultimaRequisicao.current;
+        setIsFetchingPage(true);
         try {
-            const [execsData, projsData, templatesData] = await Promise.all([
-                projectId ? getProjectAgentExecutions(projectId) : getAllAgentExecutions(),
-                getProjects(),
-                getWorkflowTemplates()
-            ]);
+            const resposta = await getExecutionBranchesPage({
+                projectId,
+                page,
+                pageSize: EXECUCOES_POR_PAGINA,
+                search: debouncedSearch,
+            });
+            // Resposta de uma pagina que o usuario ja deixou para tras.
+            if (requisicao !== ultimaRequisicao.current) return;
 
-            setExecutions(execsData);
-            setProjects(projsData);
-            setTemplates(templatesData);
-            if (templatesData.length > 0) {
-                setSelectedTemplateId(templatesData[0].id);
+            const totalPaginas = Math.max(1, Math.ceil(resposta.total_branches / EXECUCOES_POR_PAGINA));
+            if (page > totalPaginas) {
+                setPage(totalPaginas);
+                return;
             }
-
-            if (projectId) {
-                const [sprintsData] = await Promise.all([
-                    getSprints(projectId),
-                    getProjectBoard(projectId)
-                ]);
-                setAvailableSprints(sprintsData);
-            } else {
-                const sprintsPromises = projsData.map(p => getSprints(p.id).catch(() => []));
-                const sprintsArrays = await Promise.all(sprintsPromises);
-                setAvailableSprints(sprintsArrays.flat());
-            }
+            setExecutions(resposta.items);
+            setTotals(resposta.totals);
+            setTotalBranches(resposta.total_branches);
+            setError(null);
+            await carregarSprints(resposta.items);
         } catch (err: any) {
+            if (requisicao !== ultimaRequisicao.current) return;
             console.error('Failed to fetch AI executions:', err);
             setError(err?.message || 'Failed to load executions');
         } finally {
-            setIsLoading(false);
+            if (requisicao === ultimaRequisicao.current) {
+                setIsFetchingPage(false);
+                setIsLoading(false);
+            }
         }
     };
 
+    // Projetos e templates nao dependem da pagina: uma vez por escopo.
+    useEffect(() => {
+        setPage(1);
+        Promise.all([getProjects(), getWorkflowTemplates()])
+            .then(([projsData, templatesData]) => {
+                setProjects(projsData);
+                setTemplates(templatesData);
+                if (templatesData.length > 0) {
+                    setSelectedTemplateId(templatesData[0].id);
+                }
+            })
+            .catch((err: any) => {
+                console.error('Failed to fetch projects/templates:', err);
+                setError(err?.message || 'Failed to load executions');
+            });
+    }, [projectId]);
+
+    useEffect(() => {
+        const t = setTimeout(() => {
+            setDebouncedSearch(searchTerm.trim());
+            setPage(1);
+        }, ESPERA_DA_BUSCA_MS);
+        return () => clearTimeout(t);
+    }, [searchTerm]);
+
     useEffect(() => {
         fetchData();
-    }, [projectId]);
+    }, [projectId, page, debouncedSearch]);
 
     /**
      * Descartar = tombstone (DELETE /api/agent-executions/{id}). Nada e apagado;
@@ -130,7 +185,7 @@ export function useAiExecutions() {
      * Ela abre num modal no ponto do clique — no banner do topo, fora de vista,
      * o PO nao via nada. O modal oferece o fechamento forcado com motivo.
      */
-    const handleCloseDelivered = async (exec: AgentTaskExecution) => {
+    const handleCloseDelivered = async (exec: ExecutionListItem) => {
         setNotice(null);
         try {
             await closeDeliveredExecution(exec.id, exec.lock_version);
@@ -163,7 +218,7 @@ export function useAiExecutions() {
     const getProjectName = (projectId: string) =>
         projects.find(p => p.id === projectId)?.name || 'Unknown Project';
 
-    const isExecutionStuck = (exec: AgentTaskExecution) => {
+    const isExecutionStuck = (exec: ExecutionListItem) => {
         // Encerrada nao trava. A lista de status terminal mora em
         // `services/executionStatus.ts` — escrita a mao aqui, ela nao conhecia
         // `cancelled`, e toda lapide virava ⚠️ TRAVADA para sempre.
@@ -181,14 +236,14 @@ export function useAiExecutions() {
         return diffHours > thresholdHours;
     };
 
-    const getBranchStatus = (execs: AgentTaskExecution[]) => {
+    const getBranchStatus = (execs: ExecutionListItem[]) => {
         if (!execs || execs.length === 0) return 'pending';
         const sorted = [...execs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         const lastExec = sorted[sorted.length - 1];
         return lastExec.status;
     };
 
-    const isBranchStuck = (allInBranch: AgentTaskExecution[]) => {
+    const isBranchStuck = (allInBranch: ExecutionListItem[]) => {
         // Esta era a SEGUNDA copia da mesma lista, e divergia da primeira:
         // conhecia `completed`, que a outra nao conhecia. Duas implementacoes
         // da mesma regra divergem — foi assim que a lapide passou.
@@ -212,15 +267,17 @@ export function useAiExecutions() {
         return `${minutes}m`;
     };
 
-    const filtered = executions.filter(exec =>
-        getProjectName(exec.project_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (exec.agent_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const rootExecs = filtered.filter(e => !e.parent_id);
+    // A busca ja veio aplicada pelo servidor: `executions` e a pagina filtrada.
+    const rootExecs = executions.filter(e => !e.parent_id);
+    // A raiz grava `root_id = id`: sem excluir ela mesma, entrava duas vezes
+    // na branch e o "N executions" contava uma a mais.
     const getBranchChildren = (rootId: string) =>
-        filtered.filter(e => e.root_id === rootId || (e.parent_id === rootId && !e.root_id));
+        executions.filter(e => e.id !== rootId && (e.root_id === rootId || (e.parent_id === rootId && !e.root_id)));
 
+    const totalPages = Math.max(1, Math.ceil(totalBranches / EXECUCOES_POR_PAGINA));
+
+    // Mesma ordem do servidor (travadas primeiro, raiz mais recente), refeita
+    // aqui porque `items` vem por data de criacao, nao agrupado por branch.
     const sortedRootExecs = [...rootExecs].sort((a, b) => {
         const aChildren = getBranchChildren(a.id);
         const bChildren = getBranchChildren(b.id);
@@ -246,6 +303,12 @@ export function useAiExecutions() {
         navigate,
         projectId,
         executions,
+        totals,
+        totalBranches,
+        page,
+        totalPages,
+        setPage,
+        isFetchingPage,
         projects,
         isLoading,
         isCreating,
