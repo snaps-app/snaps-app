@@ -93,7 +93,7 @@ export function ActiveChat() {
           transition={{ duration: 0.5 }}
         >
           {/* Chat Header */}
-          <div className="p-6 pt-16 md:pt-6 border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="p-6 pt-16 md:pt-6 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -111,7 +111,7 @@ export function ActiveChat() {
 
               <div>
                 <h2
-                  className="text-xl font-bold whitespace-nowrap"
+                  className="text-xl font-bold"
                   style={{
                     background: 'linear-gradient(135deg, #00D4FF 0%, #A855F7 100%)',
                     WebkitBackgroundClip: 'text',
@@ -126,7 +126,7 @@ export function ActiveChat() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5" style={{ color: 'var(--snaps-accent-blue)' }} />
               <SeletorDePerfil
                 perfil={perfil}
