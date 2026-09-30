@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { AgentTaskExecution, AgentTaskExecutionCreate } from './types';
+import type { AgentTaskExecution, AgentTaskExecutionCreate, ExecutionBranchesPage } from './types';
 
 const commandConfig = () => ({
     headers: { 'Idempotency-Key': crypto.randomUUID() },
@@ -93,6 +93,25 @@ export const syncAgentExecution = async (
         rejected_snap_ids: rejectedSnapIds,
         expected_revision: expectedRevision,
     }, commandConfig());
+    return response.data;
+};
+
+/**
+ * Uma pagina de branches da tela AI Executions, paginada e buscada no servidor.
+ * Sem `projectId`, e a visao global (projetos que o usuario enxerga).
+ */
+export const getExecutionBranchesPage = async (params: {
+    projectId?: string;
+    page: number;
+    pageSize: number;
+    search?: string;
+}): Promise<ExecutionBranchesPage> => {
+    const url = params.projectId
+        ? `/api/projects/${params.projectId}/agent-executions/branches`
+        : '/api/agent-executions/branches';
+    const response = await api.get(url, {
+        params: { page: params.page, page_size: params.pageSize, search: params.search || undefined },
+    });
     return response.data;
 };
 

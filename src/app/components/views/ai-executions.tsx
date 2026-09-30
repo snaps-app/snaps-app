@@ -1,4 +1,4 @@
-import type { AgentTaskExecution, WorkflowTemplate } from '@/services/types';
+import type { ExecutionListItem } from '@/services/types';
 import React from 'react';
 import {
     Bot,
@@ -20,15 +20,21 @@ import { motion, AnimatePresence } from 'motion/react';
 import { WorkflowFlowPreview } from '@/app/components/workflow/workflow-flow-preview';
 import { Spinner } from '@/app/components/ui/spinner';
 import { StrategyConfiguratorModal } from '@/app/components/modals/strategy-configurator-modal';
-import { useAiExecutions } from '@/app/components/views/useAiExecutions';
+import { Pagination } from '@/app/components/ui/pagination';
+import { EXECUCOES_POR_PAGINA, useAiExecutions } from '@/app/components/views/useAiExecutions';
 import { CloseDeliveredModal, DiscardExecutionModal } from '@/app/components/modals/execution-close-modals';
-import { estaEmVoo, foiDescartada } from '@/services/executionStatus';
+import { estaEmVoo } from '@/services/executionStatus';
 
 export const AIExecutions = () => {
     const {
         navigate,
         projectId,
-        executions,
+        totals,
+        totalBranches,
+        page,
+        totalPages,
+        setPage,
+        isFetchingPage,
         projects,
         isLoading,
         isCreating,
@@ -88,7 +94,7 @@ export const AIExecutions = () => {
     };
 
     const branchPhaseOrder = ['macro_planning', 'micro_planning', 'execution', 'assurance', 'retro'];
-    const getLatestPhase = (execs: AgentTaskExecution[]) => {
+    const getLatestPhase = (execs: ExecutionListItem[]) => {
         let maxIdx = -1;
         execs.forEach(e => {
             const idx = branchPhaseOrder.indexOf(e.phase);
@@ -178,20 +184,19 @@ export const AIExecutions = () => {
                 />
 
                 {/* Stats */}
-                {!isLoading && executions.length > 0 && (
+                {!isLoading && totals && totals.total > 0 && (
                     <div className="flex items-center gap-6 mb-8 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
                         {[
-                            // `Done` contava so `status === 'done'` e ignorava
-                            // `completed`, que e o que o motor grava ao concluir
-                            // uma fase — dai 31 de 267. E `Active` era tudo que
-                            // nao fosse done/failed, entao lapide e execucao
-                            // concluida entravam como em voo: 236 "ativas" num
-                            // projeto sem nenhuma rodando.
-                            { label: 'Total', value: executions.length, color: 'text-white' },
-                            { label: 'Done', value: executions.filter(e => !foiDescartada(e) && (e.status === 'done' || e.status === 'completed')).length, color: 'text-green-400' },
-                            { label: 'Active', value: executions.filter(estaEmVoo).length, color: 'text-purple-400' },
-                            { label: 'Failed', value: executions.filter(e => e.status === 'failed').length, color: 'text-red-400' },
-                            { label: 'Discarded', value: executions.filter(foiDescartada).length, color: 'text-white/30' },
+                            // Contados pelo SERVIDOR sobre o escopo inteiro, com
+                            // as regras de `executionStatus.ts` (espelhadas em
+                            // `crud/workflow/executions/listagem.py`). A lista
+                            // abaixo e paginada; contar sobre `executions` daria
+                            // o total da pagina, nao do projeto.
+                            { label: 'Total', value: totals.total, color: 'text-white' },
+                            { label: 'Done', value: totals.done, color: 'text-green-400' },
+                            { label: 'Active', value: totals.active, color: 'text-purple-400' },
+                            { label: 'Failed', value: totals.failed, color: 'text-red-400' },
+                            { label: 'Discarded', value: totals.discarded, color: 'text-white/30' },
                         ].map((stat, i) => (
                             <React.Fragment key={stat.label}>
                                 {i > 0 && <div className="w-px h-8 bg-white/10" />}
@@ -236,7 +241,8 @@ export const AIExecutions = () => {
 
                 {/* Branch List */}
                 {sortedRootExecs.length > 0 ? (
-                    <div className="space-y-3">
+                    <>
+                    <div className={`space-y-3 transition-opacity ${isFetchingPage ? 'opacity-50' : ''}`} aria-busy={isFetchingPage}>
                         {sortedRootExecs.map((root) => {
                             const children = getBranchChildren(root.id);
                             const allInBranch = [root, ...children];
@@ -442,6 +448,14 @@ export const AIExecutions = () => {
                             );
                         })}
                     </div>
+                    <Pagination
+                        page={page}
+                        totalPages={totalPages}
+                        onPageChange={(p) => { setExpandedBranch(null); setPage(p); }}
+                        disabled={isFetchingPage}
+                        summary={`Mostrando ${(page - 1) * EXECUCOES_POR_PAGINA + 1}–${Math.min(page * EXECUCOES_POR_PAGINA, totalBranches)} de ${totalBranches} branches`}
+                    />
+                    </>
                 ) : (
                     <div className="py-32 text-center rounded-3xl border border-dashed border-white/10">
                         <Bot className="w-14 h-14 text-white/5 mx-auto mb-5" />

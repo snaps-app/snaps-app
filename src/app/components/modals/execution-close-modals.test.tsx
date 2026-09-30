@@ -13,16 +13,15 @@ import { MemoryRouter } from 'react-router-dom';
 vi.mock('@/services/agentExecutions', () => ({
   closeDeliveredExecution: vi.fn(),
   deleteAgentExecution: vi.fn(),
-  getAllAgentExecutions: vi.fn(),
-  getProjectAgentExecutions: vi.fn(),
+  getExecutionBranchesPage: vi.fn(),
 }));
-vi.mock('@/services/boards', () => ({ getProjectBoard: vi.fn() }));
 vi.mock('@/services/projects', () => ({ getProjects: vi.fn() }));
 vi.mock('@/services/sprints', () => ({ getSprints: vi.fn() }));
 vi.mock('@/services/workflowTemplates', () => ({ getWorkflowTemplates: vi.fn() }));
 
-import { closeDeliveredExecution, deleteAgentExecution, getAllAgentExecutions } from '@/services/agentExecutions';
+import { closeDeliveredExecution, deleteAgentExecution, getExecutionBranchesPage } from '@/services/agentExecutions';
 import { getProjects } from '@/services/projects';
+import { getSprints } from '@/services/sprints';
 import { getWorkflowTemplates } from '@/services/workflowTemplates';
 import { useAiExecutions } from '@/app/components/views/useAiExecutions';
 import { CloseDeliveredModal, DiscardExecutionModal } from './execution-close-modals';
@@ -73,13 +72,17 @@ function Harness() {
 
 const montar = async () => {
   render(<MemoryRouter><Harness /></MemoryRouter>);
-  await waitFor(() => expect(getAllAgentExecutions).toHaveBeenCalled());
+  await waitFor(() => expect(getExecutionBranchesPage).toHaveBeenCalled());
 };
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(getAllAgentExecutions).mockResolvedValue([exec]);
+  vi.mocked(getExecutionBranchesPage).mockResolvedValue({
+    items: [exec], page: 1, page_size: 20, total_branches: 1,
+    totals: { total: 1, done: 0, active: 1, failed: 0, discarded: 0 },
+  });
   vi.mocked(getProjects).mockResolvedValue([] as any);
+  vi.mocked(getSprints).mockResolvedValue([] as any);
   vi.mocked(getWorkflowTemplates).mockResolvedValue([] as any);
 });
 afterEach(cleanup);
@@ -125,7 +128,7 @@ describe('Concluir (entregue)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(closeDeliveredExecution).toHaveBeenLastCalledWith('e1', 3, { motivo: 'entregue fora do fluxo' });
     expect(screen.getByRole('status').textContent).toMatch(/concluída/);
-    expect(getAllAgentExecutions).toHaveBeenCalledTimes(2);
+    expect(getExecutionBranchesPage).toHaveBeenCalledTimes(2);
   });
 
   it('erro da segunda chamada aparece dentro do modal', async () => {
@@ -160,7 +163,7 @@ describe('Concluir (entregue)', () => {
 
     expect(await screen.findByRole('status')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(getAllAgentExecutions).toHaveBeenCalledTimes(2);
+    expect(getExecutionBranchesPage).toHaveBeenCalledTimes(2);
   });
 });
 
