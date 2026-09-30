@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Timer, Minus, X, Play, Square, ListChecks } from 'lucide-react';
+import { Timer, Minus, X, Play, Square, ListChecks, Clock } from 'lucide-react';
 import { startExecutionSession, endExecutionSession, saveSessionHeartbeat } from '@/services/timeLogs';
 
 interface ExecutionTimerProps {
     executionId: string;
     projectId: string;
     onManageSessions?: () => void;
+    onLogHours?: () => void;
 }
 
 function formatElapsed(seconds: number): string {
@@ -15,7 +16,7 @@ function formatElapsed(seconds: number): string {
     return `${h}:${m}:${s}`;
 }
 
-export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onManageSessions }) => {
+export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onManageSessions, onLogHours }) => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [startedAt, setStartedAt] = useState<Date | null>(null);
     const [elapsed, setElapsed] = useState(0);
@@ -215,6 +216,15 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onM
                             title="Listar, criar, editar e excluir sessões desta execução"
                         >
                             <ListChecks className="w-3.5 h-3.5" /> Gerenciar sessões
+                        </button>
+                    )}
+                    {onLogHours && (
+                        <button
+                            onClick={onLogHours}
+                            className="mt-1 w-full flex items-center justify-center gap-1.5 text-purple-300/80 hover:text-purple-200 hover:bg-purple-500/10 text-[11px] font-medium py-1.5 rounded-md transition-colors"
+                            title="Apontar as sessões encerradas em um time log, sem finalizar a execução. Elas ficam travadas."
+                        >
+                            <Clock className="w-3.5 h-3.5" /> Apontar horas
                         </button>
                     )}
                 </div>

@@ -6,6 +6,9 @@ export interface ExecutionSession {
     started_at: string;
     ended_at: string | null;
     duration_hours: number;
+    // Sessão já apontada em um time log: não pode mais ser editada nem excluída.
+    time_log_id?: string | null;
+    locked?: boolean;
 }
 
 export interface TimeLog {
@@ -35,6 +38,8 @@ export interface TimeLogCreate {
     hours: number;
     description?: string;
     status?: 'draft' | 'confirmed';
+    // Sessões da execução cobertas por este apontamento; ficam travadas ao criar.
+    session_ids?: string[];
 }
 
 export interface TimeLogFilters {
@@ -49,6 +54,7 @@ export interface DraftEntry {
     hours: number;
     description: string;
     user_id: string;
+    session_ids?: string[];
 }
 
 export interface Participant {

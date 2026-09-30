@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Layout, ShieldCheck, Bug, Network, Bot, CheckSquare, StickyNote, RefreshCcw } from 'lucide-react';
 import { updateGovernanceDoc } from '@/services/governance';
@@ -133,6 +134,10 @@ export const ExecutionCockpit: React.FC = () => {
         isSessionManagerOpen,
         setIsSessionManagerOpen,
     } = useExecutionCockpit();
+    // Apontamento parcial no meio da execução (não encerra o cockpit). `timeLogsVersion`
+    // remonta o gerenciador de sessões para refletir as sessões recém-travadas.
+    const [isPartialLogOpen, setIsPartialLogOpen] = useState(false);
+    const [timeLogsVersion, setTimeLogsVersion] = useState(0);
 
     if (isLoading) {
         return (
@@ -455,15 +460,29 @@ export const ExecutionCockpit: React.FC = () => {
 
             {/* Live Session Timer — fixed bottom-right, hidden when execution is done */}
             {execution.status !== 'done' && (
-                <ExecutionTimer executionId={execution.id} projectId={projectId!} onManageSessions={() => setIsSessionManagerOpen(true)} />
+                <ExecutionTimer executionId={execution.id} projectId={projectId!} onManageSessions={() => setIsSessionManagerOpen(true)} onLogHours={() => setIsPartialLogOpen(true)} />
             )}
 
             {/* Session Manager — manage execution_sessions from the cockpit before finalizing */}
             {isSessionManagerOpen && (
                 <SessionManagerModal
+                    key={timeLogsVersion}
                     executionId={execution.id}
                     projectId={projectId!}
                     onClose={() => setIsSessionManagerOpen(false)}
+                    onLogHours={() => setIsPartialLogOpen(true)}
+                />
+            )}
+
+            {/* Apontamento parcial — registra horas de sessões encerradas sem finalizar a execução */}
+            {isPartialLogOpen && (
+                <TimeTrackingModal
+                    partial
+                    execution={execution}
+                    projectId={projectId!}
+                    availableCards={cards}
+                    onClose={() => { setIsPartialLogOpen(false); setTimeLogsVersion((v) => v + 1); }}
+                    onSkip={() => setIsPartialLogOpen(false)}
                 />
             )}
 
