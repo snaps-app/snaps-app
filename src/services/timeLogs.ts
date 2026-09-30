@@ -68,10 +68,11 @@ export const downloadTimeReport = async (
     projectId: string,
     startDate?: string,
     endDate?: string,
-    theme = 'dark'
+    theme = 'dark',
+    userId?: string
 ): Promise<Blob> => {
     const response = await api.get(`/projects/${projectId}/time-logs/report`, {
-        params: { start_date: startDate, end_date: endDate, theme },
+        params: { start_date: startDate, end_date: endDate, theme, user_id: userId },
         responseType: 'blob',
     });
     return response.data;
