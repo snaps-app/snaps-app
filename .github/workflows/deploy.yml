@@ -15,11 +15,13 @@ name: Deploy snaps-app (Vercel)
 # Por que o merge sem deploy do SNA-SUP-69 nao se repete em silencio: o deploy
 # agora e um job deste repositorio. Se ele nao roda ou falha, o check fica
 # vermelho no commit.
+# Preview: pela PR (pull_request) ou sob demanda (workflow_dispatch). O push em
+# `sprint-**` saiu: com a PR aberta ele publicava o mesmo preview duas vezes, e sem
+# PR publicava a cada commit sem ninguem olhar (30/09/2026, minutos de Actions).
 on:
   push:
     branches:
       - master
-      - 'sprint-**'
   pull_request:
   workflow_dispatch:
 
