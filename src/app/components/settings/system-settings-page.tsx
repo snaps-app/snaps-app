@@ -325,12 +325,20 @@ export function SystemSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen p-6 md:p-10 flex flex-col gap-6 max-w-4xl" style={{ fontFamily: 'Inter, sans-serif' }}>
-      <header>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--snaps-text-primary)' }}>Settings do sistema</h1>
-        <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-          Gestão da plataforma Snaps e do Neuron. As Settings de cada projeto ficam no projeto.
-        </p>
+    <div className="p-6 max-w-5xl mx-auto flex flex-col gap-6">
+      <header className="flex items-center gap-3">
+        <div
+          className="p-2 rounded-xl"
+          style={{ background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)' }}
+        >
+          <SettingsIcon className="w-6 h-6" style={{ color: 'var(--snaps-accent-purple)' }} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Settings do sistema</h1>
+          <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
+            Gestão da plataforma Snaps e do Neuron. As Settings de cada projeto ficam no projeto.
+          </p>
+        </div>
       </header>
       {corpo}
     </div>
