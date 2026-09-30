@@ -12,6 +12,8 @@ interface TimeTrackingModalProps {
     projectId: string;
     /** Cards already loaded by the cockpit (includes the sprint macrocard). */
     availableCards?: Card[];
+    /** Apontamento parcial no meio da execução: só sessões encerradas e ainda não apontadas; trava o que for apontado. */
+    partial?: boolean;
     onClose: () => void;
     onSkip: () => void;
 }
@@ -24,12 +26,16 @@ interface EditableDraft {
     hours: number;
     description: string;
     participantIds: string[];
+    // Dono das sessões que originaram a entrada e as próprias sessões: só o log do dono as trava.
+    ownerId?: string;
+    sessionIds: string[];
 }
 
 export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
     execution,
     projectId,
     availableCards,
+    partial = false,
     onClose,
     onSkip,
 }) => {
@@ -57,7 +63,7 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                 const uid = currentUser?.id ?? '';
                 setCurrentUserId(uid);
 
-                const draft = await getTimeDraft(execution.id);
+                const draft = await getTimeDraft(execution.id, !partial);
 
                 // Each draft starts assigned to its own session owner (or the current user).
                 setDrafts(draft.drafts.map((d, i) => ({
@@ -66,6 +72,8 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                     hours: Math.round(d.hours * 100) / 100,
                     description: d.description,
                     participantIds: [String(d.user_id) || uid].filter(Boolean),
+                    ownerId: String(d.user_id),
+                    sessionIds: (d.session_ids ?? []).map(String),
                 })));
 
                 setParticipants(draft.participants);
@@ -129,7 +137,7 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
             ?? participants[0]?.user_id;
         setDrafts((prev) => [
             ...prev,
-            { _key: `manual-${Date.now()}`, date: today, hours: 1, description: '', participantIds: defaultParticipant ? [String(defaultParticipant)] : [] },
+            { _key: `manual-${Date.now()}`, date: today, hours: 1, description: '', participantIds: defaultParticipant ? [String(defaultParticipant)] : [], sessionIds: [] },
         ]);
     };
 
@@ -181,6 +189,8 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                         hours: draft.hours,
                         description: draft.description || undefined,
                         status: 'confirmed',
+                        // Só o log de quem fez as sessões as trava (o backend também valida).
+                        session_ids: draft.sessionIds.length > 0 && userId === draft.ownerId ? draft.sessionIds : undefined,
                     }));
                 }
             }
@@ -219,8 +229,12 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                             <Clock className="w-5 h-5 text-purple-400" />
                         </div>
                         <div>
-                            <h2 className="text-white font-semibold">Apontamento de Horas</h2>
-                            <p className="text-white/40 text-xs">Confirme as horas trabalhadas nesta execução</p>
+                            <h2 className="text-white font-semibold">{partial ? 'Apontamento parcial de horas' : 'Apontamento de Horas'}</h2>
+                            <p className="text-white/40 text-xs">
+                                {partial
+                                    ? 'Sessões apontadas ficam travadas; as novas sessões podem ser apontadas depois'
+                                    : 'Confirme as horas trabalhadas nesta execução'}
+                            </p>
                         </div>
                     </div>
                     <button onClick={onSkip} className="text-white/30 hover:text-white/60 transition-colors">
@@ -316,7 +330,9 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                                     </button>
                                 </div>
                                 {drafts.length === 0 ? (
-                                    <p className="text-white/30 text-sm italic">Nenhuma sessão registrada. Adicione manualmente.</p>
+                                    <p className="text-white/30 text-sm italic">
+                                        {partial ? 'Nenhuma sessão encerrada pendente de apontamento. Adicione manualmente.' : 'Nenhuma sessão registrada. Adicione manualmente.'}
+                                    </p>
                                 ) : (
                                     <div className="space-y-2">
                                         {drafts.map((draft) => (
@@ -385,7 +401,7 @@ export const TimeTrackingModal: React.FC<TimeTrackingModalProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between px-6 py-4 border-t border-white/5">
-                    <button onClick={onSkip} className="text-white/40 hover:text-white/60 text-sm transition-colors" disabled={isSubmitting}>Pular</button>
+                    <button onClick={onSkip} className="text-white/40 hover:text-white/60 text-sm transition-colors" disabled={isSubmitting}>{partial ? 'Cancelar' : 'Pular'}</button>
                     <button onClick={handleSubmit} disabled={isSubmitting || isLoading}
                         className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
                         {isSubmitting ? (

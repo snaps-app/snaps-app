@@ -35,8 +35,12 @@ export const deleteExecutionSession = async (executionId: string, sessionId: str
     await api.delete(`/agent-executions/${executionId}/sessions/${sessionId}`);
 };
 
-export const getTimeDraft = async (executionId: string): Promise<TimeDraftResponse> => {
-    const response = await api.get(`/agent-executions/${executionId}/time-draft`);
+// includeActive=false: apontamento parcial no meio da execução (a sessão em
+// andamento fica de fora, porque só sessões encerradas podem ser travadas).
+export const getTimeDraft = async (executionId: string, includeActive = true): Promise<TimeDraftResponse> => {
+    const response = await api.get(`/agent-executions/${executionId}/time-draft`, {
+        params: includeActive ? undefined : { include_active: false },
+    });
     return response.data;
 };
 

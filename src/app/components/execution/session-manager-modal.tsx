@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { X, Plus, Trash2, Loader2, Clock } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, Clock, Lock } from 'lucide-react';
 import {
     listExecutionSessions,
     createExecutionSession,
@@ -15,6 +15,8 @@ interface SessionManagerModalProps {
     onClose: () => void;
     // Called after any change so the caller can refresh downstream state (e.g. the time draft).
     onChanged?: () => void;
+    // Abre o apontamento parcial de horas (as sessões apontadas ficam travadas).
+    onLogHours?: () => void;
 }
 
 function pad(n: number): string {
@@ -42,7 +44,7 @@ function fmtDuration(hours: number): string {
 const inputCls =
     'bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]';
 
-export function SessionManagerModal({ executionId, projectId, onClose, onChanged }: SessionManagerModalProps) {
+export function SessionManagerModal({ executionId, projectId, onClose, onChanged, onLogHours }: SessionManagerModalProps) {
     const [sessions, setSessions] = useState<ExecutionSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -193,9 +195,10 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                         <div className="space-y-2">
                             {sessions.map((s) => {
                                 const active = !s.ended_at;
+                                const locked = !!s.locked;
                                 return (
-                                    <div key={s.id} className="flex items-center gap-3 flex-wrap bg-white/[0.02] border border-white/5 rounded-lg px-3 py-2">
-                                        {canReassign ? (
+                                    <div key={s.id} className={`flex items-center gap-3 flex-wrap bg-white/[0.02] border border-white/5 rounded-lg px-3 py-2 ${locked ? 'opacity-70' : ''}`}>
+                                        {canReassign && !locked ? (
                                             <select
                                                 value={s.user_id}
                                                 onChange={(e) => handleReassign(s, e.target.value)}
@@ -218,6 +221,7 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                                             <input
                                                 type="datetime-local"
                                                 defaultValue={isoToLocalInput(s.started_at)}
+                                                disabled={locked}
                                                 onBlur={(e) => { const v = e.target.value; if (v && v !== isoToLocalInput(s.started_at)) handleEditField(s, 'started_at', v); }}
                                                 className={inputCls}
                                             />
@@ -227,6 +231,7 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                                             <input
                                                 type="datetime-local"
                                                 defaultValue={s.ended_at ? isoToLocalInput(s.ended_at) : ''}
+                                                disabled={locked}
                                                 onBlur={(e) => { const v = e.target.value; if (v && (!s.ended_at || v !== isoToLocalInput(s.ended_at))) handleEditField(s, 'ended_at', v); }}
                                                 className={inputCls}
                                             />
@@ -234,14 +239,23 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                                         <span className={`text-xs font-mono ml-auto ${active ? 'text-amber-300' : 'text-purple-300'}`}>
                                             {active ? 'em andamento' : fmtDuration(s.duration_hours)}
                                         </span>
-                                        <button
-                                            onClick={() => handleDelete(s.id)}
-                                            disabled={busyId === s.id}
-                                            className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all disabled:opacity-40"
-                                            title="Excluir sessão"
-                                        >
-                                            {busyId === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                        </button>
+                                        {locked ? (
+                                            <span
+                                                className="p-1.5 text-white/40"
+                                                title="Sessão já apontada em um time log. Apague o apontamento (aba Time) para liberá-la."
+                                            >
+                                                <Lock className="w-3.5 h-3.5" />
+                                            </span>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleDelete(s.id)}
+                                                disabled={busyId === s.id}
+                                                className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all disabled:opacity-40"
+                                                title="Excluir sessão"
+                                            >
+                                                {busyId === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                            </button>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -282,7 +296,16 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                     </div>
                 </div>
 
-                <div className="flex items-center justify-end px-5 py-4 border-t border-white/5">
+                <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-white/5">
+                    {onLogHours && (
+                        <button
+                            onClick={onLogHours}
+                            className="flex items-center gap-1.5 text-sm font-medium text-purple-300 hover:text-purple-200 px-4 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 transition-colors"
+                            title="Apontar as sessões encerradas em um time log. Elas ficam travadas."
+                        >
+                            <Clock className="w-3.5 h-3.5" /> Apontar horas
+                        </button>
+                    )}
                     <button onClick={onClose} className="text-white/60 hover:text-white text-sm transition-colors px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10">
                         Concluído
                     </button>
