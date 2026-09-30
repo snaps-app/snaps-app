@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Download, Loader2, ChevronDown, ChevronRight, Calendar, CalendarDays, List } from 'lucide-react';
+import { ArrowLeft, Clock, Download, Loader2, ChevronDown, ChevronRight, Calendar, CalendarDays, List, Users } from 'lucide-react';
 import { getProjectTimeLogs, downloadTimeReport } from '@/services/timeLogs';
 import { getProject } from '@/services/projects';
 import type { TimeLog } from '@/types/timeLogs';
@@ -51,6 +51,8 @@ export function ProjectTimeView() {
     const [isExporting, setIsExporting] = useState(false);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    // '' = todos os colaboradores.
+    const [selectedUserId, setSelectedUserId] = useState('');
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
     const [activeTab, setActiveTab] = useState<ViewTab>('report');
 
@@ -78,7 +80,7 @@ export function ProjectTimeView() {
         if (!projectId) return;
         setIsExporting(true);
         try {
-            const blob = await downloadTimeReport(projectId, startDate || undefined, endDate || undefined, 'dark');
+            const blob = await downloadTimeReport(projectId, startDate || undefined, endDate || undefined, 'dark', selectedUserId || undefined);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -96,9 +98,26 @@ export function ProjectTimeView() {
         setExpandedCards((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
     };
 
-    const groups = groupLogs(logs);
-    const totalHours = logs.reduce((acc, l) => acc + l.hours, 0);
-    const uniqueUsers = [...new Set(logs.map((l) => l.user_display_name).filter(Boolean))];
+    // Filtrado no cliente: as opcoes do dropdown saem de `logs` (todos os usuarios do
+    // periodo), entao escolher alguem nao faz os demais sumirem da lista.
+    const userOptions = useMemo(() => {
+        const byId = new Map<string, string>();
+        for (const l of logs) if (!byId.has(l.user_id)) byId.set(l.user_id, l.user_display_name ?? l.user_id.slice(0, 8));
+        return Array.from(byId, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    }, [logs]);
+
+    // Se o periodo mudou e o usuario escolhido nao tem mais apontamentos, volta para "Todos".
+    useEffect(() => {
+        if (selectedUserId && !isLoading && !userOptions.some((u) => u.id === selectedUserId)) setSelectedUserId('');
+    }, [userOptions, selectedUserId, isLoading]);
+
+    const visibleLogs = useMemo(
+        () => (selectedUserId ? logs.filter((l) => l.user_id === selectedUserId) : logs),
+        [logs, selectedUserId],
+    );
+    const groups = groupLogs(visibleLogs);
+    const totalHours = visibleLogs.reduce((acc, l) => acc + l.hours, 0);
+    const uniqueUsers = [...new Set(visibleLogs.map((l) => l.user_id))];
 
     return (
         <div className="min-h-screen bg-[#0a0a0c] text-white">
@@ -119,12 +138,24 @@ export function ProjectTimeView() {
                     {activeTab === 'report' && (
                         <div className="flex items-center gap-3">
                             <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4 text-white/30" />
+                                <select
+                                    value={selectedUserId}
+                                    onChange={(e) => setSelectedUserId(e.target.value)}
+                                    aria-label="Filtrar por colaborador"
+                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-purple-500/50 max-w-[180px]"
+                                >
+                                    <option value="">Todos os colaboradores</option>
+                                    {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-white/30" />
                                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-purple-500/50" />
                                 <span className="text-white/30 text-sm">→</span>
                                 <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-purple-500/50" />
                             </div>
-                            <button onClick={handleExportPDF} disabled={isExporting || logs.length === 0}
+                            <button onClick={handleExportPDF} disabled={isExporting || visibleLogs.length === 0}
                                 className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
                                 {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                                 Exportar PDF
