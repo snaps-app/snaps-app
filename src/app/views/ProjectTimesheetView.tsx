@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, Lock } from 'lucide-react';
-import { getProjectTimeLogs, createTimeLog, updateTimeLog } from '@/services/timeLogs';
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, Lock, Trash2 } from 'lucide-react';
+import { getProjectTimeLogs, createTimeLog, updateTimeLog, deleteTimeLog } from '@/services/timeLogs';
 import { getProjectBoards, getBoard } from '@/services/boards';
 import { createCard } from '@/services/cards';
 import { getSchedulings, createScheduling } from '@/services/schedulings';
 import { supabase } from '@/lib/supabaseClient';
+import { useProjectRole } from '@/contexts/project-role-context';
 import type { Board, Card, Scheduling } from '@/services/types';
 import type { TimeLog } from '@/types/timeLogs';
 
@@ -100,6 +101,17 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [pendingRows, setPendingRows] = useState<TimesheetRow[]>([]);
     const [isAddRowOpen, setIsAddRowOpen] = useState(false);
+    const [logToDelete, setLogToDelete] = useState<{ log: TimeLog; title: string } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const { role } = useProjectRole();
+
+    // Mirrors the backend rule (ADR-0033 item 4): admin/owner delete anyone's
+    // entry, member only their own, viewer never. The API is still the authority.
+    const canDeleteLog = (log: TimeLog): boolean => {
+        if (role === 'owner' || role === 'admin') return true;
+        return role === 'member' && log.user_id === currentUserId;
+    };
 
     const weekDays = useMemo(() => (
         Array.from({ length: 7 }, (_, i) => {
@@ -256,6 +268,22 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
         await load();
     };
 
+    const handleConfirmDelete = async () => {
+        if (!logToDelete) return;
+        setIsDeleting(true);
+        setDeleteError(null);
+        try {
+            await deleteTimeLog(logToDelete.log.id);
+            setLogToDelete(null);
+            await load();
+        } catch (err: any) {
+            console.error('[ProjectTimesheetView] delete error:', err);
+            setDeleteError(err?.response?.data?.detail || 'Erro ao apagar o apontamento.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -348,7 +376,20 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                                                 return (
                                                     <td key={iso} className="px-1 py-1 text-center">
                                                         {editable ? (
-                                                            <EditableCell value={sum} onCommit={(v) => handleCellCommit(row, iso, v)} />
+                                                            <div className="group relative inline-block">
+                                                                <EditableCell value={sum} onCommit={(v) => handleCellCommit(row, iso, v)} />
+                                                                {cellLogs.length === 1 && canDeleteLog(cellLogs[0]) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        title="Apagar apontamento"
+                                                                        aria-label="Apagar apontamento"
+                                                                        onClick={() => { setDeleteError(null); setLogToDelete({ log: cellLogs[0], title: row.title }); }}
+                                                                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0f1117] border border-white/10 text-white/40 hover:text-red-400 hover:border-red-500/40 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                                                    >
+                                                                        <Trash2 className="w-2.5 h-2.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1 text-white/50 text-xs font-mono" title="Múltiplos apontamentos neste dia — edite pela aba Relatório">
                                                                 <Lock className="w-2.5 h-2.5" />{sum.toFixed(1)}
@@ -391,6 +432,18 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                 <Plus className="w-4 h-4" /> Adicionar tarefa
             </button>
 
+            {logToDelete && (
+                <DeleteTimeLogModal
+                    log={logToDelete.log}
+                    title={logToDelete.title}
+                    showOwner={logToDelete.log.user_id !== currentUserId}
+                    isDeleting={isDeleting}
+                    error={deleteError}
+                    onCancel={() => setLogToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                />
+            )}
+
             {isAddRowOpen && (
                 <AddRowModal
                     projectId={projectId}
@@ -399,6 +452,56 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                     onAdd={handleAddRow}
                 />
             )}
+        </div>
+    );
+}
+
+interface DeleteTimeLogModalProps {
+    log: TimeLog;
+    title: string;
+    showOwner: boolean;
+    isDeleting: boolean;
+    error: string | null;
+    onCancel: () => void;
+    onConfirm: () => void;
+}
+
+function DeleteTimeLogModal({ log, title, showOwner, isDeleting, error, onCancel, onConfirm }: DeleteTimeLogModalProps) {
+    const dateLabel = new Date(`${log.date}T12:00:00`).toLocaleDateString('pt-BR');
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div role="dialog" aria-modal="true" className="bg-[#0f1117] border border-red-500/20 rounded-2xl w-full max-w-sm shadow-2xl shadow-red-900/20">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                    <h3 className="text-white font-semibold text-sm">Apagar apontamento</h3>
+                    <button onClick={onCancel} disabled={isDeleting} className="text-white/30 hover:text-white/60 transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                    <p className="text-white/70 text-sm">
+                        Tem certeza que deseja apagar <span className="text-white font-mono font-semibold">{log.hours.toFixed(2)}h</span> de{' '}
+                        <span className="text-white font-medium">{title}</span> em {dateLabel}
+                        {showOwner && log.user_display_name ? <> registradas por <span className="text-white font-medium">{log.user_display_name}</span></> : null}?
+                    </p>
+                    <p className="text-white/40 text-xs">Esta ação não pode ser desfeita.</p>
+                    {error && (
+                        <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+                    )}
+                </div>
+                <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-white/5">
+                    <button onClick={onCancel} disabled={isDeleting} className="text-white/40 hover:text-white/60 text-sm transition-colors px-3 py-1.5">
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={isDeleting}
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        Apagar
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
