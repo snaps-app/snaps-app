@@ -96,7 +96,9 @@ type NewRowInput = { type: 'card' | 'scheduling'; refId: string; title: string }
 
 export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-    const [logs, setLogs] = useState<TimeLog[]>([]);
+    const [allLogs, setLogs] = useState<TimeLog[]>([]);
+    // '' = todos os colaboradores.
+    const [selectedUserId, setSelectedUserId] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [pendingRows, setPendingRows] = useState<TimesheetRow[]>([]);
@@ -150,7 +152,25 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
     // Reseta linhas adicionadas manualmente (ainda sem apontamento) ao trocar de semana.
     useEffect(() => { setPendingRows([]); }, [weekStart]);
 
-    const rowKeyForLog = (log: TimeLog): RowKey => ({
+    // As opcoes saem de `allLogs`, entao escolher alguem nao faz os demais sumirem do seletor.
+    const userOptions = useMemo(() => {
+        const byId = new Map<string, string>();
+        for (const l of allLogs) if (!byId.has(l.user_id)) byId.set(l.user_id, l.user_display_name ?? l.user_id.slice(0, 8));
+        return Array.from(byId, ([id, name]) => ({ id, name: id === currentUserId ? `${name} (você)` : name }))
+            .sort((a, b) => (a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : a.name.localeCompare(b.name)));
+    }, [allLogs, currentUserId]);
+
+    // Ao trocar de semana o escolhido pode nao ter apontamentos: volta para "Todos".
+    useEffect(() => {
+        if (selectedUserId && !isLoading && !userOptions.some((u) => u.id === selectedUserId)) setSelectedUserId('');
+    }, [userOptions, selectedUserId, isLoading]);
+
+    const logs = useMemo(
+        () => (selectedUserId ? allLogs.filter((l) => l.user_id === selectedUserId) : allLogs),
+        [allLogs, selectedUserId],
+    );
+
+    const rowKeyForLog =(log: TimeLog): RowKey => ({
         type: log.card_id ? 'card' : 'scheduling',
         refId: (log.card_id ?? log.scheduling_id) as string,
         userId: log.user_id,
@@ -170,10 +190,11 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
             }
         }
         for (const pr of pendingRows) {
+            if (selectedUserId && pr.userId !== selectedUserId) continue;
             if (!map.has(pr.key)) map.set(pr.key, pr);
         }
         return Array.from(map.values());
-    }, [logs, pendingRows]);
+    }, [logs, pendingRows, selectedUserId]);
 
     const cellsByRowAndDate = useMemo(() => {
         const map = new Map<string, TimeLog[]>();
@@ -310,9 +331,20 @@ export function ProjectTimesheetView({ projectId }: ProjectTimesheetViewProps) {
                         Hoje
                     </button>
                 </div>
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-4 py-2">
-                    <span className="text-white/40 text-xs uppercase tracking-wider mr-2">Total da semana</span>
-                    <span className="text-purple-300 font-mono font-bold">{weekTotal.toFixed(1)}h</span>
+                <div className="flex items-center gap-3">
+                    <select
+                        value={selectedUserId}
+                        onChange={(e) => setSelectedUserId(e.target.value)}
+                        aria-label="Filtrar por colaborador"
+                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 max-w-[200px]"
+                    >
+                        <option value="">Todos os colaboradores</option>
+                        {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-4 py-2">
+                        <span className="text-white/40 text-xs uppercase tracking-wider mr-2">Total da semana</span>
+                        <span className="text-purple-300 font-mono font-bold">{weekTotal.toFixed(1)}h</span>
+                    </div>
                 </div>
             </div>
 
