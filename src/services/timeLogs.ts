@@ -35,8 +35,12 @@ export const deleteExecutionSession = async (executionId: string, sessionId: str
     await api.delete(`/agent-executions/${executionId}/sessions/${sessionId}`);
 };
 
-export const getTimeDraft = async (executionId: string): Promise<TimeDraftResponse> => {
-    const response = await api.get(`/agent-executions/${executionId}/time-draft`);
+// includeActive=false: apontamento parcial no meio da execução (a sessão em
+// andamento fica de fora, porque só sessões encerradas podem ser travadas).
+export const getTimeDraft = async (executionId: string, includeActive = true): Promise<TimeDraftResponse> => {
+    const response = await api.get(`/agent-executions/${executionId}/time-draft`, {
+        params: includeActive ? undefined : { include_active: false },
+    });
     return response.data;
 };
 
@@ -48,6 +52,10 @@ export const createTimeLog = async (projectId: string, data: TimeLogCreate): Pro
 export const updateTimeLog = async (logId: string, data: { hours?: number; description?: string; date?: string }): Promise<TimeLog> => {
     const response = await api.patch(`/time-logs/${logId}`, data);
     return response.data;
+};
+
+export const deleteTimeLog = async (logId: string): Promise<void> => {
+    await api.delete(`/time-logs/${logId}`);
 };
 
 export const getProjectTimeLogs = async (projectId: string, params?: TimeLogFilters): Promise<TimeLog[]> => {
@@ -64,10 +72,11 @@ export const downloadTimeReport = async (
     projectId: string,
     startDate?: string,
     endDate?: string,
-    theme = 'dark'
+    theme = 'dark',
+    userId?: string
 ): Promise<Blob> => {
     const response = await api.get(`/projects/${projectId}/time-logs/report`, {
-        params: { start_date: startDate, end_date: endDate, theme },
+        params: { start_date: startDate, end_date: endDate, theme, user_id: userId },
         responseType: 'blob',
     });
     return response.data;
