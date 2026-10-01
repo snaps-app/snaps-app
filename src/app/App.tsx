@@ -22,6 +22,7 @@ import { DecisionsView } from '@/app/components/views/decisions-view';
 import { SupportView } from '@/app/components/views/support-view';
 import { Login } from '@/app/components/views/login';
 import { UserManagement } from '@/app/components/views/user-management';
+import { SystemSettingsPage } from '@/app/components/settings/system-settings-page';
 import { UpdatePassword } from '@/app/components/views/update-password';
 import { ProtectedRoute } from '@/app/components/layout/protected-route';
 import { GovernanceView } from '@/app/components/views/governance-view';
@@ -121,6 +122,7 @@ export default function App() {
                         <Route path="/workflow-editor/:templateId" element={<WorkflowEditorCanvas />} />
                         <Route path="/workflow-editor/new" element={<WorkflowEditorCanvas />} />
                         <Route path="/users" element={<UserManagement />} />
+                        <Route path="/settings" element={<SystemSettingsPage />} />
                         <Route path="/time" element={<TimeView />} />
 
                         {/* Project Routes */}

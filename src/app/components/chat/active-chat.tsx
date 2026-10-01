@@ -7,6 +7,7 @@ import { ChatMessage } from '@/app/components/chat/chat-message';
 import { ChatInput } from '@/app/components/chat/chat-input';
 import { useActiveChat } from '@/app/components/chat/useActiveChat';
 import { ActiveChatSidebar } from '@/app/components/chat/ActiveChatSidebar';
+import { SeletorDePerfil } from '@/app/components/chat/seletor-de-perfil';
 
 export function ActiveChat() {
   const {
@@ -18,19 +19,30 @@ export function ActiveChat() {
     setInputValue,
     project,
     isThinking,
+    statusDoTurno,
     isSnapDetailModalOpen,
     setIsSnapDetailModalOpen,
     selectedSnap,
     rightPanelTab,
     setRightPanelTab,
     suggestedSnaps,
+    referencedSnaps,
+    carregandoReferenciados,
+    erroReferenciados,
+    avisoSnapper,
     messagesEndRef,
     mobileView,
     setMobileView,
     handleSend,
     handleSnapClick,
     handleSuggestedSnapClick,
-    handleAcceptSnap
+    handleAcceptSnap,
+    handleDiscardSnap,
+    carregandoPapel,
+    perfil,
+    setPerfil,
+    podeEscolherPerfil,
+    podeAceitarSnap
   } = useActiveChat();
 
   if (!projectId) {
@@ -116,9 +128,12 @@ export function ActiveChat() {
             </div>
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5" style={{ color: 'var(--snaps-accent-blue)' }} />
-              <span className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                AI Active
-              </span>
+              <SeletorDePerfil
+                perfil={perfil}
+                aoTrocar={setPerfil}
+                habilitado={podeEscolherPerfil}
+                carregando={carregandoPapel}
+              />
             </div>
           </div>
 
@@ -155,8 +170,8 @@ export function ActiveChat() {
                       <div className="w-2 h-2 rounded-full" style={{ background: 'var(--snaps-accent-purple)' }} />
                       <div className="w-2 h-2 rounded-full" style={{ background: 'var(--snaps-accent-blue)' }} />
                     </motion.div>
-                    <span className="text-sm" style={{ color: 'var(--snaps-accent-blue)' }}>
-                      Thinking...
+                    <span className="text-sm" style={{ color: 'var(--snaps-accent-blue)' }} role="status">
+                      {statusDoTurno || 'Pensando…'}
                     </span>
                   </div>
                 </div>
@@ -176,9 +191,15 @@ export function ActiveChat() {
           rightPanelTab={rightPanelTab}
           setRightPanelTab={setRightPanelTab}
           suggestedSnaps={suggestedSnaps}
+          referencedSnaps={referencedSnaps}
+          carregandoReferenciados={carregandoReferenciados}
+          erroReferenciados={erroReferenciados}
+          avisoSnapper={avisoSnapper}
+          podeAceitar={podeAceitarSnap}
           handleSnapClick={handleSnapClick}
           handleSuggestedSnapClick={handleSuggestedSnapClick}
           handleAcceptSnap={handleAcceptSnap}
+          handleDiscardSnap={handleDiscardSnap}
         />
       </div>
 

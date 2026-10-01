@@ -1,6 +1,6 @@
 import { getProjectBoards } from '@/services/boards';
 import { listChats } from '@/services/chats';
-import { importDocument } from '@/services/import';
+import { useIngestQueue } from '@/app/ingest/ingestQueue';
 import { getProject } from '@/services/projects';
 import { createSnap, getSnaps } from '@/services/snaps';
 import type { Board, Chat, Snap } from '@/services/types';
@@ -34,6 +34,7 @@ const allTags = [
 export function ProjectWorkspace() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { enfileirar } = useIngestQueue();
 
   const [_activeConversation, _setActiveConversation] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState('All');
@@ -211,22 +212,13 @@ export function ProjectWorkspace() {
                   type="file"
                   id="doc-import-input"
                   className="hidden"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file || !projectId) return;
-
-                    try {
-                      const content = await file.text();
-                      // Call importDocument with a callback for events
-                      await importDocument(projectId, file.name, content, (event: any) => {
-                        console.log('Import Event:', event);
-                        if (event.type === 'done') {
-                          fetchSnaps(); // Refresh snaps once done
-                        }
-                      });
-                    } catch (error) {
-                      console.error('Import failed:', error);
-                    }
+                    // Fluxo de documentos de origem da API: upload, extracao e
+                    // decomposicao na fila global (sobrevive a troca de tela).
+                    enfileirar(projectId, [file]);
+                    e.target.value = '';
                   }}
                 />
                 <motion.button
