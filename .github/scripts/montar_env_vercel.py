@@ -47,6 +47,18 @@ def main() -> int:
 
     presentes = {linha.split("=", 1)[0] for linha in linhas}
     print(f"build de {alvo} com: {' '.join(sorted(presentes))}")
+    # Um VITE_* de producao apontando para a maquina do desenvolvedor publica um app
+    # que chama `localhost` no navegador de todo mundo. Aconteceu em 01/10/2026:
+    # VITE_API_URL tinha `http://localhost:8000` (valor herdado do cadastro) e o app
+    # saiu do ar para a API. O deploy so reclamava de URL faltando, nao de URL errada.
+    if stage == "production":
+        locais = [l.split("=", 1)[0] for l in linhas
+                  if any(x in l.lower() for x in ("localhost", "127.0.0.1", "0.0.0.0"))]
+        if locais:
+            print(f"::error::{', '.join(locais)} aponta para localhost no project_config "
+                  f"(stage production). Nada foi publicado.")
+            return 1
+
     faltando = [v for v in OBRIGATORIAS if v not in presentes]
     if faltando:
         print(f"::error::o project_config do snaps-app (stage {stage}) nao tem "

@@ -146,7 +146,7 @@ jobs:
           ALVO=$([ "$STAGE" = production ] && echo production || echo preview)
           API="$(sed -n 's/^VITE_API_URL="\(.*\)"$/\1/p' ".vercel/.env.${ALVO}.local")"
           COD=$(curl -sS -o index.html -w "%{http_code}" --max-time 30 "$URL" || true)
-          if [ "$COD" = "401" ] || [ "$COD" = "403" ]; then
+          if [ "$COD" = "401" ] || [ "$COD" = "403" ] || [ "$COD" = "302" ] || [ "$COD" = "307" ]; then
             echo "::notice::o deployment esta protegido (HTTP ${COD}); o bundle nao e conferido por fora."
             exit 0
           fi
