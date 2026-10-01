@@ -107,6 +107,14 @@ jobs:
           PINS: ${{ steps.config.outputs.pins }}
         run: python3 .github/scripts/montar_env_vercel.py
 
+      # O `vercel pull` traz as configuracoes do projeto na Vercel, que usa pnpm
+      # (ha `pnpm-lock.yaml`, lockfileVersion 9). O `vercel build` chama o pnpm, e o
+      # runner so tinha o npm: "Error: spawn pnpm ENOENT" (primeiro deploy de
+      # producao pelo fluxo novo, 01/10/2026). O CI testa com npm; o bundle sai com o
+      # mesmo gerenciador que a Vercel sempre usou.
+      - name: Setup pnpm (o que a Vercel usa no build)
+        run: npm install -g pnpm@9
+
       - name: Build
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
