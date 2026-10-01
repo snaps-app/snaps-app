@@ -1,0 +1,18 @@
+{
+  "_sobre": "Exemplos do contrato C6 (Neuron -> app). O mesmo arquivo existe em snaps-app/src/services/__fixtures__/eventos_c6.json; os dois lados testam contra ele.",
+  "eventos": [
+    {"type": "thinking", "content": "Vou ler o card citado antes de responder."},
+    {"type": "token", "content": "O card está em revisão"},
+    {"type": "tool_start", "tool": "snaps_get_entity_tool", "resumo": "{\"entity_type\": \"card\", \"entity_id\": \"9cc2b098-c921-4960-b76c-d89d5b5fa7bd\"}"},
+    {"type": "tool_end", "tool": "snaps_get_entity_tool", "ok": true, "resumo": "{\"id\": \"9cc2b098-c921-4960-b76c-d89d5b5fa7bd\", \"status\": \"todo\"}"},
+    {"type": "snaps_referenced", "snaps": [
+      {"id": "be4e2a81-e4d6-45ba-8558-c35465d8d7b6", "title": "Adendo 3", "content": "Chatter, Planner e Coder.", "tags": [{"label": "decisão", "variant": "purple"}], "timestamp": "2026-09-28T12:00:00+00:00", "trust_level": "curated", "source_ref": null}
+    ]},
+    {"type": "snap_suggested", "snap": {"id": "5f0c7a52-3a8f-4c4e-9d2b-3b1f7e0c9a11", "title": "Teto de custo por turno", "content": "O teto padrão do Neuron é US$ 1,00 por turno.", "tags": [{"label": "decisão", "variant": "orange"}], "confidence": 0.82, "timestamp": "2026-09-28T12:01:00+00:00"}},
+    {"type": "board_changed", "entidades": [{"tipo": "card", "id": "85a20b15-e14f-4b1a-91bf-654f96b72b65"}]},
+    {"type": "guardrail_tripped", "guarda": "max_iterations", "limite": 12, "valor": 12},
+    {"type": "error", "code": "grant_expired", "message": "A autorização deste chat venceu. Renove e envie de novo."},
+    {"type": "done", "perfil": "project_chat", "uso": {"input_tokens": 1200, "output_tokens": 340, "cache_read_input_tokens": 900}, "custo_usd": 0.0145, "preco_estimado": false, "incompleto": false}
+  ],
+  "desconhecido": {"type": "evento_do_futuro", "qualquer": "coisa"}
+}

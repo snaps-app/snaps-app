@@ -12,6 +12,13 @@ on:
       - 'sprint-**'
   workflow_dispatch:
 
+# Execucao antiga da mesma branch e cancelada quando chega uma nova. Push e
+# pull_request da mesma branch compartilham o grupo. A master nunca cancela.
+# (Plano gratuito de Actions: 2.000 min/mes, esgotados em 30/09/2026.)
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 jobs:
   build:
     name: Typecheck, Test & Build

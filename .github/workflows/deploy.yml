@@ -1,0 +1,176 @@
+name: Deploy snaps-app (Vercel)
+
+# Deploy por ambiente (decisao do PO, 30/09/2026): as `VITE_*` vem do
+# `project_config` do projeto Snaps (repo `snaps-app`), no stage do ambiente, e
+# NAO das env vars da Vercel. O build pelo Git da Vercel esta desligado
+# (`vercel.json`: `git.deploymentEnabled: false`); quem constroi e publica e
+# este workflow, com `vercel build` + `vercel deploy --prebuilt`.
+#
+#   push na master               -> producao
+#   PR, push em sprint-**, manual -> preview
+#
+# Credenciais de partida: o `VERCEL_TOKEN` (a unica guardada no GitHub) e o
+# Workload Identity Federation do GCP (nenhuma guardada).
+#
+# Por que o merge sem deploy do SNA-SUP-69 nao se repete em silencio: o deploy
+# agora e um job deste repositorio. Se ele nao roda ou falha, o check fica
+# vermelho no commit.
+# Preview: pela PR (pull_request) ou sob demanda (workflow_dispatch). O push em
+# `sprint-**` saiu: com a PR aberta ele publicava o mesmo preview duas vezes, e sem
+# PR publicava a cada commit sem ninguem olhar (30/09/2026, minutos de Actions).
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-snaps-app-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+env:
+  STAGE: ${{ github.ref == 'refs/heads/master' && 'production' || 'preview' }}
+  REPO_NAME: snaps-app
+  GCP_PROJECT: snaps-prod-488012
+  REGION: us-central1
+  WIF_PROVIDER: projects/1041050229685/locations/global/workloadIdentityPools/github/providers/snaps-app
+  DEPLOYER_SA: ${{ github.ref == 'refs/heads/master' && 'github-actions@snaps-prod-488012.iam.gserviceaccount.com' || 'snaps-deployer-preview@snaps-prod-488012.iam.gserviceaccount.com' }}
+  # Identificadores do projeto na Vercel, nao credenciais.
+  VERCEL_ORG_ID: team_rk1DmCS1aX0ErFK7EqiLqiBZ
+  VERCEL_PROJECT_ID: prj_Q8rwbnjFJ0yJKCFAnlQgrt8bmNZu
+
+jobs:
+  deploy:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    # PR vinda de fork nao recebe token OIDC nem secret: nao ha como publicar.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'preview' }}
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Typecheck & test
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm test
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # So EXECUTA o job `snaps-cfg-<stage>-snaps-app` (definido pelo deploy de
+      # producao do snaps-api) e le o manifesto de versoes fixadas.
+      - name: Provisionar a configuracao
+        id: config
+        run: bash .github/scripts/provisionar_config.sh "$STAGE" "$REPO_NAME"
+
+      - name: Buscar as configuracoes do projeto na Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::o secret VERCEL_TOKEN nao existe neste repositorio (credencial de partida). Nada foi publicado."
+            exit 1
+          fi
+          ALVO=$([ "$STAGE" = production ] && echo production || echo preview)
+          npx --yes vercel@latest pull --yes --environment="$ALVO" --token="$VERCEL_TOKEN"
+
+      # As `VITE_*` entram no bundle em tempo de build, entao sao publicas por
+      # natureza — e so por isso passam pelo runner. A conta de deploy so tem
+      # acesso aos secrets `cfg_<stage>_snaps-app_*`.
+      #
+      # O arquivo que o `vercel pull` acabou de escrever e SUBSTITUIDO, nao
+      # completado: o que a Vercel ainda tiver como env var nao entra no build.
+      # Chave sem prefixo `VITE_` e ignorada (o Vite nao a poria no bundle) e
+      # nomeada no log, para ninguem achar que ela chegou.
+      - name: Montar o ambiente de build a partir do project_config
+        env:
+          PINS: ${{ steps.config.outputs.pins }}
+        run: python3 .github/scripts/montar_env_vercel.py
+
+      - name: Build
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          PROD=$([ "$STAGE" = production ] && echo --prod || true)
+          npx --yes vercel@latest build $PROD --token="$VERCEL_TOKEN"
+
+      - name: Deploy
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          PROD=$([ "$STAGE" = production ] && echo --prod || true)
+          URL="$(npx --yes vercel@latest deploy --prebuilt $PROD --token="$VERCEL_TOKEN")"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "### snaps-app (${STAGE})" >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL" >> "$GITHUB_STEP_SUMMARY"
+
+      # Publicar nao e entregar. O preview da PR #62 apontava para uma API sem as
+      # rotas novas e ninguem soube ate abrir a tela. Aqui se confere que o
+      # bundle publicado carrega a VITE_API_URL do project_config.
+      - name: Verificar que o bundle aponta para a API do ambiente
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -euo pipefail
+          ALVO=$([ "$STAGE" = production ] && echo production || echo preview)
+          API="$(sed -n 's/^VITE_API_URL="\(.*\)"$/\1/p' ".vercel/.env.${ALVO}.local")"
+          COD=$(curl -sS -o index.html -w "%{http_code}" --max-time 30 "$URL" || true)
+          if [ "$COD" = "401" ] || [ "$COD" = "403" ]; then
+            echo "::notice::o deployment esta protegido (HTTP ${COD}); o bundle nao e conferido por fora."
+            exit 0
+          fi
+          [ "$COD" = "200" ] || { echo "::error::${URL} respondeu ${COD}."; exit 1; }
+          for JS in $(grep -oE '/assets/[^"]+\.js' index.html | sort -u); do
+            if curl -sS --max-time 30 "${URL}${JS}" | grep -qF "$API"; then
+              echo "o bundle aponta para ${API}"
+              exit 0
+            fi
+          done
+          echo "::error::nenhum JS de ${URL} contem a VITE_API_URL do project_config (${API})."
+          exit 1
+
+      - name: Comentar a URL na PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            const marca = 'Preview — snaps-app';
+            const body = [`## ${marca}`, '', `**URL:** ${url}`, '',
+              `**Commit:** \`${context.sha}\``, '',
+              '> Configuração: project_config do Snaps, stage `preview`.'].join('\n');
+            const { data: comentarios } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number });
+            const existente = comentarios.find(c =>
+              c.user.login === 'github-actions[bot]' && c.body.includes(marca));
+            if (existente) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner,
+                repo: context.repo.repo, comment_id: existente.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner,
+                repo: context.repo.repo, issue_number: context.issue.number, body });
+            }

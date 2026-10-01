@@ -3,50 +3,21 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ReferencedSnapCard, ReferencedSnap } from '@/app/components/chat/referenced-snap-card';
 import { SuggestedSnapCard, SuggestedSnap } from '@/app/components/chat/suggested-snap-card';
 
-const mockReferencedSnaps: ReferencedSnap[] = [
-  {
-    id: '1',
-    title: 'Zettelkasten Method',
-    content: 'Each note should contain one idea. This enables atomic thinking and better connections.',
-    isActive: true,
-    tags: [
-      { label: 'Zettelkasten', variant: 'blue' },
-      { label: 'Atomic Thinking', variant: 'orange' }
-    ],
-    timestamp: '10:24 AM'
-  },
-  {
-    id: '2',
-    title: 'PARA Method',
-    content: 'Projects (active), Areas (ongoing), Resources (reference), Archives (inactive). Organize by actionability.',
-    isActive: true,
-    tags: [
-      { label: 'PARA', variant: 'purple' },
-      { label: 'Actionability', variant: 'green' }
-    ],
-    timestamp: '10:24 AM'
-  },
-  {
-    id: '3',
-    title: 'Progressive Summarization',
-    content: 'Layer highlighting to surface key insights without losing context.',
-    isActive: false,
-    tags: [
-      { label: 'Summarization', variant: 'pink' },
-      { label: 'Context', variant: 'blue' }
-    ],
-    timestamp: '10:24 AM'
-  }
-];
-
 interface ActiveChatSidebarProps {
   mobileView: 'chat' | 'memory';
   rightPanelTab: 'memory' | 'snapper';
   setRightPanelTab: (tab: 'memory' | 'snapper') => void;
   suggestedSnaps: SuggestedSnap[];
+  referencedSnaps: ReferencedSnap[];
+  carregandoReferenciados?: boolean;
+  erroReferenciados?: boolean;
+  avisoSnapper?: { tipo: 'ok' | 'erro'; texto: string } | null;
+  /** Aceitar grava o snap (`POST /snaps/`, papel member): escondido para viewer. */
+  podeAceitar: boolean;
   handleSnapClick: (snap: ReferencedSnap) => void;
   handleSuggestedSnapClick: (snap: SuggestedSnap) => void;
   handleAcceptSnap: (snapId: string) => void;
+  handleDiscardSnap: (snapId: string) => void;
 }
 
 export function ActiveChatSidebar({
@@ -54,9 +25,15 @@ export function ActiveChatSidebar({
   rightPanelTab,
   setRightPanelTab,
   suggestedSnaps,
+  referencedSnaps,
+  carregandoReferenciados = false,
+  erroReferenciados = false,
+  avisoSnapper = null,
+  podeAceitar,
   handleSnapClick,
   handleSuggestedSnapClick,
-  handleAcceptSnap
+  handleAcceptSnap,
+  handleDiscardSnap
 }: ActiveChatSidebarProps) {
   return (
     <div className={`w-full md:w-1/2 flex-col pt-16 md:pt-0 ${mobileView === 'memory' ? 'flex' : 'hidden md:flex'}`}>
@@ -132,7 +109,7 @@ export function ActiveChatSidebar({
                 Contextual Memory
               </h2>
               <p className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
-                {mockReferencedSnaps.length} snaps referenced in this conversation
+                {referencedSnaps.length} snaps referenciados nesta conversa
               </p>
             </>
           ) : (
@@ -178,14 +155,28 @@ export function ActiveChatSidebar({
               exit={{ opacity: 0, x: 20 }}
               className="space-y-4"
             >
-              {mockReferencedSnaps.map((snap, index) => (
-                <ReferencedSnapCard
-                  key={snap.id}
-                  snap={snap}
-                  index={index}
-                  onClick={() => handleSnapClick(snap)}
-                />
-              ))}
+              {carregandoReferenciados ? (
+                <p role="status" className="text-sm" style={{ color: 'var(--snaps-text-secondary)' }}>
+                  Carregando os snaps referenciados…
+                </p>
+              ) : erroReferenciados && referencedSnaps.length === 0 ? (
+                <p role="alert" className="text-sm" style={{ color: 'var(--snaps-error)' }}>
+                  Não foi possível carregar os snaps referenciados.
+                </p>
+              ) : referencedSnaps.length === 0 ? (
+                <p className="text-sm py-12 text-center" style={{ color: 'var(--snaps-text-secondary)' }}>
+                  Os snaps que o Neuron usar para responder aparecem aqui.
+                </p>
+              ) : (
+                referencedSnaps.map((snap, index) => (
+                  <ReferencedSnapCard
+                    key={snap.id}
+                    snap={snap}
+                    index={index}
+                    onClick={() => handleSnapClick(snap)}
+                  />
+                ))
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -195,6 +186,15 @@ export function ActiveChatSidebar({
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
+              {avisoSnapper && (
+                <p
+                  role={avisoSnapper.tipo === 'erro' ? 'alert' : 'status'}
+                  className="text-xs"
+                  style={{ color: avisoSnapper.tipo === 'erro' ? 'var(--snaps-error)' : 'var(--snaps-success)' }}
+                >
+                  {avisoSnapper.texto}
+                </p>
+              )}
               {suggestedSnaps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Zap className="w-16 h-16 mb-4 opacity-20" style={{ color: 'var(--snaps-accent-purple)' }} />
@@ -212,9 +212,13 @@ export function ActiveChatSidebar({
                     snap={snap}
                     index={index}
                     onClick={() => handleSuggestedSnapClick(snap)}
-                    onAccept={(e) => {
+                    onAccept={podeAceitar ? (e) => {
                       e.stopPropagation();
                       handleAcceptSnap(snap.id);
+                    } : undefined}
+                    onDiscard={(e) => {
+                      e.stopPropagation();
+                      handleDiscardSnap(snap.id);
                     }}
                   />
                 ))

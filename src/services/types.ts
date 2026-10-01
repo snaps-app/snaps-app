@@ -624,6 +624,8 @@ export interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
     created_at: string;
+    /** Na resposta do Neuron: `[{perfil, snaps_referenciados}]` (SNA-RD-189). */
+    tool_calls?: Array<Record<string, unknown>> | null;
 }
 
 export interface Chat {

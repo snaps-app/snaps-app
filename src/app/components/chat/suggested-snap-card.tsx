@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Zap, Hash, Check } from 'lucide-react';
+import { Zap, Hash, Check, X } from 'lucide-react';
 import { Card } from '@/app/components/shared/card';
 import { Tag } from '@/app/components/shared/tag';
 
@@ -16,10 +16,12 @@ interface SuggestedSnapCardProps {
   snap: SuggestedSnap;
   index: number;
   onClick: () => void;
-  onAccept: (e: React.MouseEvent) => void;
+  /** Sem `onAccept` (viewer) o botão de aceitar não aparece. */
+  onAccept?: (e: React.MouseEvent) => void;
+  onDiscard?: (e: React.MouseEvent) => void;
 }
 
-export function SuggestedSnapCard({ snap, index, onClick, onAccept }: SuggestedSnapCardProps) {
+export function SuggestedSnapCard({ snap, index, onClick, onAccept, onDiscard }: SuggestedSnapCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -47,14 +49,14 @@ export function SuggestedSnapCard({ snap, index, onClick, onAccept }: SuggestedS
             color: 'var(--snaps-accent-purple)'
           }}
         >
-          {Math.round(snap.confidence * 100)}% match
+          {Math.round(snap.confidence * 100)}% de confiança
         </div>
 
         {/* Snapper Badge */}
         <div className="flex items-center gap-2 mb-3">
           <Zap className="w-3 h-3" style={{ color: 'var(--snaps-accent-purple)' }} />
           <span className="text-xs font-medium" style={{ color: 'var(--snaps-accent-purple)' }}>
-            Suggested by Snapper
+            Sugerido pelo Snapper
           </span>
         </div>
 
@@ -84,6 +86,7 @@ export function SuggestedSnapCard({ snap, index, onClick, onAccept }: SuggestedS
 
         {/* Action Buttons */}
         <div className="flex gap-2">
+          {onAccept && (
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -96,8 +99,21 @@ export function SuggestedSnapCard({ snap, index, onClick, onAccept }: SuggestedS
             }}
           >
             <Check className="w-4 h-4" />
-            Accept
+            Aceitar
           </motion.button>
+          )}
+          {onDiscard && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onDiscard}
+              className="flex-1 px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all border border-white/10 bg-white/5"
+              style={{ color: 'var(--snaps-text-secondary)' }}
+            >
+              <X className="w-4 h-4" />
+              Descartar
+            </motion.button>
+          )}
         </div>
       </Card>
     </motion.div>
