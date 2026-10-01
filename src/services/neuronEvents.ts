@@ -28,16 +28,16 @@ export interface SnapSugerido {
   timestamp: string;
 }
 
-export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno';
+export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno' | 'sem_resposta';
 
 export type EventoNeuron =
   | { type: 'thinking'; content: string }
   | { type: 'token'; content: string }
-  | { type: 'tool_start'; tool: string; resumo: string }
-  | { type: 'tool_end'; tool: string; ok: boolean; resumo: string }
+  | { type: 'tool_start'; id?: string; tool: string; resumo: string }
+  | { type: 'tool_end'; id?: string; tool: string; ok: boolean; resumo: string }
   | { type: 'snaps_referenced'; snaps: SnapReferenciado[] }
   | { type: 'snap_suggested'; snap: SnapSugerido }
-  | { type: 'board_changed'; entidades: Array<{ tipo: 'card' | 'task'; id: string }> }
+  | { type: 'board_changed'; entidades: Array<{ tipo: 'card' | 'task' | 'sprint'; id: string }> }
   | { type: 'guardrail_tripped'; guarda: string; limite: number; valor: number }
   | { type: 'error'; code: CodigoErroNeuron; message: string }
   | {

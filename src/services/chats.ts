@@ -1,7 +1,7 @@
 import { api, AGENT_URL } from './client';
 import { supabase } from '@/lib/supabaseClient';
 import { lerSSE, type EventoNeuron } from './neuronEvents';
-import type { Chat, Message } from './types';
+import type { Chat, Message, RegistroDoTurnoV1 } from './types';
 
 export const createChat = async (projectId: string, title: string): Promise<Chat> => {
     const response = await api.post(`/projects/${projectId}/chats/`, { project_id: projectId, title });
@@ -28,10 +28,10 @@ export const createMessage = async (
     chatId: string,
     content: string,
     role: 'user' | 'assistant' = 'user',
-    toolCalls?: RegistroDoTurno[],
+    toolCalls?: RegistroDoTurno[] | RegistroDoTurnoV1 | null,
 ): Promise<Message> => {
     const corpo: Record<string, unknown> = { chat_id: chatId, content, role };
-    if (toolCalls) corpo.tool_calls = toolCalls;
+    if (toolCalls !== undefined) corpo.tool_calls = toolCalls;
     const response = await api.post(`/chats/${chatId}/messages/`, corpo);
     return response.data;
 };
