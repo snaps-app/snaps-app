@@ -58,7 +58,7 @@ describe('Planner no board', () => {
       projectId: PROJETO, chatId: 'chat-planner', perfil: 'board_planner', superficie: 'board_planner', message: 'Crie um card para o login',
     });
     expect(await screen.findByText('Criei o card "Login".')).toBeInTheDocument();
-    expect(createMessage).toHaveBeenLastCalledWith('chat-planner', 'Criei o card "Login".', 'assistant', [{ perfil: 'board_planner', snaps_referenciados: [] }]);
+    expect(createMessage).toHaveBeenLastCalledWith('chat-planner', 'Criei o card "Login".', 'assistant', expect.objectContaining({v:1,perfil:'board_planner',snaps_referenciados:[]}));
   });
 
   it('reabre o chat próprio pelo título e mostra a conversa, sem resposta fixa', async () => {

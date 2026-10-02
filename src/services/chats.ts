@@ -2,6 +2,7 @@ import { api, AGENT_URL } from './client';
 import { supabase } from '@/lib/supabaseClient';
 import { lerSSE, type EventoNeuron } from './neuronEvents';
 import type { Chat, Message, RegistroDoTurnoV1 } from './types';
+import {invalidarReferencias} from './entidades';
 
 export const createChat = async (projectId: string, title: string): Promise<Chat> => {
     const response = await api.post(`/projects/${projectId}/chats/`, { project_id: projectId, title });
@@ -69,12 +70,14 @@ export const obterGrant = async (chatId: string, perfil: PerfilNeuron, agora: nu
         return atual;
     }
     const novo = await pedirGrantDeChat(chatId, perfil);
+    invalidarReferencias();
     grants.set(chatId, novo);
     return novo;
 };
 
 export const descartarGrant = (chatId: string) => {
     grants.delete(chatId);
+    invalidarReferencias();
 };
 
 export interface PedidoAoNeuron {
@@ -94,9 +97,10 @@ const tokenDaSessao = async (): Promise<string> => {
     return token;
 };
 
-const umaChamada = async (pedido: PedidoAoNeuron, aoEvento: (e: EventoNeuron) => void) => {
+const umaChamada = async (pedido: PedidoAoNeuron, aoEvento: (e: EventoNeuron) => void, signal?: AbortSignal) => {
     const [token, grant] = await Promise.all([tokenDaSessao(), obterGrant(pedido.chatId, pedido.perfil)]);
     const resposta = await fetch(`${AGENT_URL}/chat`, {
+        signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...pedido, grantId: grant.grant_id }),
@@ -111,14 +115,14 @@ const umaChamada = async (pedido: PedidoAoNeuron, aoEvento: (e: EventoNeuron) =>
         }
         throw new Error(typeof detalhe === 'string' && detalhe ? detalhe : `O Neuron não respondeu (${resposta.status}).`);
     }
-    if (resposta.body) await lerSSE(resposta.body, aoEvento);
+    if (resposta.body) await lerSSE(resposta.body, aoEvento, signal);
 };
 
 /**
  * Conversa com o Neuron. Se o grant venceu, renova e reenvia uma vez: a
  * pergunta ja esta gravada, e o Neuron nao a duplica no historico (C6).
  */
-export const streamChat = async (pedido: PedidoAoNeuron, aoEvento: (e: EventoNeuron) => void): Promise<void> => {
+export const streamChat = async (pedido: PedidoAoNeuron, aoEvento: (e: EventoNeuron) => void, signal?: AbortSignal): Promise<void> => {
     let venceu = false;
     await umaChamada(pedido, (evento) => {
         if (evento.type === 'error' && evento.code === 'grant_expired') {
@@ -126,8 +130,9 @@ export const streamChat = async (pedido: PedidoAoNeuron, aoEvento: (e: EventoNeu
             return;
         }
         aoEvento(evento);
-    });
+    }, signal);
     if (!venceu) return;
     descartarGrant(pedido.chatId);
-    await umaChamada(pedido, aoEvento);
+    signal?.throwIfAborted();
+    await umaChamada(pedido, aoEvento, signal);
 };
