@@ -182,7 +182,7 @@ describe('Descartar', () => {
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: 'Descartar' }));
     });
-    expect(deleteAgentExecution).toHaveBeenCalledWith('e1');
+    expect(deleteAgentExecution).toHaveBeenCalledWith('e1', 3);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });

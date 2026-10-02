@@ -163,7 +163,9 @@ export function useAiExecutions() {
         if (!discardTarget) return;
         setDiscardSubmitting(true);
         try {
-            await deleteAgentExecution(discardTarget);
+            // A API exige expected_revision quando a chamada leva Idempotency-Key.
+            const alvo = executions.find(e => e.id === discardTarget);
+            await deleteAgentExecution(discardTarget, alvo?.lock_version);
             setDiscardTarget(null);
             await fetchData();
         } catch (err: any) {
