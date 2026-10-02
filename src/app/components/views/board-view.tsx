@@ -3,6 +3,7 @@ import { createBoard, getProjectBoards, updateBoard } from '@/services/boards';
 import { createCard, updateCard, updateCardStatus } from '@/services/cards';
 import { getGithubConfig, getProjects } from '@/services/projects';
 import { createSnap } from '@/services/snaps';
+import {getSprints} from '@/services/sprints';
 import type { Card } from '@/services/types';
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Bot } from 'lucide-react';
@@ -13,7 +14,7 @@ import { CardModal } from '@/app/components/modals/card-modal';
 import { BoardColumnSkeleton } from '@/app/components/ui/index';
 import { BoardColumn } from '@/app/components/shared/BoardColumn';
 import { BOARD_COLORS } from '@/app/components/board/board-constants';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 
 // Extracted Components
 import { BoardHeader } from '@/app/components/board/BoardHeader';
@@ -36,6 +37,7 @@ import { ExecutionWizardModal } from '@/app/components/modals/execution-wizard-m
 export function BoardView() {
   const { projectId, boardId } = useParams<{ projectId: string, boardId: string }>();
   const navigate = useNavigate();
+  const [searchParams,setSearchParams]=useSearchParams();
 
   const {
     board, setBoard,
@@ -105,7 +107,13 @@ export function BoardView() {
   const [epicNameInput, setEpicNameInput] = useState('');
   const [epicColorInput, setEpicColorInput] = useState(BOARD_COLORS[0]);
 
-  const [selectedSprintIds, setSelectedSprintIds] = useState<string[]>([]);
+  const selectedSprintIds=searchParams.getAll('sprint');
+  const setSelectedSprintIds=(next:string[]|((prev:string[])=>string[]))=>{
+    const ids=typeof next==='function'?next(selectedSprintIds):next;
+    const params=new URLSearchParams(searchParams);
+    params.delete('sprint');ids.forEach(id=>params.append('sprint',id));
+    setSearchParams(params);
+  };
   const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
   const [isSprintFormOpen, setIsSprintFormOpen] = useState(false);
   const [isSprintSaving, setIsSprintSaving] = useState(false);
@@ -247,7 +255,7 @@ export function BoardView() {
         <SprintModal isOpen={isSprintModalOpen} onClose={() => setIsSprintModalOpen(false)} {...{ sprints, editingSprintId, sprintNameInput, sprintTagInput, sprintObjectiveInput, isSprintFormOpen, isSprintSaving, setSprintNameInput, setSprintTagInput, setSprintObjectiveInput, setIsSprintFormOpen, setEditingSprintId, handleCreateSprint: onCreateSprint, handleUpdateSprint: onUpdateSprint, handleDeleteSprint, startEditingSprint: (s: any) => { setEditingSprintId(s.id); setSprintNameInput(s.name); setSprintTagInput(s.tag); setSprintObjectiveInput(s.objective || ''); } }} />
         <BulkApplyModal isOpen={isBulkApplyOpen} onClose={() => setIsBulkApplyOpen(false)} {...{ isLoadingBoards, allBoards, selectedBoardIds, toggleBoardSelection: (id) => { const n = new Set(selectedBoardIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedBoardIds(n); }, handleBulkApplyConfirm: async () => { if (!board?.columns) return; setIsBulkSaving(true); try { if (isDirty) await handleSaveBoard(); await Promise.all(Array.from(selectedBoardIds).map(id => updateBoard(id, { columns: board.columns }))); setIsBulkApplyOpen(false); setSelectedBoardIds(new Set()); } finally { setIsBulkSaving(false); } }, isBulkSaving }} />
         <VaccinationModal isOpen={isVaccinationModalOpen} onClose={() => setIsVaccinationModalOpen(false)} {...{ vaccinationCard, vaccinationContent, setVaccinationContent, handleVaccinate: async () => { if (!vaccinationCard || !projectId) return; setIsVaccinating(true); try { await createSnap({ project_id: projectId, name: `[VACINA] ${vaccinationCard.title}`, description: `Resolução do bug ${vaccinationCard.code || ''}`, content: vaccinationContent, snadds: { labels: ['bug-vaccination'], status: 'vacinado' } }); setIsVaccinationModalOpen(false); } finally { setIsVaccinating(false); } }, isVaccinating }} />
-        <PlannerPanel isOpen={isPlannerOpen} onClose={() => setIsPlannerOpen(false)} projectId={projectId} onBoardChanged={() => { if (localBoardId) fetchBoard(localBoardId); }} />
+        <PlannerPanel isOpen={isPlannerOpen} onClose={() => setIsPlannerOpen(false)} projectId={projectId} onBoardChanged={() => { if (localBoardId) void fetchBoard(localBoardId); if(projectId) void getSprints(projectId).then(setSprints); }} />
         {isCardModalOpen && (
           <CardModal 
             isOpen={isCardModalOpen} 

@@ -14,6 +14,10 @@ const corpoDe = (pedacos: string[]) => {
 };
 
 describe('lerEventoNeuron', () => {
+  it('preserva IDs novos, eventos sprint e sem_resposta junto aos legados', () => {
+    for (const evento of exemplos.novos) expect(lerEventoNeuron(evento)).toEqual(evento);
+    expect(exemplos.novos[0].id).toBe(exemplos.novos[1].id);
+  });
   it('aceita cada exemplo do contrato', () => {
     const tipos = exemplos.eventos.map((e) => lerEventoNeuron(e)?.type);
     expect(tipos).toEqual([

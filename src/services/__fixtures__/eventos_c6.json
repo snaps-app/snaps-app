@@ -14,5 +14,11 @@
     {"type": "error", "code": "grant_expired", "message": "A autorização deste chat venceu. Renove e envie de novo."},
     {"type": "done", "perfil": "project_chat", "uso": {"input_tokens": 1200, "output_tokens": 340, "cache_read_input_tokens": 900}, "custo_usd": 0.0145, "preco_estimado": false, "incompleto": false}
   ],
+  "novos": [
+    {"type": "tool_start", "id": "9cc2b098-c921-4960-b76c-d89d5b5fa7bd", "tool": "snaps_save_sprint_tool", "resumo": "Executando ferramenta"},
+    {"type": "tool_end", "id": "9cc2b098-c921-4960-b76c-d89d5b5fa7bd", "tool": "snaps_save_sprint_tool", "ok": true, "resumo": "Concluída"},
+    {"type": "board_changed", "entidades": [{"tipo": "sprint", "id": "85a20b15-e14f-4b1a-91bf-654f96b72b65"}]},
+    {"type": "error", "code": "sem_resposta", "message": "O Neuron terminou sem uma resposta. Tente novamente."}
+  ],
   "desconhecido": {"type": "evento_do_futuro", "qualquer": "coisa"}
 }
