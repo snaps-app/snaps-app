@@ -13,18 +13,21 @@ export function PlannerPanel({isOpen,onClose,projectId,onBoardChanged}:Props) {
   const [entrada,setEntrada]=useState('');
   const [carregando,setCarregando]=useState(false);
   const [erroHistorico,setErroHistorico]=useState<string|null>(null);
+  const geracaoDoChat=useRef(0);
   const chatId=useRef<string|null>(null);
-  const conversa=useConversa({projectId,chave:`${projectId}:${isOpen}`,perfil:'board_planner',superficie:'board_planner',
+  const conversa=useConversa({projectId,chave:`${projectId}:${isOpen}:${pode}`,perfil:'board_planner',superficie:'board_planner',
     obterChat:async()=>{
       if(chatId.current) return chatId.current;
+      const geracao=geracaoDoChat.current;
       const chat=await createChat(projectId!,TITULO_CHAT_PLANNER);
-      chatId.current=chat.id;
+      if(geracao===geracaoDoChat.current) chatId.current=chat.id;
       return chat.id;
     },
     aoEvento:evento=>{if(evento.type==='board_changed') onBoardChanged();},
   });
   const {setMessages}=conversa;
   useEffect(()=>{
+    geracaoDoChat.current+=1;
     chatId.current=null;setMessages([]);setEntrada('');setErroHistorico(null);
     if(!isOpen||!pode||!projectId) return;
     let atual=true;
@@ -38,7 +41,7 @@ export function PlannerPanel({isOpen,onClose,projectId,onBoardChanged}:Props) {
       } catch {if(atual) setErroHistorico('Não foi possível carregar a conversa do Planner.');}
       finally {if(atual) setCarregando(false);}
     })();
-    return ()=>{atual=false;};
+    return ()=>{atual=false;geracaoDoChat.current+=1;};
   },[isOpen,pode,projectId,setMessages]);
   if(!isOpen) return null;
   const enviar=()=>{const texto=entrada;if(!texto.trim()||conversa.ocupado) return;setEntrada('');void conversa.enviar(texto);};
@@ -55,9 +58,10 @@ export function PlannerPanel({isOpen,onClose,projectId,onBoardChanged}:Props) {
           conversa.messages.length===0?<p>Peça ao Planner para criar, detalhar ou mover cards, tasks e sprints deste board.</p>:
           conversa.messages.map(m=><MensagemComum key={m.id} message={m} projectId={projectId} />)}
         {(erroHistorico||conversa.erro)&&<p role="alert">{erroHistorico||conversa.erro}</p>}
+        {conversa.persistenciaPendente&&<button disabled={conversa.ocupado} onClick={()=>{void conversa.repetirPersistencia();}}>Guardar resposta novamente</button>}
         {conversa.ocupado&&<p role="status">Respondendo…</p>}
       </div>
-      {pode&&<Composer value={entrada} onChange={setEntrada} onSend={enviar} onCancel={conversa.cancelar} busy={conversa.ocupado} disabled={carregando}
+      {pode&&<Composer value={entrada} onChange={setEntrada} onSend={enviar} onCancel={conversa.cancelar} busy={conversa.ocupado} disabled={carregando||conversa.persistenciaPendente}
         label="Mensagem ao Planner" sendLabel="Enviar ao Planner" placeholder="Peça ao Planner…" />}
     </aside>
   </>;

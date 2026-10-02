@@ -1,6 +1,6 @@
 /** SNA-RD-189: painel do Planner no board, ligado ao Neuron. */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('@/services/chats', () => ({
   createChat: vi.fn(),
@@ -111,4 +111,24 @@ describe('Planner no board', () => {
     pedir('Organize o board');
     expect(await screen.findByRole('alert')).toHaveTextContent('Cadastre o preço do modelo');
   });
+});
+
+it('descarta createChat atrasado depois da troca de projeto',async()=>{
+  papel('member');
+  let resolver!:(v:any)=>void;
+  vi.mocked(createChat).mockImplementationOnce(()=>new Promise(resolve=>{resolver=resolve;}));
+  vi.mocked(streamChat).mockImplementation(async(_p,emitir)=>{emitir({type:'token',content:'Resposta B'});});
+  const {rerender}=render(<PlannerPanel isOpen onClose={()=>{}} projectId="p1" onBoardChanged={()=>{}}/>);
+  await waitFor(()=>expect(screen.queryByText('Carregando…')).toBeNull());
+  pedir('Pergunta A');
+  await waitFor(()=>expect(createChat).toHaveBeenCalledOnce());
+  rerender(<PlannerPanel isOpen onClose={()=>{}} projectId="p2" onBoardChanged={()=>{}}/>);
+  await waitFor(()=>expect(screen.queryByText('Carregando…')).toBeNull());
+  await act(async()=>{resolver({id:'chat-a'});});
+  expect(streamChat).not.toHaveBeenCalled();
+  expect(createMessage).not.toHaveBeenCalled();
+  vi.mocked(createChat).mockResolvedValueOnce({id:'chat-b',project_id:'p2',title:TITULO_CHAT_PLANNER,created_at:''});
+  pedir('Pergunta B');
+  await waitFor(()=>expect(streamChat).toHaveBeenCalledWith(expect.objectContaining({chatId:'chat-b',projectId:'p2'}),expect.any(Function),expect.any(AbortSignal)));
+  expect(createChat).toHaveBeenLastCalledWith('p2',TITULO_CHAT_PLANNER);
 });

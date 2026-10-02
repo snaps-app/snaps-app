@@ -51,15 +51,15 @@ export function rotaDaEntidade(c:Candidato,contexto:string):string {
     case 'execution':return `${base}/execution/${id}`;
     case 'plan':return `${base}/plans?plan=${id}`;
     case 'sprint':return `${base}/board?sprint=${id}`;
-    case 'decision':return `${base}/decisions?decision=${id}`;
+    case 'decision':return `${base}/decisions?adr=${id}`;
     case 'governance_doc':return `/governance?tab=docs&doc=${id}&project=${encodeURIComponent(p)}`;
-    case 'snap':return `${base}/memory?snap=${id}`;
+    case 'snap':return `/memory?snap=${id}&project=${encodeURIComponent(p)}`;
     case 'board':return `${base}/board/${id}`;
     case 'project':return base;
   }
 }
 export function rotaDaPagina(pagina:string,projectId:string):string|null {
   const base=`/project/${encodeURIComponent(projectId)}`;
-  const paginas:Record<string,string>={settings:`${base}/settings`,sprints:`${base}/board`,board:`${base}/board`,plans:`${base}/plans`,decisions:`${base}/decisions`,memory:`${base}/memory`,governance:'/governance'};
+  const paginas:Record<string,string>={settings:`${base}/settings`,sprints:`${base}/board`,board:`${base}/board`,plans:`${base}/plans`,decisions:`${base}/decisions`,memory:`/memory?project=${encodeURIComponent(projectId)}`,governance:'/governance'};
   return paginas[pagina]??null;
 }

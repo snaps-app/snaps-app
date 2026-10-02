@@ -41,16 +41,20 @@ export function useActiveChat() {
   // O viewer usa só o Chatter, mesmo que o estado diga outra coisa.
   const perfil: PerfilNeuron = podeEscolher ? perfilEscolhido : PERFIL_PADRAO;
 
+  const geracaoDoChat = useRef(0);
   const chatDoTurno = useRef<string | null>(sessionId ?? null);
   const rotaAtual = useRef(`${projectId}:${sessionId}`);
   rotaAtual.current = `${projectId}:${sessionId}`;
   const conversa = useConversa({
-    projectId, chave: `${projectId}:${sessionId}`, perfil, superficie: 'chat',
+    projectId, chave: `${projectId}:${sessionId}:${perfil}`, perfil, superficie: 'chat',
     obterChat: async (texto) => {
       if (chatDoTurno.current) return chatDoTurno.current;
+      const geracao = geracaoDoChat.current;
       const chat = await createChat(projectId!, texto.slice(0, 30) || 'Novo chat');
-      chatDoTurno.current = chat.id;
-      setCurrentChatId(chat.id);
+      if(geracao===geracaoDoChat.current) {
+        chatDoTurno.current = chat.id;
+        setCurrentChatId(chat.id);
+      }
       return chat.id;
     },
     aoEvento: evento => {
@@ -62,6 +66,7 @@ export function useActiveChat() {
     },
   });
   const {messages, setMessages, ocupado: isThinking} = conversa;
+  useEffect(()=>()=>{geracaoDoChat.current+=1;},[perfil]);
   const statusDoTurno = isThinking ? 'Respondendo…' : null;
 
   useEffect(() => {
@@ -74,6 +79,7 @@ export function useActiveChat() {
 
   useEffect(() => {
     let atual = true;
+    geracaoDoChat.current+=1;
     chatDoTurno.current = sessionId ?? null;
     setSuggestedSnaps([]);
     setReferencedSnaps([]);
@@ -107,7 +113,7 @@ export function useActiveChat() {
         created_at: new Date().toISOString()
       }]);
     }
-    return () => {atual=false;};
+    return () => {atual=false;geracaoDoChat.current+=1;};
   }, [sessionId, projectId, setMessages]);
 
   const scrollToBottom = () => {
@@ -189,6 +195,8 @@ export function useActiveChat() {
     handleSend,
     cancelar: conversa.cancelar,
     erroConversa: conversa.erro,
+    persistenciaPendente: conversa.persistenciaPendente,
+    repetirPersistencia: conversa.repetirPersistencia,
     handleSnapClick,
     handleSuggestedSnapClick,
     handleAcceptSnap,

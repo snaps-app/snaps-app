@@ -36,6 +36,8 @@ export function ActiveChat() {
     handleSend,
     cancelar,
     erroConversa,
+    persistenciaPendente,
+    repetirPersistencia,
     handleSnapClick,
     handleSuggestedSnapClick,
     handleAcceptSnap,
@@ -185,7 +187,8 @@ export function ActiveChat() {
 
           {/* Input Area */}
           {erroConversa&&<p role="alert">{erroConversa}</p>}
-          <Composer value={inputValue} onChange={setInputValue} onSend={()=>{void handleSend();}} busy={isThinking} onCancel={cancelar} />
+          {persistenciaPendente&&<button disabled={isThinking} onClick={()=>{void repetirPersistencia();}}>Guardar resposta novamente</button>}
+          <Composer disabled={persistenciaPendente} value={inputValue} onChange={setInputValue} onSend={()=>{void handleSend();}} busy={isThinking} onCancel={cancelar} />
         </motion.div>
 
         {/* RIGHT PANEL - Contextual Memory */}

@@ -39,3 +39,16 @@ describe('registro puro do turno', () => {
     expect(lerRegistro(null,'texto').passos).toEqual([{type:'text',content:'texto'}]);
   });
 });
+
+it('deduplica start e end com ID sem fundir chamadas legadas',()=>{
+  let t=iniciarTurno('project_chat');
+  const start={type:'tool_start' as const,id:'tool-1',tool:'buscar',resumo:'Buscando'};
+  t=reduzirTurno(t,start);t=reduzirTurno(t,start);
+  const end={type:'tool_end' as const,id:'tool-1',tool:'buscar',ok:true,resumo:'Encontrado'};
+  t=reduzirTurno(t,end);t=reduzirTurno(t,end);t=reduzirTurno(t,start);
+  expect(t.registro.passos).toHaveLength(1);
+  expect(t.registro.passos[0]).toMatchObject({status:'ok',resumo:'Encontrado'});
+  t=reduzirTurno(t,{type:'tool_start',tool:'buscar',resumo:'Legada'});
+  t=reduzirTurno(t,{type:'tool_start',tool:'buscar',resumo:'Legada'});
+  expect(t.registro.passos).toHaveLength(3);
+});

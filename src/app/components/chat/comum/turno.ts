@@ -24,6 +24,7 @@ export function reduzirTurno(t:Turno,e:EventoNeuron):Turno {
       break;
     }
     case 'tool_start':
+      if(e.id&&registro.passos.some(p=>p.type==='tool'&&p.id===e.id)) break;
       registro.passos.push({type:'tool',id:e.id,tool:e.tool,resumo:e.resumo.slice(0,300),status:'running'});
       break;
     case 'tool_end': {

@@ -14,7 +14,7 @@ import { CardModal } from '@/app/components/modals/card-modal';
 import { BoardColumnSkeleton } from '@/app/components/ui/index';
 import { BoardColumn } from '@/app/components/shared/BoardColumn';
 import { BOARD_COLORS } from '@/app/components/board/board-constants';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 
 // Extracted Components
 import { BoardHeader } from '@/app/components/board/BoardHeader';
@@ -37,6 +37,7 @@ import { ExecutionWizardModal } from '@/app/components/modals/execution-wizard-m
 export function BoardView() {
   const { projectId, boardId } = useParams<{ projectId: string, boardId: string }>();
   const navigate = useNavigate();
+  const [searchParams,setSearchParams]=useSearchParams();
 
   const {
     board, setBoard,
@@ -106,7 +107,13 @@ export function BoardView() {
   const [epicNameInput, setEpicNameInput] = useState('');
   const [epicColorInput, setEpicColorInput] = useState(BOARD_COLORS[0]);
 
-  const [selectedSprintIds, setSelectedSprintIds] = useState<string[]>([]);
+  const selectedSprintIds=searchParams.getAll('sprint');
+  const setSelectedSprintIds=(next:string[]|((prev:string[])=>string[]))=>{
+    const ids=typeof next==='function'?next(selectedSprintIds):next;
+    const params=new URLSearchParams(searchParams);
+    params.delete('sprint');ids.forEach(id=>params.append('sprint',id));
+    setSearchParams(params);
+  };
   const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
   const [isSprintFormOpen, setIsSprintFormOpen] = useState(false);
   const [isSprintSaving, setIsSprintSaving] = useState(false);

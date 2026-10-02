@@ -4,7 +4,7 @@ vi.mock('@/services/chats',()=>({createMessage:vi.fn(async()=>({})),streamChat:v
 import {createMessage,streamChat} from '@/services/chats';
 import {useConversa} from './useConversa';
 
-beforeEach(()=>{vi.mocked(createMessage).mockClear();vi.mocked(streamChat).mockReset();});
+beforeEach(()=>{vi.mocked(createMessage).mockReset();vi.mocked(createMessage).mockResolvedValue({} as any);vi.mocked(streamChat).mockReset();});
 describe('ciclo compartilhado',()=>{
   it('trava antes do await e salva exatamente uma resposta vazia com erro',async()=>{
     let liberar!:(v:string)=>void;
@@ -34,4 +34,18 @@ describe('ciclo compartilhado',()=>{
     expect(result.current.messages).toEqual([]);
     expect(createMessage).toHaveBeenLastCalledWith('c','Parcial','assistant',expect.objectContaining({incompleto:true,terminal:'interrompido'}));
   });
+});
+
+it('repete somente o save e troca o ID temporário pelo ID persistido',async()=>{
+  vi.mocked(createMessage).mockResolvedValueOnce({} as any).mockRejectedValueOnce(new Error('save indisponível')).mockResolvedValueOnce({id:'assistant-salvo'} as any);
+  vi.mocked(streamChat).mockImplementation(async(_p,emitir)=>{emitir({type:'token',content:'Resposta'});});
+  const {result}=renderHook(()=>useConversa({projectId:'p',chave:'p/c',perfil:'project_chat',superficie:'chat',obterChat:async()=> 'c'}));
+  await act(async()=>{expect(await result.current.enviar('Oi')).toBe(false);});
+  expect(result.current.persistenciaPendente).toBe(true);
+  expect(await result.current.enviar('Outra')).toBe(false);
+  await act(async()=>{await result.current.repetirPersistencia();});
+  expect(streamChat).toHaveBeenCalledOnce();
+  expect(createMessage).toHaveBeenCalledTimes(3);
+  expect(result.current.persistenciaPendente).toBe(false);
+  expect(result.current.messages.find(m=>m.role==='assistant')).toMatchObject({id:'assistant-salvo',content:'Resposta'});
 });
