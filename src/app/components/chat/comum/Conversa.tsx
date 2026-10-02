@@ -5,7 +5,15 @@ import type {Message} from '@/services/types';
 import {lerRegistro} from './turno';
 import {rotuloDoPerfil} from '../perfis';
 import {pluginReferencias} from './referencias';
-import {useSmartLinks,LinkDaReferencia} from './SmartLinks';
+import {useSmartLinks,LinkDaReferencia,LinkInterno} from './SmartLinks';
+
+export type ItemDaConversa<T>={type:'message';message:Message}|{type:'extra';id:string;evento:T};
+export function ConversaComum<T>({items,projectId,renderItemExtra,header,footer}:{items:ItemDaConversa<T>[];projectId?:string;
+  renderItemExtra?:(evento:T)=>ReactNode;header?:ReactNode;footer?:ReactNode}) {
+  return <div className="space-y-4">{header}{items.map(item=>item.type==='message'?
+    <MensagemComum key={item.message.id} message={item.message} projectId={projectId}/>:
+    <div key={item.id}>{renderItemExtra?.(item.evento)}</div>)}{footer}</div>;
+}
 
 export function MensagemComum({message,projectId}: {message:Message;projectId?:string}) {
   const registro=lerRegistro(message.tool_calls,message.content);
@@ -26,8 +34,8 @@ export function MensagemComum({message,projectId}: {message:Message;projectId?:s
               const key=decodeURIComponent(href.slice(11));
               return <LinkDaReferencia candidatos={candidatos.get(key)??[]} projectId={projectId}>{children}</LinkDaReferencia>;
             }
-            return <a href={href} rel="noopener noreferrer">{children}</a>;
-          }}}>{p.content}</ReactMarkdown>
+            return href?.startsWith('/')?<LinkInterno href={href}>{children}</LinkInterno>:<a href={href} rel="noopener noreferrer">{children}</a>;
+          },img:({src,alt})=>src&&/^https?:\/\//i.test(src)?<a href={src} rel="noopener noreferrer">{alt||'Abrir imagem'}</a>:<span>{alt}</span>}}>{p.content}</ReactMarkdown>
       </div>)}
     {typeof registro.mensagem_erro==='string'&&<p role="alert" className="mt-2 text-red-300">{registro.mensagem_erro}</p>}
     {registro.incompleto&&<p role="status" className="mt-2 text-amber-300">Resposta incompleta{registro.terminal==='interrompido'?' · turno interrompido':''}.</p>}

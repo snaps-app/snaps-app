@@ -8,7 +8,14 @@ export const chaveReferencia=(r:RefEntidade)=>'code' in r?`code:${r.code.toUpper
 let geracao=0;
 const cache=new Map<string,{ate:number;candidatos:Candidato[]}>();
 const assinantes=new Set<()=>void>();
-export function acompanharReferencias(aoInvalidar:()=>void){assinantes.add(aoInvalidar);return ()=>{assinantes.delete(aoInvalidar);};}
+let observaSessao=false;
+export function acompanharReferencias(aoInvalidar:()=>void){
+  if(!observaSessao&&supabase.auth.onAuthStateChange) {
+    supabase.auth.onAuthStateChange(()=>invalidarReferencias());
+    observaSessao=true;
+  }
+  assinantes.add(aoInvalidar);return ()=>{assinantes.delete(aoInvalidar);};
+}
 export function invalidarReferencias(){geracao++;cache.clear();assinantes.forEach(fn=>fn());}
 export async function resolverReferencias(projectId:string,refs:RefEntidade[],signal?:AbortSignal):Promise<Map<string,Candidato[]>> {
   const {data}=await supabase.auth.getSession();
