@@ -5,6 +5,7 @@ import { Outlet, useParams } from 'react-router-dom';
 import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { ContextSidebar } from '@/app/components/layout/context-sidebar';
 import { ProjectRoleProvider } from '@/contexts/project-role-context';
+import {DetalheDaEntidade} from '@/app/components/chat/comum/DetalheDaEntidade';
 
 export function MainLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -34,6 +35,7 @@ export function MainLayout() {
         </div>
 
         <BottomNav />
+        <DetalheDaEntidade />
       </div>
     </ProjectRoleProvider>
   );

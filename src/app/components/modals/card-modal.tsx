@@ -9,11 +9,14 @@ import { useCardModal } from '@/app/components/modals/useCardModal';
 import { CardModalHeader } from '@/app/components/modals/CardModalHeader';
 import { CardModalDescription } from '@/app/components/modals/CardModalDescription';
 import { CardModalSidebar } from '@/app/components/modals/CardModalSidebar';
+import { useEffect } from 'react';
 
+const EMPTY_REPOS:string[]=[];
+const EMPTY_COLUMNS:{id:string;title:string}[]=[];
 interface CardModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (cardData: Partial<Card>) => void;
+    onSave: (cardData: Partial<Card>) => void | Promise<void>;
     onDelete?: (cardId: string) => void;
     initialData?: Card | null;
     boardId?: string;
@@ -22,6 +25,9 @@ interface CardModalProps {
     columns?: { id: string; title: string }[];
     repoNames?: string[];
     onAiExecute?: () => void;
+    readOnly?: boolean;
+    canDelete?: boolean;
+    initialDataIsFresh?: boolean;
 }
 
 export function CardModal({
@@ -33,12 +39,17 @@ export function CardModal({
     epics = [],
     sprints = [],
     columns,
-    repoNames = [],
-    onAiExecute
+    repoNames = EMPTY_REPOS,
+    onAiExecute,
+    readOnly = false,
+    canDelete = true,
+    initialDataIsFresh = false,
 }: CardModalProps) {
-    const safeColumns = columns || [];
+    const safeColumns = columns || EMPTY_COLUMNS;
 
     const {
+        isSaving,
+        saveError,
         title,
         setTitle,
         description,
@@ -89,7 +100,11 @@ export function CardModal({
         onSave,
         onClose,
         onDelete,
+        readOnly,
+        canDelete,
+        initialDataIsFresh,
     });
+    useEffect(()=>{if(readOnly) {setDescMode('preview');setIsWizardOpen(false);}},[readOnly,setDescMode,setIsWizardOpen]);
 
     return (
         <>
@@ -127,6 +142,7 @@ export function CardModal({
                                     }}
                                 >
                                     {/* Header */}
+                                    <fieldset disabled={readOnly} className="contents">
                                     <CardModalHeader
                                         title={title}
                                         setTitle={setTitle}
@@ -140,6 +156,7 @@ export function CardModal({
                                         initialData={initialData}
                                         onClose={onClose}
                                     />
+                                    </fieldset>
 
                                     {/* Content */}
                                     <div className="flex-1 overflow-y-auto p-6 flex gap-8 relative min-h-[400px]">
@@ -164,7 +181,7 @@ export function CardModal({
                                         </AnimatePresence>
 
                                         {!isLoading && (
-                                            <>
+                                            <fieldset disabled={readOnly} className="contents">
                                                 {/* Main Left Column */}
                                                 <div className="flex-1 space-y-6">
                                                     {/* Description */}
@@ -219,14 +236,15 @@ export function CardModal({
                                                     sprints={sprints}
                                                     repoNames={repoNames}
                                                 />
-                                            </>
+                                            </fieldset>
                                         )}
                                     </div>
 
                                     {/* Footer */}
+                                    {saveError&&<p role="alert" className="px-6 text-red-300">{saveError}</p>}
                                     <div className="p-6 border-t border-white/10 flex justify-between items-center shrink-0">
                                         <div>
-                                            {initialData?.id && (
+                                            {initialData?.id && !readOnly && canDelete && (
                                                 <button
                                                     type="button"
                                                     onClick={handleDelete}
@@ -255,13 +273,14 @@ export function CardModal({
                                             >
                                                 Cancel
                                             </button>
-                                            <button
+                                            {!readOnly && <button
                                                 type="button"
                                                 onClick={handleSave}
+                                                disabled={isSaving}
                                                 className="px-6 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/25 transition-all"
                                             >
                                                 {initialData ? 'Save Changes' : 'Create Card'}
-                                            </button>
+                                            </button>}
                                         </div>
                                     </div>
                                 </div>
@@ -271,7 +290,7 @@ export function CardModal({
                 )}
             </AnimatePresence>
 
-            {initialData?.id && (
+            {initialData?.id && !readOnly && (
                 <ExecutionWizardModal
                     isOpen={isWizardOpen}
                     onClose={() => setIsWizardOpen(false)}

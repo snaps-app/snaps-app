@@ -34,6 +34,16 @@ beforeEach(() => {
 });
 
 describe('grant do chat', () => {
+  it('conserva v1 e null sem confundir com campo omitido', async () => {
+    vi.mocked(api.post).mockResolvedValue({data: {}});
+    const registro = {v: 1 as const, perfil: 'board_planner', incompleto: true, snaps_referenciados: [], passos: [], erro: 'sem_resposta'};
+    await createMessage(CHAT, '', 'assistant', registro);
+    expect(api.post).toHaveBeenLastCalledWith(`/chats/${CHAT}/messages/`, {chat_id: CHAT, content: '', role: 'assistant', tool_calls: registro});
+    await createMessage(CHAT, '', 'assistant', null);
+    expect(api.post).toHaveBeenLastCalledWith(`/chats/${CHAT}/messages/`, {chat_id: CHAT, content: '', role: 'assistant', tool_calls: null});
+    await createMessage(CHAT, 'Oi');
+    expect(api.post).toHaveBeenLastCalledWith(`/chats/${CHAT}/messages/`, {chat_id: CHAT, content: 'Oi', role: 'user'});
+  });
   it('pede o grant com o perfil e reaproveita enquanto faltar mais de 5 minutos', async () => {
     vi.mocked(api.post).mockResolvedValueOnce(grant('g1')).mockResolvedValueOnce(grant('g2'));
     expect((await obterGrant(CHAT, 'project_chat')).grant_id).toBe('g1');

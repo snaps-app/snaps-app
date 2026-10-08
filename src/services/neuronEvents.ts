@@ -28,16 +28,16 @@ export interface SnapSugerido {
   timestamp: string;
 }
 
-export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno';
+export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno' | 'sem_resposta';
 
 export type EventoNeuron =
   | { type: 'thinking'; content: string }
   | { type: 'token'; content: string }
-  | { type: 'tool_start'; tool: string; resumo: string }
-  | { type: 'tool_end'; tool: string; ok: boolean; resumo: string }
+  | { type: 'tool_start'; id?: string; tool: string; resumo: string }
+  | { type: 'tool_end'; id?: string; tool: string; ok: boolean; resumo: string }
   | { type: 'snaps_referenced'; snaps: SnapReferenciado[] }
   | { type: 'snap_suggested'; snap: SnapSugerido }
-  | { type: 'board_changed'; entidades: Array<{ tipo: 'card' | 'task'; id: string }> }
+  | { type: 'board_changed'; entidades: Array<{ tipo: 'card' | 'task' | 'sprint'; id: string }> }
   | { type: 'guardrail_tripped'; guarda: string; limite: number; valor: number }
   | { type: 'error'; code: CodigoErroNeuron; message: string }
   | {
@@ -78,7 +78,7 @@ export function lerEventoNeuron(dado: unknown): EventoNeuron | null {
  * Guarda o resto da linha entre pedacos: um `data:` cortado ao meio pela rede
  * nao pode virar JSON invalido descartado.
  */
-export async function lerSSE(corpo: ReadableStream<Uint8Array>, aoEvento: (e: EventoNeuron) => void): Promise<void> {
+export async function lerSSE(corpo: ReadableStream<Uint8Array>, aoEvento: (e: EventoNeuron) => void, signal?: AbortSignal): Promise<void> {
   const leitor = corpo.getReader();
   const decodificador = new TextDecoder();
   let resto = '';
@@ -91,8 +91,13 @@ export async function lerSSE(corpo: ReadableStream<Uint8Array>, aoEvento: (e: Ev
       // linha que nao e JSON: ignorada, como tipo desconhecido
     }
   };
+  const cancelar = () => { void leitor.cancel().catch(() => {}); };
+  signal?.addEventListener('abort', cancelar, {once:true});
+  try {
+  signal?.throwIfAborted();
   for (;;) {
     const { value, done } = await leitor.read();
+    signal?.throwIfAborted();
     if (done) break;
     resto += decodificador.decode(value, { stream: true });
     const linhas = resto.split('\n');
@@ -101,4 +106,8 @@ export async function lerSSE(corpo: ReadableStream<Uint8Array>, aoEvento: (e: Ev
   }
   resto += decodificador.decode();
   if (resto) processar(resto);
+  } finally {
+    signal?.removeEventListener('abort', cancelar);
+    leitor.releaseLock();
+  }
 }

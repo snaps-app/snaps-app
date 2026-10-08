@@ -618,6 +618,19 @@ export interface AgentTaskExecutionCreate {
 }
 
 // --- Chat Interfaces ---
+export type PassoDoTurno =
+    | { type: 'text' | 'thinking'; content: string }
+    | { type: 'tool'; id?: string; tool: string; resumo: string; status: 'running' | 'ok' | 'error' | 'interrompido' };
+
+export interface RegistroDoTurnoV1 {
+    v: 1;
+    perfil: string;
+    snaps_referenciados: string[];
+    incompleto: boolean;
+    passos: PassoDoTurno[];
+    [extra: string]: unknown;
+}
+
 export interface Message {
     id: string;
     chat_id: string;
@@ -625,7 +638,7 @@ export interface Message {
     content: string;
     created_at: string;
     /** Na resposta do Neuron: `[{perfil, snaps_referenciados}]` (SNA-RD-189). */
-    tool_calls?: Array<Record<string, unknown>> | null;
+    tool_calls?: RegistroDoTurnoV1 | Array<Record<string, unknown>> | null;
 }
 
 export interface Chat {
