@@ -4,6 +4,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {api} from '@/services/client';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/app/components/ui/dialog';
+import {ProjectRoleProvider,useProjectRole} from '@/contexts/project-role-context';
+import {CardModal} from '@/app/components/modals/card-modal';
+import {SnapDetailModal} from '@/app/components/modals/snap-detail-modal';
+import {SnapModal} from '@/app/components/modals/snap-modal';
+import {updateCard} from '@/services/cards';
+import {updateSnap,deleteSnap} from '@/services/snaps';
+import type {Card,Snap} from '@/services/types';
 
 export const PARAMETROS_DE_DETALHE=['card','plan','adr','decision','doc','sprint','snap'] as const;
 type Parametro=typeof PARAMETROS_DE_DETALHE[number];
@@ -20,6 +27,7 @@ export function DetalheDaEntidade() {
   const tipo=PARAMETROS_DE_DETALHE.find(p=>params.has(p)&&!(p==='sprint'&&/^\/project\/[^/]+\/board(?:\/|$)/.test(location.pathname)));
   const id=tipo?params.get(tipo):null;
   const projectId=location.pathname.match(/^\/project\/([^/]+)/)?.[1]??params.get('project');
+  const boardId=location.pathname.match(/^\/project\/[^/]+\/board\/([^/]+)/)?.[1];
   const chave=`${tipo}:${id}:${projectId}`;
   const [resultado,setResultado]=useState<{chave:string;data:Record<string,unknown>}|null>(null);
   const dado=resultado?.chave===chave?resultado.data:null;
@@ -34,7 +42,8 @@ export function DetalheDaEntidade() {
       .then(async({data})=>{
         if(controller.signal.aborted) return;
         if(projectId&&data.project_id&&data.project_id!==projectId) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
-        if(tipo==='card'&&projectId&&typeof data.board_id==='string') {
+        if(tipo==='card') {
+          if(typeof data.board_id!=='string'||!projectId||(boardId&&data.board_id!==boardId)) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
           const {data:board}=await api.get<{project_id:string}>(`/boards/${data.board_id}`,{signal:controller.signal});
           if(controller.signal.aborted) return;
           if(board.project_id!==projectId) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
@@ -42,13 +51,16 @@ export function DetalheDaEntidade() {
         setDado(data);
       }).catch(()=>{if(!controller.signal.aborted) setErro('Recurso não encontrado ou fora do seu escopo.');});
     return ()=>controller.abort();
-  },[tipo,id,projectId]);
+  },[tipo,id,projectId,boardId]);
   const fechar=()=>{
     const nova=new URLSearchParams(params);
     if(tipo) nova.delete(tipo);
     setParams(nova); // deixa filtros e navegação de histórico intactos
   };
   if(!tipo) return null;
+  if(dado&&(tipo==='card'||tipo==='snap')&&projectId) return <ProjectRoleProvider key={`${tipo}:${id}:${projectId}`} projectId={projectId}>
+    <ModalDaEntidade key={chave} tipo={tipo} dado={dado} fechar={fechar} projectId={projectId}/>
+  </ProjectRoleProvider>;
   return <Dialog open onOpenChange={aberto=>{if(!aberto) fechar();}}>
     <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-neutral-950 text-white border-white/20">
       <DialogTitle>{dado?String(dado.title??dado.name??ROTULOS[tipo]):ROTULOS[tipo]}</DialogTitle>
@@ -63,4 +75,20 @@ export function DetalheDaEntidade() {
       <button type="button" className="rounded-lg border px-3 py-2 mt-3" onClick={fechar}>Fechar detalhes</button>
     </DialogContent>
   </Dialog>;
+}
+
+function ModalDaEntidade({tipo,dado,fechar,projectId}:{tipo:'card'|'snap';dado:Record<string,unknown>;fechar:()=>void;projectId:string}) {
+  const {can,loading}=useProjectRole();
+  const [editando,setEditando]=useState(false);
+  const [erro,setErro]=useState<string|null>(null);
+  const avisar=()=>window.dispatchEvent(new CustomEvent('snaps:entity-updated',{detail:{tipo,id:dado.id,projectId,boardId:dado.board_id}}));
+  if(loading) return <Dialog open onOpenChange={aberto=>{if(!aberto) fechar();}}><DialogContent><DialogTitle>Detalhes</DialogTitle><DialogDescription>Verificando permissões…</DialogDescription><p role="status">Carregando detalhes…</p></DialogContent></Dialog>;
+  if(tipo==='card') return <><CardModal isOpen initialData={dado as unknown as Card} initialDataIsFresh readOnly={!can('write')} canDelete={can('delete')} onClose={fechar}
+    onSave={async data=>{if(!can('write')) throw new Error('Sem permissão');await updateCard(String(dado.id),data);avisar();}}
+    onDelete={()=>{avisar();}}/>{erro&&<p role="alert">{erro}</p>}</>;
+  const snap=dado as unknown as Snap;
+  if(editando&&can('write')) return <><SnapModal key={snap.id} isOpen onClose={()=>setEditando(false)} initialData={{title:snap.name??'',content:snap.content??'',tags:snap.snadds?.labels??[]}}
+    onSave={async data=>{if(!can('write')) throw new Error('Sem permissão');await updateSnap(snap.id,{name:data.title,content:data.content,snadds:{...snap.snadds,labels:data.tags}});avisar();fechar();}}/>{erro&&<p role="alert">{erro}</p>}</>;
+  return <><SnapDetailModal isOpen snap={snap} onClose={fechar} onEdit={can('write')?()=>setEditando(true):undefined}
+    onDelete={can('delete')?async()=>{if(!can('delete')||!window.confirm('Excluir este snap?')) return;try {await deleteSnap(snap.id,projectId);avisar();fechar();}catch {setErro('Não foi possível excluir o snap.');}}:undefined}/>{erro&&<p role="alert">{erro}</p>}</>;
 }

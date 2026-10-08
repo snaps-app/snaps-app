@@ -27,6 +27,7 @@ import { useBoardData } from '@/app/components/board/useBoardData';
 import { useBoardModals } from '@/app/components/board/useBoardModals';
 import { StrategyConfiguratorModal } from '@/app/components/modals/strategy-configurator-modal';
 import { ExecutionWizardModal } from '@/app/components/modals/execution-wizard-modal';
+import {useProjectRole} from '@/contexts/project-role-context';
 
 /**
  * BoardView Component
@@ -38,6 +39,7 @@ export function BoardView() {
   const { projectId, boardId } = useParams<{ projectId: string, boardId: string }>();
   const navigate = useNavigate();
   const [searchParams,setSearchParams]=useSearchParams();
+  const {can}=useProjectRole();
 
   const {
     board, setBoard,
@@ -50,6 +52,11 @@ export function BoardView() {
     initialState, setInitialState,
     fetchBoard
   } = useBoardData(projectId, boardId);
+  useEffect(()=>{
+    const atualizar=(event:Event)=>{const detail=(event as CustomEvent).detail;if(localBoardId&&detail?.tipo==='card'&&detail.projectId===projectId&&detail.boardId===localBoardId) void fetchBoard(localBoardId);};
+    window.addEventListener('snaps:entity-updated',atualizar);
+    return ()=>window.removeEventListener('snaps:entity-updated',atualizar);
+  },[projectId,localBoardId,fetchBoard]);
 
   const {
     handleCreateEpic, handleUpdateEpic, handleDeleteEpic,
@@ -241,7 +248,7 @@ export function BoardView() {
         <div className="flex-1 overflow-x-auto p-6 scrollbar-hide">
           <div className="flex gap-6 h-full items-start">
             {isLoadingBoard ? <><BoardColumnSkeleton /><BoardColumnSkeleton /><BoardColumnSkeleton /></> : board?.columns?.map((col: any, index: number) => (
-              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { setSelectedCard(card); setIsCardModalOpen(true); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} onStartExecution={handleStartExecution} onTitleChange={async () => {}} onColorChange={async () => {}} onMoveColumn={async () => {}} />
+              <BoardColumn key={col.id} index={index} title={col.title} status={col.id} tasks={filteredAndSortedTasks.filter(t => getEffectiveStatus(t.status) === getEffectiveStatus(col.id))} onMove={handleMove} onCardClick={(card) => { const params=new URLSearchParams(searchParams);params.set('card',card.id);setSearchParams(params); }} color={col.color || boardColor} epics={epics} sprints={sprints} boardColor={boardColor} onStartExecution={handleStartExecution} onTitleChange={async () => {}} onColorChange={async () => {}} onMoveColumn={async () => {}} />
             ))}
           </div>
         </div>
@@ -258,6 +265,8 @@ export function BoardView() {
         <PlannerPanel isOpen={isPlannerOpen} onClose={() => setIsPlannerOpen(false)} projectId={projectId} onBoardChanged={() => { if (localBoardId) void fetchBoard(localBoardId); if(projectId) void getSprints(projectId).then(setSprints); }} />
         {isCardModalOpen && (
           <CardModal 
+            readOnly={!can('write')}
+            canDelete={can('delete')}
             isOpen={isCardModalOpen} 
             onClose={() => setIsCardModalOpen(false)} 
             initialData={selectedCard} 

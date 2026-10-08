@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState,type ReactNode} from 'react';
+import {Children,useEffect,useMemo,useState,type ReactNode} from 'react';
 import {acompanharReferencias,resolverReferencias,rotaDaEntidade,type Candidato} from '@/services/entidades';
 import {Link,useInRouterContext} from 'react-router-dom';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/app/components/ui/dialog';
@@ -24,7 +24,12 @@ export function useSmartLinks(content:string,projectId:string|undefined,finaliza
 }
 export function LinkDaReferencia({candidatos,projectId,children}:{candidatos:Candidato[];projectId:string;children:ReactNode}) {
   const [aberto,setAberto]=useState(false);
-  if(candidatos.length===1) return <LinkInterno href={rotaDaEntidade(candidatos[0],projectId)}>{children}</LinkInterno>;
+  if(candidatos.length===1) {
+    const c=candidatos[0];
+    const texto=Children.toArray(children).every(c=>typeof c==='string')?Children.toArray(children).join(''):'';
+    const rotular=/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(texto)||texto.toLowerCase().startsWith('snaps://');
+    return <LinkInterno href={rotaDaEntidade(c,projectId)}>{rotular?(c.codigo?`${c.codigo} · ${c.rotulo}`:c.rotulo):children}</LinkInterno>;
+  }
   if(candidatos.length===0) return <>{children}</>;
   return <span>
     <button type="button" aria-haspopup="dialog" onClick={()=>setAberto(true)} className="underline text-orange-300">{children} · escolher</button>

@@ -6,7 +6,7 @@ import { Tag } from '@/app/components/shared/tag';
 interface SnapModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave?: (snap: { title: string; content: string; tags: string[] }) => void;
+  onSave?: (snap: { title: string; content: string; tags: string[] }) => void | Promise<void>;
   initialData?: {
     title: string;
     content: string;
@@ -19,6 +19,8 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
   const [content, setContent] = useState(initialData?.content || '');
   const [tags, setTags] = useState<string[]>(initialData?.tags || []);
   const [tagInput, setTagInput] = useState('');
+  const [isSaving,setIsSaving]=useState(false);
+  const [saveError,setSaveError]=useState<string|null>(null);
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [flyingNodes, setFlyingNodes] = useState<Array<{ id: number; x: number; y: number; tag: string }>>([]);
 
@@ -58,10 +60,12 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
     }, 2000);
   };
 
-  const handleSave = () => {
-    if (onSave && title.trim()) {
-      onSave({ title, content, tags });
-      onClose();
+  const handleSave = async () => {
+    if (onSave && title.trim() && !isSaving) {
+      setIsSaving(true);setSaveError(null);
+      try {await onSave({ title, content, tags });onClose();}
+      catch {setSaveError('Não foi possível salvar o snap.');}
+      finally {setIsSaving(false);}
     }
   };
 
@@ -75,6 +79,7 @@ export function SnapModal({ isOpen, onClose, onSave, initialData }: SnapModalPro
     <AnimatePresence>
       {isOpen && (
         <>
+          {saveError&&<p role="alert" className="fixed bottom-6 left-6 z-[60] text-red-300">{saveError}</p>}
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
