@@ -9,7 +9,7 @@ API="$(sed -n 's/^VITE_API_URL="\(.*\)"$/\1/p' ".vercel/.env.${ALVO}.local")"
 CHECK_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$CHECK_DIR"' EXIT
 request() {
-  npx --yes vercel@63.1.0 curl "$1" --token="$VERCEL_TOKEN" -- \
+  npx --yes vercel@63.1.0 curl "$1" -- \
     --silent --show-error --output "$2" --write-out "%{http_code}" --max-time 30
 }
 for ATTEMPT in 1 2 3 4 5 6; do
