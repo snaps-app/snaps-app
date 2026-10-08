@@ -4,6 +4,16 @@ import {supabase} from '@/lib/supabaseClient';
 export type TipoEntidade='card'|'execution'|'plan'|'sprint'|'snap'|'board'|'decision'|'governance_doc'|'project';
 export interface Candidato {tipo:TipoEntidade;id:string;project_id:string|null;rotulo:string;codigo:string|null;board_id:string|null}
 export type RefEntidade={code:string}|{id:string;tipo?:TipoEntidade};
+const TIPOS=new Set<string>(['card','execution','plan','sprint','snap','board','decision','governance_doc','project']);
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function analisarUriSnaps(uri:string):{ref?:RefEntidade;pagina?:string}|null {
+  const match=/^snaps:\/\/([a-z_]+)(?:\/([^/]+))?$/i.exec(uri);
+  if(!match) return null;
+  const tipo=match[1].toLowerCase(),valor=match[2];
+  if(TIPOS.has(tipo)&&valor&&UUID.test(valor)) return {ref:{tipo:tipo as TipoEntidade,id:valor.toLowerCase()}};
+  if(tipo==='pagina'&&valor&&/^[a-z_]+$/i.test(valor)) return {pagina:valor.toLowerCase()};
+  return valor?null:{pagina:tipo};
+}
 export const chaveReferencia=(r:RefEntidade)=>'code' in r?`code:${r.code.toUpperCase()}`:`${r.tipo??'id'}:${r.id.toLowerCase()}`;
 let geracao=0;
 const cache=new Map<string,{ate:number;candidatos:Candidato[]}>();

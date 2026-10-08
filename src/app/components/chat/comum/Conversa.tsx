@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import {useEffect,useState,isValidElement,type ReactNode} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type {Message} from '@/services/types';
@@ -21,25 +21,37 @@ export function MensagemComum({message,projectId}: {message:Message;projectId?:s
   const {candidatos,autorizadas}=useSmartLinks(message.role==='assistant'?message.content:'',projectId,finalizado);
   return <article className={`rounded-xl border border-white/10 p-4 text-sm ${message.role==='user'?'ml-8 bg-white/5':'bg-orange-500/5'}`} aria-label={message.role==='user'?'Sua mensagem':'Resposta do Neuron'}>
     {message.role==='assistant'&&registro.perfil&&<p className="text-xs text-white/60 mb-2" data-testid="perfil-da-resposta">{rotuloDoPerfil(registro.perfil)??registro.perfil}</p>}
+    {registro.passos.some(p=>p.type==='tool')&&<p className="text-xs" role="status">{registro.passos.filter(p=>p.type==='tool').length} {registro.passos.filter(p=>p.type==='tool').length===1?'ferramenta':'ferramentas'}</p>}
     {registro.passos.map((p,i)=>p.type==='tool'?
-      <details key={p.id??i} className="my-2 rounded border border-white/10 p-2">
-        <summary className="cursor-pointer">{p.tool} · {p.status==='running'?'Executando…':p.status==='ok'?'Concluída':p.status==='error'?'Erro':'Interrompida'}</summary>
-        <p className="whitespace-pre-wrap mt-2">{p.resumo}</p>
-      </details>:p.type==='thinking'?
+      <PassoDaFerramenta key={`${message.id}:${p.id??i}`} tool={p.tool} status={p.status} resumo={p.resumo} finalizado={finalizado}/>:p.type==='thinking'?
       <details key={i} className="my-2 text-white/60"><summary className="cursor-pointer">Pensamento</summary><p className="whitespace-pre-wrap">{p.content}</p></details>:
-      <div key={i} className="prose prose-invert prose-sm max-w-none overflow-x-auto">
+      <div key={i} className="prose prose-invert prose-sm max-w-none overflow-x-auto max-h-[500px] overflow-y-auto" style={{color:'var(--snaps-text-primary)'}}>
         <ReactMarkdown remarkPlugins={projectId?[remarkGfm,pluginReferencias(projectId,autorizadas)]:[remarkGfm]} skipHtml
           components={{a:({href,children})=>{
             if(projectId&&href?.startsWith('#snaps-ref:')) {
               const key=decodeURIComponent(href.slice(11));
               return <LinkDaReferencia candidatos={candidatos.get(key)??[]} projectId={projectId}>{children}</LinkDaReferencia>;
             }
-            return href?.startsWith('/')?<LinkInterno href={href}>{children}</LinkInterno>:<a href={href} rel="noopener noreferrer">{children}</a>;
-          },img:({src,alt})=>src&&/^https?:\/\//i.test(src)?<a href={src} rel="noopener noreferrer">{alt||'Abrir imagem'}</a>:<span>{alt}</span>}}>{p.content}</ReactMarkdown>
+            return href?.startsWith('/')?<LinkInterno href={href}>{children}</LinkInterno>:<a href={href} target={href&&/^https?:\/\//i.test(href)?'_blank':undefined} rel="noopener noreferrer nofollow">{children}</a>;
+          },img:({src,alt})=>src&&/^https?:\/\//i.test(src)?<a href={src} target="_blank" rel="noopener noreferrer nofollow">{alt||'Abrir imagem'}</a>:<span>{alt}</span>,pre:({children})=><BlocoDeCodigo>{children}</BlocoDeCodigo>}}>{p.content}</ReactMarkdown>
       </div>)}
     {typeof registro.mensagem_erro==='string'&&<p role="alert" className="mt-2 text-red-300">{registro.mensagem_erro}</p>}
     {registro.incompleto&&<p role="status" className="mt-2 text-amber-300">Resposta incompleta{registro.terminal==='interrompido'?' · turno interrompido':''}.</p>}
   </article>;
+}
+
+function PassoDaFerramenta({tool,status,resumo,finalizado}:{tool:string;status:string;resumo:string;finalizado:boolean}) {
+  const [aberto,setAberto]=useState(!finalizado);
+  useEffect(()=>{setAberto(!finalizado);},[finalizado]);
+  return <details data-tool-step open={aberto} onToggle={e=>setAberto(e.currentTarget.open)} className="my-2 rounded border border-white/10 p-2">
+    <summary className="cursor-pointer">{tool} · {status==='running'?'Executando…':status==='ok'?'Concluída':status==='error'?'Erro':'Interrompida'}</summary>
+    <p className="whitespace-pre-wrap mt-2">{resumo}</p>
+  </details>;
+}
+function BlocoDeCodigo({children}:{children:ReactNode}) {
+  const [copiado,setCopiado]=useState(false);
+  const codigo=isValidElement<{children?:ReactNode}>(children)?String(children.props.children??''):String(children??'');
+  return <div><button type="button" aria-label="Copiar código" onClick={()=>{void navigator.clipboard.writeText(codigo).then(()=>setCopiado(true)).catch(()=>setCopiado(false));}}>{copiado?'Copiado':'Copiar código'}</button><pre className="max-h-[500px] overflow-auto">{children}</pre></div>;
 }
 
 interface ComposerProps {
