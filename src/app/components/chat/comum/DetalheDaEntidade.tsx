@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react';
+import {Spinner} from '@/app/components/ui/spinner';
 import {useLocation,useSearchParams} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -22,50 +23,84 @@ const NOMES:Record<string,string>={description:'Descrição',content:'Conteúdo'
   start_date:'Início',end_date:'Fim',tag:'Tag',retrospective:'Retrospectiva'};
 
 export function DetalheDaEntidade() {
+  const location=useLocation();
+  const [params]=useSearchParams();
+  const projectId=location.pathname.match(/^\/project\/([^/]+)/)?.[1]??params.get('project');
+  const role=useProjectRole();
+  // O layout já autorizou este projeto. Fora dele (Memory), carregar em paralelo.
+  if(projectId&&role.projectId!==projectId) return <ProjectRoleProvider key={projectId} projectId={projectId}><ConteudoDoDetalhe/></ProjectRoleProvider>;
+  return <ConteudoDoDetalhe/>;
+}
+
+function CarregamentoDoDetalhe({fechar,tipo}:{fechar:()=>void;tipo:string}) {
+  return <Dialog open onOpenChange={aberto=>{if(!aberto) fechar();}}><DialogContent className="w-auto max-w-xs flex flex-col items-center gap-4">
+    <DialogTitle className="sr-only">Abrindo {tipo}</DialogTitle>
+    <DialogDescription className="sr-only">Aguarde a leitura atualizada e a verificação de acesso.</DialogDescription>
+    <div role="status" className="flex items-center gap-3"><span aria-hidden="true"><Spinner color="border-current"/></span><span>Abrindo {tipo}…</span></div>
+    <button type="button" onClick={fechar}>Cancelar</button>
+  </DialogContent></Dialog>;
+}
+
+function ConteudoDoDetalhe() {
   const [params,setParams]=useSearchParams();
   const location=useLocation();
   const tipo=PARAMETROS_DE_DETALHE.find(p=>params.has(p)&&!(p==='sprint'&&/^\/project\/[^/]+\/board(?:\/|$)/.test(location.pathname)));
   const id=tipo?params.get(tipo):null;
   const projectId=location.pathname.match(/^\/project\/([^/]+)/)?.[1]??params.get('project');
   const boardId=location.pathname.match(/^\/project\/[^/]+\/board\/([^/]+)/)?.[1];
-  const chave=`${tipo}:${id}:${projectId}`;
+  const chave=`${tipo}:${id}:${projectId}:${boardId}`;
   const [resultado,setResultado]=useState<{chave:string;data:Record<string,unknown>}|null>(null);
   const dado=resultado?.chave===chave?resultado.data:null;
   const setDado=(data:Record<string,unknown>|null)=>setResultado(data?{chave,data}:null);
   const [erro,setErro]=useState<string|null>(null);
+  const [tentativa,setTentativa]=useState(0);
+  const role=useProjectRole();
+  useEffect(()=>{
+    // Revalidar o provider existente em paralelo à entidade, sem remontá-lo.
+    if(id&&(tipo==='card'||tipo==='snap')&&!role.loading) role.refresh?.();
+  },[tipo,id,projectId,tentativa,role.refresh]);
   useEffect(()=>{
     setDado(null);setErro(null);
     if(!tipo||!id) return;
     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
     const controller=new AbortController();
-    void api.get<Record<string,unknown>>(`/${ENDPOINTS[tipo]}/${id}`,{signal:controller.signal,params:tipo==='doc'&&projectId?{context_project_id:projectId}:undefined})
-      .then(async({data})=>{
-        if(controller.signal.aborted) return;
-        if(projectId&&data.project_id&&data.project_id!==projectId) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
-        if(tipo==='card') {
-          if(typeof data.board_id!=='string'||!projectId||(boardId&&data.board_id!==boardId)) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
-          const {data:board}=await api.get<{project_id:string}>(`/boards/${data.board_id}`,{signal:controller.signal});
-          if(controller.signal.aborted) return;
-          if(board.project_id!==projectId) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
+    const deadline=window.setTimeout(()=>{
+      controller.abort();
+      setErro('A abertura demorou mais que o esperado. Tente novamente.');
+    },15000);
+    const options={signal:controller.signal,timeout:15000};
+    const leitura=api.get<Record<string,unknown>>(`/${ENDPOINTS[tipo]}/${id}`,{...options,params:tipo==='doc'&&projectId?{context_project_id:projectId}:undefined});
+    // BoardSummary não serializa os cards. Ambas as leituras começam juntas.
+    const boards=tipo==='card'&&projectId?api.get<{id:string;project_id:string}[]>(`/projects/${projectId}/boards`,options):Promise.resolve(null);
+    void Promise.all([leitura,boards]).then(([{data},resumo])=>{
+      if(controller.signal.aborted) return;
+      window.clearTimeout(deadline);
+      if(projectId&&data.project_id&&data.project_id!==projectId) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
+      if(tipo==='card') {
+        if(typeof data.board_id!=='string'||!projectId||(boardId&&data.board_id!==boardId)||
+          !resumo?.data.some(board=>board.id===data.board_id&&board.project_id===projectId)) {
+          setErro('Recurso não encontrado ou fora do seu escopo.');return;
         }
-        setDado(data);
-      }).catch(()=>{if(!controller.signal.aborted) setErro('Recurso não encontrado ou fora do seu escopo.');});
-    return ()=>controller.abort();
-  },[tipo,id,projectId,boardId]);
+      }
+      setDado(data);
+    }).catch(error=>{window.clearTimeout(deadline);if(!controller.signal.aborted) setErro(error?.code==='ECONNABORTED'||error?.code==='ETIMEDOUT'
+      ?'A abertura demorou mais que o esperado. Tente novamente.'
+      :'Recurso não encontrado ou fora do seu escopo.');});
+    return ()=>{window.clearTimeout(deadline);controller.abort();};
+  },[tipo,id,projectId,boardId,tentativa]);
   const fechar=()=>{
     const nova=new URLSearchParams(params);
     if(tipo) nova.delete(tipo);
     setParams(nova); // deixa filtros e navegação de histórico intactos
   };
   if(!tipo) return null;
-  if(dado&&(tipo==='card'||tipo==='snap')&&projectId) return <ProjectRoleProvider key={`${tipo}:${id}:${projectId}`} projectId={projectId}>
-    <ModalDaEntidade key={chave} tipo={tipo} dado={dado} fechar={fechar} projectId={projectId}/>
-  </ProjectRoleProvider>;
+  if(dado&&(tipo==='card'||tipo==='snap')&&projectId) return <ModalDaEntidade key={chave} tipo={tipo} dado={dado} fechar={fechar} projectId={projectId}/>;
+  if(!dado&&!erro&&(tipo==='card'||tipo==='snap')) return <CarregamentoDoDetalhe fechar={fechar} tipo={ROTULOS[tipo].toLowerCase()}/>;
   return <Dialog open onOpenChange={aberto=>{if(!aberto) fechar();}}>
     <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-neutral-950 text-white border-white/20">
       <DialogTitle>{dado?String(dado.title??dado.name??ROTULOS[tipo]):ROTULOS[tipo]}</DialogTitle>
       <DialogDescription>{dado?String(dado.code??dado.tag??ROTULOS[tipo]):'Detalhes da entidade'}</DialogDescription>
-      {erro?<p role="alert">{erro}</p>:!dado?<p role="status">Carregando detalhes…</p>:<>
+      {erro?<><p role="alert">{erro}</p><button type="button" onClick={()=>setTentativa(n=>n+1)}>Tentar novamente</button></>:!dado?<p role="status">Carregando detalhes…</p>:<>
         {typeof dado.status==='string'&&<p>Estado: {dado.status}</p>}
         {CAMPOS[tipo].map(campo=>typeof dado[campo]==='string'&&dado[campo]?<section key={campo}>
           <h3 className="font-semibold mb-2">{NOMES[campo]}</h3>
@@ -82,7 +117,7 @@ function ModalDaEntidade({tipo,dado,fechar,projectId}:{tipo:'card'|'snap';dado:R
   const [editando,setEditando]=useState(false);
   const [erro,setErro]=useState<string|null>(null);
   const avisar=()=>window.dispatchEvent(new CustomEvent('snaps:entity-updated',{detail:{tipo,id:dado.id,projectId,boardId:dado.board_id}}));
-  if(loading) return <Dialog open onOpenChange={aberto=>{if(!aberto) fechar();}}><DialogContent><DialogTitle>Detalhes</DialogTitle><DialogDescription>Verificando permissões…</DialogDescription><p role="status">Carregando detalhes…</p></DialogContent></Dialog>;
+  if(loading) return <CarregamentoDoDetalhe fechar={fechar} tipo={ROTULOS[tipo].toLowerCase()}/>;
   if(tipo==='card') return <><CardModal isOpen initialData={dado as unknown as Card} initialDataIsFresh readOnly={!can('write')} canDelete={can('delete')} onClose={fechar}
     onSave={async data=>{if(!can('write')) throw new Error('Sem permissão');await updateCard(String(dado.id),data);avisar();}}
     onDelete={()=>{avisar();}}/>{erro&&<p role="alert">{erro}</p>}</>;
