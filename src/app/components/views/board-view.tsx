@@ -294,8 +294,11 @@ export function BoardView() {
                 priority: data.priority, 
                 due_date: data.due_date, 
                 labels: data.labels, 
-                epic_id: data.epic_id, 
-                sprint_id: data.sprint_id, 
+                epic_id: data.epic_id || undefined, 
+                sprint_id: data.sprint_id || undefined, 
+                repo_name: data.repo_name || undefined,
+                card_type: data.card_type,
+                bdd_validated: data.bdd_validated,
                 bdd_scenarios: data.bdd_scenarios 
               }); 
               setIsCardModalOpen(false); 

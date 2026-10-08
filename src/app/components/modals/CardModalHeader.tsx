@@ -79,6 +79,9 @@ export function CardModalHeader({
                         <option value="bug">Bug</option>
                         <option value="support">Support</option>
                         <option value="tech-debt">Tech Debt</option>
+                        <option value="refactor">Refactor</option>
+                        <option value="chore">Chore</option>
+                        <option value="sprint_macro">Sprint Macro</option>
                     </select>
                 </div>
             </div>

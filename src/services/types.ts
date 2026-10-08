@@ -111,15 +111,15 @@ export interface Card {
     description: string;
     status: string;
     priority: 'Low' | 'Medium' | 'High';
-    due_date?: string;
+    due_date?: string | null;
     labels?: string[];
     user_ids?: string[];          // assignees (Migration 036)
-    epic_id?: string;
-    sprint_id?: string;          // FK to sprints.id
+    epic_id?: string | null;
+    sprint_id?: string | null;          // FK to sprints.id
     github_issue_number?: number; // Phase 3 prep
     github_issue_url?: string;    // Phase 3 prep
     source?: string;              // manual | github | mcp
-    repo_name?: string;           // which repo this card belongs to
+    repo_name?: string | null;           // which repo this card belongs to
     tasks?: Task[];
     task_count?: number;
     bdd_scenarios?: any[];

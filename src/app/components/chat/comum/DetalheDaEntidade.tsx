@@ -11,7 +11,11 @@ import {SnapDetailModal} from '@/app/components/modals/snap-detail-modal';
 import {SnapModal} from '@/app/components/modals/snap-modal';
 import {updateCard} from '@/services/cards';
 import {updateSnap,deleteSnap} from '@/services/snaps';
-import type {Card,Snap} from '@/services/types';
+import {StrategyConfiguratorModal} from '@/app/components/modals/strategy-configurator-modal';
+import type {Card,Snap,Epic,Sprint} from '@/services/types';
+
+type ContextoCard={columns:{id:string;title:string}[];epics:Epic[];sprints:Sprint[];repoNames:string[]};
+type ResumoBoard={id:string;project_id:string;columns?:ContextoCard['columns']};
 
 export const PARAMETROS_DE_DETALHE=['card','plan','adr','decision','doc','sprint','snap'] as const;
 type Parametro=typeof PARAMETROS_DE_DETALHE[number];
@@ -49,9 +53,9 @@ function ConteudoDoDetalhe() {
   const projectId=location.pathname.match(/^\/project\/([^/]+)/)?.[1]??params.get('project');
   const boardId=location.pathname.match(/^\/project\/[^/]+\/board\/([^/]+)/)?.[1];
   const chave=`${tipo}:${id}:${projectId}:${boardId}`;
-  const [resultado,setResultado]=useState<{chave:string;data:Record<string,unknown>}|null>(null);
+  const [resultado,setResultado]=useState<{chave:string;data:Record<string,unknown>;contexto?:ContextoCard}|null>(null);
   const dado=resultado?.chave===chave?resultado.data:null;
-  const setDado=(data:Record<string,unknown>|null)=>setResultado(data?{chave,data}:null);
+  const setDado=(data:Record<string,unknown>|null,contexto?:ContextoCard)=>setResultado(data?{chave,data,contexto}:null);
   const [erro,setErro]=useState<string|null>(null);
   const [tentativa,setTentativa]=useState(0);
   const role=useProjectRole();
@@ -71,8 +75,16 @@ function ConteudoDoDetalhe() {
     const options={signal:controller.signal,timeout:15000};
     const leitura=api.get<Record<string,unknown>>(`/${ENDPOINTS[tipo]}/${id}`,{...options,params:tipo==='doc'&&projectId?{context_project_id:projectId}:undefined});
     // BoardSummary não serializa os cards. Ambas as leituras começam juntas.
-    const boards=tipo==='card'&&projectId?api.get<{id:string;project_id:string}[]>(`/projects/${projectId}/boards`,options):Promise.resolve(null);
-    void Promise.all([leitura,boards]).then(([{data},resumo])=>{
+    const boards=tipo==='card'&&projectId?api.get<ResumoBoard[]>(`/projects/${projectId}/boards`,options):Promise.resolve(null);
+    const contexto=tipo==='card'&&projectId?Promise.all([
+      api.get<Epic[]>(`/projects/${projectId}/epics/`,options),
+      api.get<Sprint[]>(`/projects/${projectId}/sprints/`,options),
+      api.get<{repo_names:string}>(`/projects/${projectId}/github-config`,options).catch(error=>{
+        if(error?.response?.status===404) return {data:{repo_names:''}};
+        throw error;
+      }),
+    ]):Promise.resolve(null);
+    void Promise.all([leitura,boards,contexto]).then(([{data},resumo,catalogos])=>{
       if(controller.signal.aborted) return;
       window.clearTimeout(deadline);
       if(projectId&&data.project_id&&data.project_id!==projectId) {setErro('Recurso não encontrado ou fora do seu escopo.');return;}
@@ -82,7 +94,11 @@ function ConteudoDoDetalhe() {
           setErro('Recurso não encontrado ou fora do seu escopo.');return;
         }
       }
-      setDado(data);
+      setDado(data,catalogos?{
+        columns:resumo?.data.find(board=>board.id===data.board_id)?.columns??[],
+        epics:catalogos[0].data,sprints:catalogos[1].data,
+        repoNames:catalogos[2].data.repo_names.split(',').map(name=>name.trim()).filter(Boolean),
+      }:undefined);
     }).catch(error=>{window.clearTimeout(deadline);if(!controller.signal.aborted) setErro(error?.code==='ECONNABORTED'||error?.code==='ETIMEDOUT'
       ?'A abertura demorou mais que o esperado. Tente novamente.'
       :'Recurso não encontrado ou fora do seu escopo.');});
@@ -94,7 +110,7 @@ function ConteudoDoDetalhe() {
     setParams(nova); // deixa filtros e navegação de histórico intactos
   };
   if(!tipo) return null;
-  if(dado&&(tipo==='card'||tipo==='snap')&&projectId) return <ModalDaEntidade key={chave} tipo={tipo} dado={dado} fechar={fechar} projectId={projectId}/>;
+  if(dado&&(tipo==='card'||tipo==='snap')&&projectId) return <ModalDaEntidade key={chave} tipo={tipo} dado={dado} fechar={fechar} projectId={projectId} contexto={resultado?.contexto}/>;
   if(!dado&&!erro&&(tipo==='card'||tipo==='snap')) return <CarregamentoDoDetalhe fechar={fechar} tipo={ROTULOS[tipo].toLowerCase()}/>;
   return <Dialog open onOpenChange={aberto=>{if(!aberto) fechar();}}>
     <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-neutral-950 text-white border-white/20">
@@ -112,15 +128,19 @@ function ConteudoDoDetalhe() {
   </Dialog>;
 }
 
-function ModalDaEntidade({tipo,dado,fechar,projectId}:{tipo:'card'|'snap';dado:Record<string,unknown>;fechar:()=>void;projectId:string}) {
+function ModalDaEntidade({tipo,dado,fechar,projectId,contexto}:{tipo:'card'|'snap';dado:Record<string,unknown>;fechar:()=>void;projectId:string;contexto?:ContextoCard}) {
   const {can,loading}=useProjectRole();
+  const [executando,setExecutando]=useState(false);
   const [editando,setEditando]=useState(false);
   const [erro,setErro]=useState<string|null>(null);
   const avisar=()=>window.dispatchEvent(new CustomEvent('snaps:entity-updated',{detail:{tipo,id:dado.id,projectId,boardId:dado.board_id}}));
   if(loading) return <CarregamentoDoDetalhe fechar={fechar} tipo={ROTULOS[tipo].toLowerCase()}/>;
-  if(tipo==='card') return <><CardModal isOpen initialData={dado as unknown as Card} initialDataIsFresh readOnly={!can('write')} canDelete={can('delete')} onClose={fechar}
+  if(tipo==='card') return <>{!executando&&<CardModal {...contexto} onAiExecute={()=>{if(can('write')) setExecutando(true);}} isOpen initialData={dado as unknown as Card} initialDataIsFresh readOnly={!can('write')} canDelete={can('delete')} onClose={fechar}
     onSave={async data=>{if(!can('write')) throw new Error('Sem permissão');await updateCard(String(dado.id),data);avisar();}}
-    onDelete={()=>{avisar();}}/>{erro&&<p role="alert">{erro}</p>}</>;
+    onDelete={()=>{avisar();}}/>}
+    {executando&&can('write')&&<StrategyConfiguratorModal isOpen projectId={projectId} onClose={()=>setExecutando(false)}
+      initialSprintId={(dado as unknown as Card).sprint_id??null} initialCardIds={[String(dado.id)]} cards={[dado as unknown as Card]}/>}
+    {erro&&<p role="alert">{erro}</p>}</>;
   const snap=dado as unknown as Snap;
   if(editando&&can('write')) return <><SnapModal key={snap.id} isOpen onClose={()=>setEditando(false)} initialData={{title:snap.name??'',content:snap.content??'',tags:snap.snadds?.labels??[]}}
     onSave={async data=>{if(!can('write')) throw new Error('Sem permissão');await updateSnap(snap.id,{name:data.title,content:data.content,snadds:{...snap.snadds,labels:data.tags}});avisar();fechar();}}/>{erro&&<p role="alert">{erro}</p>}</>;
