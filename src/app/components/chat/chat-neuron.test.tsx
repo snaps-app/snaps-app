@@ -105,7 +105,7 @@ describe('troca de perfil', () => {
     act(() => r.result.current.setPerfil('orchestrator'));
     await enviar(r);
     expect(vi.mocked(streamChat).mock.calls[0][0]).toMatchObject({ perfil: 'orchestrator', superficie: 'chat', chatId: CHAT });
-    expect(createMessage).toHaveBeenLastCalledWith(CHAT, 'Feito.', 'assistant', [{ perfil: 'orchestrator', snaps_referenciados: [] }]);
+    expect(createMessage).toHaveBeenLastCalledWith(CHAT, 'Feito.', 'assistant', expect.objectContaining({v:1,perfil:'orchestrator',snaps_referenciados:[]}));
     const resposta = ultima(r.result.current.messages);
     render(<ChatMessage message={resposta} index={0} />);
     expect(screen.getByTestId('perfil-da-resposta')).toHaveTextContent('Coder — orquestração');
@@ -169,7 +169,7 @@ describe('snaps referenciados', () => {
     const r = hook();
     await enviar(r);
     expect(r.result.current.referencedSnaps.map((s) => s.title)).toEqual(['Adendo 3']);
-    expect(createMessage).toHaveBeenLastCalledWith(CHAT, 'Segundo o Adendo 3…', 'assistant', [{ perfil: 'project_chat', snaps_referenciados: ['snap-1'] }]);
+    expect(createMessage).toHaveBeenLastCalledWith(CHAT, 'Segundo o Adendo 3…', 'assistant', expect.objectContaining({v:1,perfil:'project_chat',snaps_referenciados:['snap-1']}));
   });
 
   it('sobrevivem ao reload, lidos pelos ids de tool_calls', async () => {
@@ -216,7 +216,11 @@ describe('estados da tela', () => {
     vi.mocked(streamChat).mockRejectedValue(new Error('Sua sessão expirou. Entre novamente para continuar.'));
     const r = hook();
     await enviar(r);
-    expect(ultima(r.result.current.messages).content).toBe('Sua sessão expirou. Entre novamente para continuar.');
+    const resposta=ultima(r.result.current.messages);
+    expect(resposta.content).toBe('');
+    render(<ChatMessage message={resposta} index={0}/>);
+    expect(screen.getByRole('alert')).toHaveTextContent('Sua sessão expirou. Entre novamente para continuar.');
+    expect(createMessage).toHaveBeenLastCalledWith(CHAT,'','assistant',expect.objectContaining({v:1,incompleto:true}));
   });
 
   it('erro do C6 (sem chave) aparece com a copy do Neuron', async () => {
@@ -224,7 +228,11 @@ describe('estados da tela', () => {
     eventos({ type: 'error', code: 'sem_chave', message: 'O Neuron está sem chave de API.' });
     const r = hook();
     await enviar(r);
-    expect(ultima(r.result.current.messages).content).toBe('O Neuron está sem chave de API.');
+    const resposta=ultima(r.result.current.messages);
+    expect(resposta.content).toBe('');
+    render(<ChatMessage message={resposta} index={0}/>);
+    expect(screen.getByRole('alert')).toHaveTextContent('O Neuron está sem chave de API.');
+    expect(createMessage).toHaveBeenLastCalledWith(CHAT,'','assistant',expect.objectContaining({v:1,erro:'sem_chave'}));
   });
 });
 

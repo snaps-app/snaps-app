@@ -4,7 +4,7 @@ import { NeuralBackground } from '@/app/components/shared/neural-background';
 import { SnapDetailModal } from '@/app/components/modals/snap-detail-modal';
 
 import { ChatMessage } from '@/app/components/chat/chat-message';
-import { ChatInput } from '@/app/components/chat/chat-input';
+import {Composer} from './comum/Conversa';
 import { useActiveChat } from '@/app/components/chat/useActiveChat';
 import { ActiveChatSidebar } from '@/app/components/chat/ActiveChatSidebar';
 import { SeletorDePerfil } from '@/app/components/chat/seletor-de-perfil';
@@ -34,6 +34,10 @@ export function ActiveChat() {
     mobileView,
     setMobileView,
     handleSend,
+    cancelar,
+    erroConversa,
+    persistenciaPendente,
+    repetirPersistencia,
     handleSnapClick,
     handleSuggestedSnapClick,
     handleAcceptSnap,
@@ -141,7 +145,7 @@ export function ActiveChat() {
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             <AnimatePresence>
               {messages.map((message, index) => (
-                <ChatMessage key={message.id} message={message} index={index} />
+                <ChatMessage key={message.id} message={message} index={index} projectId={projectId} />
               ))}
             </AnimatePresence>
 
@@ -182,7 +186,9 @@ export function ActiveChat() {
           </div>
 
           {/* Input Area */}
-          <ChatInput inputValue={inputValue} setInputValue={setInputValue} handleSend={handleSend} />
+          {erroConversa&&<p role="alert">{erroConversa}</p>}
+          {persistenciaPendente&&<button disabled={isThinking} onClick={()=>{void repetirPersistencia();}}>Guardar resposta novamente</button>}
+          <Composer disabled={persistenciaPendente} value={inputValue} onChange={setInputValue} onSend={()=>{void handleSend();}} busy={isThinking} onCancel={cancelar} />
         </motion.div>
 
         {/* RIGHT PANEL - Contextual Memory */}

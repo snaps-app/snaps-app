@@ -7,6 +7,7 @@
  * (C2.4): o seletor só evita oferecer o que o servidor recusaria.
  */
 import type { PerfilNeuron } from '@/services/chats';
+import {lerRegistro} from './comum/turno';
 
 export type PapelNoProjeto = 'owner' | 'admin' | 'member' | 'viewer';
 
@@ -31,16 +32,10 @@ export const rotuloDoPerfil = (key: unknown): string | null =>
 
 /** Perfil gravado em `tool_calls` da resposta, se houver. */
 export const perfilDaMensagem = (toolCalls: unknown): string | null => {
-  if (!Array.isArray(toolCalls)) return null;
-  const registro = toolCalls.find((t) => t && typeof t === 'object' && 'perfil' in t) as { perfil?: unknown } | undefined;
-  return rotuloDoPerfil(registro?.perfil);
+  return rotuloDoPerfil(lerRegistro(toolCalls,'').perfil);
 };
 
 /** Ids dos snaps referenciados gravados em `tool_calls`. */
 export const idsReferenciados = (toolCalls: unknown): string[] => {
-  if (!Array.isArray(toolCalls)) return [];
-  return toolCalls.flatMap((t) => {
-    const ids = (t as { snaps_referenciados?: unknown })?.snaps_referenciados;
-    return Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string') : [];
-  });
+  return lerRegistro(toolCalls,'').snaps_referenciados;
 };

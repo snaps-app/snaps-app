@@ -10,9 +10,12 @@ interface UseCardModalProps {
     initialData?: Card | null;
     safeColumns: { id: string; title: string }[];
     repoNames: string[];
-    onSave: (cardData: Partial<Card>) => void;
+    onSave: (cardData: Partial<Card>) => void | Promise<void>;
     onClose: () => void;
     onDelete?: (cardId: string) => void;
+    readOnly?: boolean;
+    canDelete?: boolean;
+    initialDataIsFresh?: boolean;
 }
 
 export function useCardModal({
@@ -23,6 +26,9 @@ export function useCardModal({
     onSave,
     onClose,
     onDelete,
+    readOnly = false,
+    canDelete = true,
+    initialDataIsFresh = false,
 }: UseCardModalProps) {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -43,6 +49,8 @@ export function useCardModal({
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string|null>(null);
     const [tasks, setTasks] = useState<Task[]>([]);
 
     const STATUS_ALIASES: Record<string, string[]> = {
@@ -68,7 +76,7 @@ export function useCardModal({
                 if (initialData?.id) {
                     setIsLoading(true);
                     try {
-                        const fullCard = await getCard(initialData.id);
+                        const fullCard = initialDataIsFresh ? initialData : await getCard(initialData.id);
                         setTitle(fullCard.title);
                         setDescription(fullCard.description || '');
                         setDescMode(fullCard.description ? 'preview' : 'edit');
@@ -122,9 +130,10 @@ export function useCardModal({
             }
         };
         loadData();
-    }, [isOpen, initialData, safeColumns, repoNames]);
+    }, [isOpen, initialData, safeColumns, repoNames, initialDataIsFresh]);
 
     const handleDelete = async () => {
+        if (readOnly || !canDelete) return;
         if (!initialData?.id) return;
         if (!window.confirm('Tem certeza que deseja excluir este card?')) return;
 
@@ -143,9 +152,12 @@ export function useCardModal({
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        if (readOnly || isSaving) return;
         if (title.trim()) {
-            onSave({
+            setIsSaving(true);setSaveError(null);
+            try {
+            await onSave({
                 ...initialData,
                 title,
                 description,
@@ -161,10 +173,13 @@ export function useCardModal({
                 bdd_validated: bddValidated,
             });
             onClose();
+            } catch {setSaveError('Não foi possível salvar o card.');}
+            finally {setIsSaving(false);}
         }
     };
 
     const handleUploadFiles = async (files: FileList | null) => {
+        if (readOnly) return;
         if (!files || files.length === 0) return;
         setIsUploading(true);
         try {
@@ -186,6 +201,7 @@ export function useCardModal({
     };
 
     const handleAddTask = async (taskTitle: string) => {
+        if (readOnly) return;
         if (!initialData?.id) return;
         try {
             const task = await createTask(initialData.id, taskTitle);
@@ -196,6 +212,7 @@ export function useCardModal({
     };
 
     const handleToggleTask = async (task: Task) => {
+        if (readOnly) return;
         try {
             const updated = await updateTask(task.id, { completed: !task.completed });
             setTasks(tasks.map(t => t.id === task.id ? updated : t));
@@ -205,6 +222,7 @@ export function useCardModal({
     };
 
     const handleDeleteTask = async (taskId: string) => {
+        if (readOnly) return;
         try {
             await deleteTask(taskId);
             setTasks(tasks.filter(t => t.id !== taskId));
@@ -225,6 +243,8 @@ export function useCardModal({
     };
 
     return {
+        isSaving,
+        saveError,
         title,
         setTitle,
         description,
