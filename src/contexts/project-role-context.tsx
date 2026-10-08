@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { getProjectMembers } from '@/services/members';
 import { getProject } from '@/services/projects';
 import { supabase } from '@/lib/supabaseClient';
@@ -18,6 +18,8 @@ type ProjectRole = 'owner' | 'admin' | 'member' | 'viewer' | null;
 type ActionType = 'write' | 'manage_members' | 'view_members' | 'delete';
 
 interface ProjectRoleContextValue {
+  projectId?: string;
+  refresh?: () => void;
   role: ProjectRole;
   loading: boolean;
   can: (action: ActionType) => boolean;
@@ -73,14 +75,29 @@ export function ProjectRoleProvider({
 }) {
   const [role, setRole] = useState<ProjectRole>(null);
   const [loading, setLoading] = useState(true);
+  const [loadedProjectId, setLoadedProjectId] = useState<string | undefined>();
+  const [revision, setRevision] = useState(0);
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRole(null);
+    setRevision(value => value + 1);
+  }, []);
 
   useEffect(() => {
     if (!projectId) {
       setRole(null);
+      setLoadedProjectId(undefined);
       setLoading(false);
       return;
     }
     let isMounted = true;
+    const deadline = window.setTimeout(() => {
+      if (!isMounted) return;
+      isMounted = false;
+      setRole(null);
+      setLoadedProjectId(projectId);
+      setLoading(false); // Falha fechada: leitura permanece, edição não é autorizada.
+    }, 15000);
     const loadRole = async () => {
       setLoading(true);
       try {
@@ -112,26 +129,30 @@ export function ProjectRoleProvider({
         console.error('Failed to load project role:', error);
         if (isMounted) setRole(null);
       } finally {
-        if (isMounted) setLoading(false);
+        window.clearTimeout(deadline);
+        if (isMounted) {setLoadedProjectId(projectId);setLoading(false);}
       }
     };
     loadRole();
 
     return () => {
       isMounted = false;
+      window.clearTimeout(deadline);
     };
-  }, [projectId]);
+  }, [projectId, revision]);
 
+  const effectiveRole = loadedProjectId === projectId ? role : null;
+  const scopedLoading = loading || loadedProjectId !== projectId;
   const can = (action: ActionType): boolean => {
-    if (!role) return false;
-    if (action === 'view_members') return VIEW_MEMBERS_ROLES.has(role);
-    const userLevel = ROLE_LEVELS[role] ?? -1;
+    if (!effectiveRole || scopedLoading) return false;
+    if (action === 'view_members') return VIEW_MEMBERS_ROLES.has(effectiveRole);
+    const userLevel = ROLE_LEVELS[effectiveRole] ?? -1;
     const requiredLevel = CAN_MAP[action];
     return userLevel >= requiredLevel;
   };
 
   return (
-    <ProjectRoleContext.Provider value={{ role, loading, can }}>
+    <ProjectRoleContext.Provider value={{ projectId, refresh, role: effectiveRole, loading: scopedLoading, can }}>
       {children}
     </ProjectRoleContext.Provider>
   );
