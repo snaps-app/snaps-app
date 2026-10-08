@@ -18,7 +18,7 @@ function Tela(){const location=useLocation();const navigate=useNavigate();return
 beforeEach(()=>{vi.mocked(api.get).mockReset();provider.mockClear();roleState.loading=false;roleState.projectId='p';});
 describe('detalhes na URL',()=>{
   it.each([['plan','plans'],['adr','decisions'],['decision','decisions'],['card','cards'],['doc','governance-docs']])('consome %s por leitura individual sem expor edição',async(tipo,endpoint)=>{
-    vi.mocked(api.get).mockImplementation(async(url)=>({data:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Título autorizado',name:'Título autorizado',content:'**Conteúdo**',project_id:'p',board_id:'b'}}));
+    vi.mocked(api.get).mockImplementation(async(url)=>({data:url.endsWith('/epics/')||url.endsWith('/sprints/')?[]:url.endsWith('/github-config')?{repo_names:''}:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Título autorizado',name:'Título autorizado',content:'**Conteúdo**',project_id:'p',board_id:'b'}}));
     render(<MemoryRouter initialEntries={[`/project/p/board?${tipo}=${id}&filtro=abertos`]}><Tela/></MemoryRouter>);
     expect(await screen.findByRole('heading',{name:'Título autorizado'})).toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith(`/${endpoint}/${id}`,expect.objectContaining({signal:expect.any(AbortSignal)}));
@@ -38,7 +38,7 @@ describe('detalhes na URL',()=>{
 });
 
 it('trata sprint do board como filtro e preserva esse filtro ao fechar card',async()=>{
-  vi.mocked(api.get).mockImplementation(async(url)=>({data:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Card',project_id:'p',board_id:'b'}}));
+  vi.mocked(api.get).mockImplementation(async(url)=>({data:url.endsWith('/epics/')||url.endsWith('/sprints/')?[]:url.endsWith('/github-config')?{repo_names:''}:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Card',project_id:'p',board_id:'b'}}));
   render(<MemoryRouter initialEntries={[`/project/p/board?card=${id}&sprint=sprint-1`]}><Tela/></MemoryRouter>);
   await waitFor(()=>expect(screen.getByText('Somente leitura')).toBeInTheDocument());
   fireEvent.click(screen.getByRole('button',{name:'Fechar detalhes'}));
@@ -46,7 +46,7 @@ it('trata sprint do board como filtro e preserva esse filtro ao fechar card',asy
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 it('abre CardModal real em modo viewer, sem duplicar o diálogo genérico',async()=>{
-  vi.mocked(api.get).mockImplementation(async(url)=>({data:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Card real',board_id:'b'}}));
+  vi.mocked(api.get).mockImplementation(async(url)=>({data:url.endsWith('/epics/')||url.endsWith('/sprints/')?[]:url.endsWith('/github-config')?{repo_names:''}:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Card real',board_id:'b'}}));
   render(<MemoryRouter initialEntries={[`/project/p/board/b?card=${id}&sprint=filtro`]}><Tela/></MemoryRouter>);
   expect(await screen.findByText('Somente leitura')).toBeInTheDocument();
   expect(screen.getAllByRole('dialog')).toHaveLength(1);
@@ -59,7 +59,7 @@ it('abre SnapDetailModal real pela Memory sem ações para viewer',async()=>{
   expect(screen.queryByRole('button',{name:'Excluir'})).toBeNull();
 });
 it('não mostra card de outro projeto após reler o board',async()=>{
-  vi.mocked(api.get).mockResolvedValueOnce({data:{id,title:'Oculto',board_id:'b'}}).mockResolvedValueOnce({data:[{id:'b',project_id:'outro'}]});
+  vi.mocked(api.get).mockImplementation(async(url)=>({data:url.endsWith('/epics/')||url.endsWith('/sprints/')?[]:url.endsWith('/github-config')?{repo_names:''}:url==='/projects/p/boards'?[{id:'b',project_id:'outro'}]:{id,title:'Oculto',board_id:'b'}}));
   render(<MemoryRouter initialEntries={[`/project/p/board?card=${id}`]}><Tela/></MemoryRouter>);
   expect(await screen.findByRole('alert')).toHaveTextContent('Recurso não encontrado');
   expect(screen.queryByRole('heading',{name:'Oculto'})).toBeNull();
@@ -67,7 +67,7 @@ it('não mostra card de outro projeto após reler o board',async()=>{
 
 
 it('reusa permissões do layout e valida por resumo sem baixar o board completo',async()=>{
-  vi.mocked(api.get).mockImplementation(async(url)=>({data:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Card rápido',board_id:'b'}}));
+  vi.mocked(api.get).mockImplementation(async(url)=>({data:url.endsWith('/epics/')||url.endsWith('/sprints/')?[]:url.endsWith('/github-config')?{repo_names:''}:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Card rápido',board_id:'b'}}));
   render(<MemoryRouter initialEntries={[`/project/p/board/b?card=${id}`]}><Tela/></MemoryRouter>);
   expect(await screen.findByRole('heading',{name:'Card rápido'})).toBeInTheDocument();
   expect(provider).not.toHaveBeenCalled();
@@ -78,11 +78,13 @@ it('reusa permissões do layout e valida por resumo sem baixar o board completo'
 it('inicia card e resumo em paralelo e mostra somente spinner enquanto aguarda',async()=>{
   let releaseCard:any, releaseBoards:any;
   vi.mocked(api.get).mockImplementation((url)=>new Promise(resolve=>{
-    if(url==='/projects/p/boards') releaseBoards=resolve;
+    if(url.endsWith('/epics/')||url.endsWith('/sprints/')) resolve({data:[]});
+    else if(url.endsWith('/github-config')) resolve({data:{repo_names:''}});
+    else if(url==='/projects/p/boards') releaseBoards=resolve;
     else releaseCard=resolve;
   }) as any);
   render(<MemoryRouter initialEntries={[`/project/p/board/b?card=${id}`]}><Tela/></MemoryRouter>);
-  await waitFor(()=>expect(api.get).toHaveBeenCalledTimes(2));
+  await waitFor(()=>expect(api.get).toHaveBeenCalledTimes(5));
   expect(screen.getByRole('status')).toHaveTextContent('Abrindo card');
   expect(screen.queryByText('Detalhes da entidade')).toBeNull();
   expect(screen.queryByRole('button',{name:'Fechar detalhes'})).toBeNull();
@@ -92,11 +94,11 @@ it('inicia card e resumo em paralelo e mostra somente spinner enquanto aguarda',
 });
 
 it('encerra carregamento em erro de timeout e permite tentar novamente',async()=>{
-  vi.mocked(api.get).mockRejectedValueOnce({code:'ECONNABORTED'}).mockResolvedValueOnce({data:[{id:'b',project_id:'p'}]});
+  vi.mocked(api.get).mockRejectedValue({code:'ECONNABORTED'});
   render(<MemoryRouter initialEntries={[`/project/p/board/b?card=${id}`]}><Tela/></MemoryRouter>);
   expect(await screen.findByRole('alert')).toHaveTextContent('demorou');
   expect(screen.queryByRole('status')).toBeNull();
-  vi.mocked(api.get).mockImplementation(async(url)=>({data:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Após retry',board_id:'b'}}));
+  vi.mocked(api.get).mockImplementation(async(url)=>({data:url.endsWith('/epics/')||url.endsWith('/sprints/')?[]:url.endsWith('/github-config')?{repo_names:''}:url==='/projects/p/boards'?[{id:'b',project_id:'p'}]:{id,title:'Após retry',board_id:'b'}}));
   fireEvent.click(screen.getByRole('button',{name:'Tentar novamente'}));
   expect(await screen.findByRole('heading',{name:'Após retry'})).toBeInTheDocument();
 });

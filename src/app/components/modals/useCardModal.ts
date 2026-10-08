@@ -63,6 +63,7 @@ export function useCardModal({
     };
 
     const getEffectiveStatus = (s: string) => {
+        if (safeColumns.some(column => column.id === s)) return s;
         const lower = s.toLowerCase();
         for (const [key, aliases] of Object.entries(STATUS_ALIASES)) {
             if (aliases.includes(lower)) return key;
@@ -130,7 +131,7 @@ export function useCardModal({
             }
         };
         loadData();
-    }, [isOpen, initialData, safeColumns, repoNames, initialDataIsFresh]);
+    }, [isOpen, initialData, initialDataIsFresh]);
 
     const handleDelete = async () => {
         if (readOnly || !canDelete) return;
@@ -164,10 +165,10 @@ export function useCardModal({
                 status,
                 priority,
                 card_type: cardType as any,
-                due_date: parseDateForStorage(dueDate),
-                epic_id: epicId || undefined,
-                sprint_id: sprintId || undefined,
-                repo_name: repoName || undefined,
+                due_date: parseDateForStorage(dueDate) || null,
+                epic_id: epicId || null,
+                sprint_id: sprintId || null,
+                repo_name: repoName || null,
                 labels: tags,
                 bdd_scenarios: bddScenarios,
                 bdd_validated: bddValidated,
