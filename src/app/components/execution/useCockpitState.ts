@@ -43,6 +43,8 @@ export const useCockpitState = (
     const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
     const setManualOverride = (key: string, value: boolean) =>
         setManualOverrides(prev => ({ ...prev, [key]: value }));
+    // Condicoes que a ultima recusa de avanco disse serem dispensaveis (SNA-SUP-81).
+    const [refusedConditions, setRefusedConditions] = useState<string[]>([]);
     const [missionInstructions, setMissionInstructions] = useState('');
 
     // Peer Review Report States
@@ -289,6 +291,8 @@ export const useCockpitState = (
         manualOverrides,
         setManualOverrides,
         setManualOverride,
+        refusedConditions,
+        setRefusedConditions,
         missionInstructions,
         setMissionInstructions,
         isPeerReviewModalOpen,
