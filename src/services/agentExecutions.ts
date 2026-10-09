@@ -160,3 +160,21 @@ export const createExecutionOverrideDecision = async (
     );
     return response.data;
 };
+
+/**
+ * Escopo de despacho da arvore (SNA-SUP-81): os planos que esta rodada executa.
+ * Lista vazia limpa o escopo. So humano admin; a API decide e devolve 403.
+ */
+export const setDispatchScope = async (
+    executionId: string,
+    planIds: string[],
+    reason: string,
+    expectedRevision?: number,
+): Promise<AgentTaskExecution> => {
+    const response = await api.put(
+        `/api/agent-executions/${executionId}/dispatch-scope`,
+        { plan_ids: planIds, reason, expected_revision: expectedRevision },
+        commandConfig(),
+    );
+    return response.data;
+};

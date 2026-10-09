@@ -17,6 +17,7 @@ import { ExecutionPromptSnapshot } from '@/app/components/execution/execution-pr
 import { ExecutionProjectSprintDetails } from '@/app/components/execution/execution-project-sprint-details';
 import { ExecutionAgentContext } from '@/app/components/execution/execution-agent-context';
 import { ContextSelectionReview } from '@/app/components/execution/context-selection-review';
+import { DispatchScopePanel } from '@/app/components/execution/dispatch-scope-panel';
 
 interface ExecutionSidebarProps {
     projectId: string;
@@ -46,6 +47,8 @@ interface ExecutionSidebarProps {
     handleAdvance: () => Promise<void>;
     manualOverrides: Record<string, boolean>;
     setManualOverride: (key: string, value: boolean) => void;
+    /** Condicoes dispensaveis nomeadas pela ultima recusa de avanco (SNA-SUP-81). */
+    refusedConditions?: string[];
     setIsTimeTrackingModalOpen: (open: boolean) => void;
     handleRollback: (targetPhase?: string) => Promise<void>;
     setIsAgentModalOpen: (open: boolean) => void;
@@ -76,6 +79,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
     handleAdvance,
     manualOverrides,
     setManualOverride,
+    refusedConditions = [],
     setIsTimeTrackingModalOpen,
     handleRollback,
     setIsAgentModalOpen,
@@ -303,6 +307,12 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
 
                     {/* Footer Actions */}
                     <div className="p-5 border-t border-white/5 bg-white/[0.01] shrink-0">
+                        {/* Escopo de despacho da arvore (SNA-SUP-81) */}
+                        <DispatchScopePanel
+                            execution={execution}
+                            onExecutionUpdated={onExecutionUpdated}
+                        />
+
                         {/* Advance Requirements Checklist */}
                         <ExecutionRequirementsChecklist
                             execution={execution}
@@ -310,6 +320,7 @@ export const ExecutionSidebar: React.FC<ExecutionSidebarProps> = ({
                             cards={cards}
                             manualOverrides={manualOverrides}
                             onRequirementToggle={handleRequirementToggle}
+                            refusedConditions={refusedConditions}
                         />
 
                         <div className="flex gap-2 mb-4">

@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import type { AgentTaskExecution, Card, WorkflowTemplate } from '@/services/types';
+import { ROTULOS_ESTRUTURAIS, escopoDaExecucao } from './dispatch-scope';
 
 interface ExecutionRequirementsChecklistProps {
     execution: AgentTaskExecution;
@@ -9,6 +10,12 @@ interface ExecutionRequirementsChecklistProps {
     // a selected exception is authorized explicitly when the human advances.
     manualOverrides: Record<string, boolean>;
     onRequirementToggle?: (requirementKey: string, value: boolean) => Promise<void>;
+    /**
+     * Condicoes que a ULTIMA recusa de avanco disse que o humano pode dispensar
+     * (SNA-SUP-81). Inclui recusas que nao sao condicao do template, como
+     * `single_execution_multiple_plans`; sem isto elas nao teriam onde clicar.
+     */
+    refusedConditions?: string[];
 }
 
 // Condições que têm bloco próprio abaixo, cada uma com rótulo e fonte de
@@ -34,17 +41,25 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
     cards,
     manualOverrides,
     onRequirementToggle,
+    refusedConditions = [],
 }) => {
     const manualRequirements = manualOverrides;
-    const plans = execution.context_data?.plans || [];
+    const escopo = escopoDaExecucao(execution.context_data);
+    // Com escopo de despacho, o gate tatico olha so os planos escolhidos.
+    const plans = (execution.context_data?.plans || []).filter((plan: any) =>
+        !escopo || plan.author === 'macro-planner' || escopo.plan_ids.includes(plan.id));
     // Approval is a signed projection of a concrete content hash. A status is
     // workflow metadata and can be changed by agents, so it must never turn an
     // approval gate green on its own.
     const hasCurrentApproval = (plan: any) => Boolean(plan.approved_content_hash);
     const strategicPlans = plans.filter((plan: any) => plan.author === 'macro-planner');
+    // Mesmo conjunto do gate: com escopo, plano `approved` escolhido pelo
+    // humano conta como `selected` (SNA-SUP-81).
+    const statusTaticos = escopo
+        ? ['selected', 'approved', 'in_execution', 'executed']
+        : ['selected', 'in_execution', 'executed'];
     const tacticalPlans = plans.filter((plan: any) =>
-        plan.author !== 'macro-planner'
-        && ['selected', 'in_execution', 'executed'].includes(plan.status)
+        plan.author !== 'macro-planner' && statusTaticos.includes(plan.status)
     );
     const strategicPlanApproved = (
         strategicPlans.length > 0 ? strategicPlans : plans.length === 1 ? plans : []
@@ -108,8 +123,14 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
                 </button>
             )}
 
+            {/* Aprovacao tambem tem override (SNA-SUP-81): a API sempre aceitou
+                dispensar `plan_approved`/`tactical_plans_approved` por decisao
+                humana, mas aqui eram `div` sem clique e o humano ficava sem saida. */}
             {activeRules.plan_approved && (
-                <div className="flex items-center gap-3 w-full">
+                <button
+                    onClick={() => toggleRequirement('plan_approved')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
                     {strategicPlanApproved || manualRequirements['plan_approved'] ? (
                         <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
@@ -123,11 +144,14 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
                             <span className="ml-1.5 text-[9px] text-amber-300/70">(missing or stale)</span>
                         )}
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.tactical_plans_approved && (
-                <div className="flex items-center gap-3 w-full">
+                <button
+                    onClick={() => toggleRequirement('tactical_plans_approved')}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                >
                     {tacticalPlansApproved || manualRequirements['tactical_plans_approved'] ? (
                         <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
                             <Check className="w-2.5 h-2.5 text-green-400" />
@@ -141,7 +165,7 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
                             <span className="ml-1.5 text-[9px] text-amber-300/70">(missing or stale)</span>
                         )}
                     </span>
-                </div>
+                </button>
             )}
 
             {activeRules.plan_selected && (
@@ -361,6 +385,31 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
                         )}
                         <span className={`text-[11px] ${manualRequirements[key] ? 'text-white/60' : 'text-white/30'}`}>
                             {ROTULOS_DE_CONDICAO[key] ?? key}
+                        </span>
+                    </button>
+                ))}
+
+            {/* Recusas que nao sao condicao do template (SNA-SUP-81): a API as
+                nomeia na ultima linha da recusa, e o humano sempre pode
+                dispensa-las. So aparecem depois de uma recusa, com o texto
+                dela logo abaixo do botao de avanco. */}
+            {refusedConditions
+                .filter(key => !activeRules?.[key])
+                .map(key => (
+                    <button
+                        key={`recusa-${key}`}
+                        onClick={() => toggleRequirement(key)}
+                        className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer w-full"
+                    >
+                        {manualRequirements[key] ? (
+                            <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30 flex-shrink-0">
+                                <Check className="w-2.5 h-2.5 text-green-400" />
+                            </div>
+                        ) : (
+                            <div className="w-4 h-4 rounded-full bg-red-500/10 border border-red-500/30 flex-shrink-0" />
+                        )}
+                        <span className={`text-[11px] text-left ${manualRequirements[key] ? 'text-white/60' : 'text-red-300/70'}`}>
+                            {ROTULOS_ESTRUTURAIS[key] ?? ROTULOS_DE_CONDICAO[key] ?? key}
                         </span>
                     </button>
                 ))}

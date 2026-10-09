@@ -7,6 +7,7 @@ import {
 import { getCard, updateCard } from '@/services/cards';
 import { getCardsBySprint, getSprints } from '@/services/sprints';
 import type { AgentTaskExecution, Card } from '@/services/types';
+import { parseOverridableConditions } from './dispatch-scope';
 
 interface UseCockpitActionsProps {
     projectId?: string;
@@ -24,6 +25,7 @@ interface UseCockpitActionsProps {
     setIsRollingBack: (v: boolean) => void;
     setMissionInstructions: (v: string) => void;
     setManualOverrides: (v: any) => void;
+    setRefusedConditions?: (v: string[]) => void;
     setIsTimeTrackingModalOpen: (v: boolean) => void;
     setSprints: (sprints: any[]) => void;
     setCards: React.Dispatch<React.SetStateAction<Card[]>>;
@@ -49,6 +51,7 @@ export const useCockpitActions = ({
     setIsRollingBack,
     setMissionInstructions,
     setManualOverrides,
+    setRefusedConditions,
     setIsTimeTrackingModalOpen,
     setSprints,
     setCards,
@@ -161,6 +164,7 @@ export const useCockpitActions = ({
             setExecution(updated);
             setMissionInstructions('');
             setManualOverrides({});
+            setRefusedConditions?.([]);
             fetchSisters();
 
             if (updated.id !== executionId) {
@@ -171,6 +175,10 @@ export const useCockpitActions = ({
         } catch (error: any) {
             console.error('Failed to advance phase:', error);
             const errorMsg = error.response?.data?.detail || 'Failed to advance phase. Please check requirements.';
+            // Toda recusa de gate diz o que o humano pode dispensar; a lista vira
+            // itens clicaveis no checklist, inclusive recusas fora do template.
+            setRefusedConditions?.(parseOverridableConditions(
+                typeof errorMsg === 'string' ? errorMsg : undefined));
             alert(errorMsg);
         } finally {
             setIsAdvancing(false);

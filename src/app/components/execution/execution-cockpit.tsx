@@ -121,6 +121,7 @@ export const ExecutionCockpit: React.FC = () => {
         handleAdvance,
         manualOverrides,
         setManualOverride,
+        refusedConditions,
         handleRollback,
         updatePlanStatus,
         deletePlanFn,
@@ -196,6 +197,7 @@ export const ExecutionCockpit: React.FC = () => {
                 handleAdvance={handleAdvance}
                 manualOverrides={manualOverrides}
                 setManualOverride={setManualOverride}
+                refusedConditions={refusedConditions}
                 setIsTimeTrackingModalOpen={setIsTimeTrackingModalOpen}
                 handleRollback={handleRollback}
                 setIsAgentModalOpen={setIsAgentModalOpen}
