@@ -53,9 +53,13 @@ export const ExecutionRequirementsChecklist: React.FC<ExecutionRequirementsCheck
     // approval gate green on its own.
     const hasCurrentApproval = (plan: any) => Boolean(plan.approved_content_hash);
     const strategicPlans = plans.filter((plan: any) => plan.author === 'macro-planner');
+    // Mesmo conjunto do gate: com escopo, plano `approved` escolhido pelo
+    // humano conta como `selected` (SNA-SUP-81).
+    const statusTaticos = escopo
+        ? ['selected', 'approved', 'in_execution', 'executed']
+        : ['selected', 'in_execution', 'executed'];
     const tacticalPlans = plans.filter((plan: any) =>
-        plan.author !== 'macro-planner'
-        && ['selected', 'in_execution', 'executed'].includes(plan.status)
+        plan.author !== 'macro-planner' && statusTaticos.includes(plan.status)
     );
     const strategicPlanApproved = (
         strategicPlans.length > 0 ? strategicPlans : plans.length === 1 ? plans : []

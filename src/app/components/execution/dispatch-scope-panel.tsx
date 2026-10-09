@@ -25,7 +25,11 @@ const erroDaApi = (err: any): string =>
  */
 export const DispatchScopePanel: React.FC<DispatchScopePanelProps> = ({ execution, onExecutionUpdated }) => {
     const escopo = escopoDaExecucao(execution.context_data);
-    const editavel = !execution.plan_id && ATIVOS.has(execution.status);
+    // O micro_planning que nasce do macro herda o plano ESTRATEGICO como
+    // plan_id e ainda nao executa plano nenhum: e ali que se escolhe a rodada.
+    const planoAtual = (execution.context_data?.plans || []).find((p: any) => p.id === execution.plan_id);
+    const rodaPlanoTatico = Boolean(execution.plan_id) && planoAtual?.author !== 'macro-planner';
+    const editavel = !rodaPlanoTatico && ATIVOS.has(execution.status);
     const [marcados, setMarcados] = useState<string[]>([]);
     const [motivo, setMotivo] = useState('');
     const [motivoLimpar, setMotivoLimpar] = useState('');

@@ -144,6 +144,11 @@ describe('DispatchScopePanel', () => {
         expect(screen.queryByLabelText('Motivo do escopo')).toBeNull();
     });
 
+    it('micro_planning com o plano estrategico herdado continua editavel', () => {
+        render(<DispatchScopePanel execution={execucao({ plan_id: 'macro' })} onExecutionUpdated={vi.fn()} />);
+        expect(screen.getByLabelText('Motivo do escopo')).toBeTruthy();
+    });
+
     it('em execucao por plano sem escopo nao renderiza nada', () => {
         const { container } = render(
             <DispatchScopePanel execution={execucao({ phase: 'execution', plan_id: 'tp1' })}
@@ -169,6 +174,17 @@ describe('ExecutionRequirementsChecklist: override humano sempre disponivel', ()
         fireEvent.click(screen.getByRole('button', { name: /Strategic Plan Approved/ }));
         expect(onToggle).toHaveBeenCalledWith('tactical_plans_approved', true);
         expect(onToggle).toHaveBeenCalledWith('plan_approved', true);
+    });
+
+    it('com escopo, plano approved escolhido conta para a aprovacao tatica', () => {
+        const escopo = { ...ESCOPO, plan_ids: ['tp4'] };
+        const { container } = render(<ExecutionRequirementsChecklist
+            execution={execucao({ workflow_template_id: 't1',
+                context_data: { plans: PLANOS, dispatch_scope: escopo } })}
+            templates={[template]} cards={[]} manualOverrides={{}} />);
+        const item = screen.getByRole('button', { name: /All Tactical Plans Approved/ });
+        expect(item.textContent).not.toMatch(/missing or stale/);
+        expect(container).toBeTruthy();
     });
 
     it('recusa estrutural vira item dispensavel com rotulo', () => {
