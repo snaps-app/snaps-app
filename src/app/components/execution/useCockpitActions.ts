@@ -126,60 +126,89 @@ export const useCockpitActions = ({
         }
     };
 
+    /** Um pedido de avanco, com override humano das condicoes dadas. */
+    const avancar = async (overrideConditions: string[]): Promise<'avancou' | 'cancelado'> => {
+        let decisionId: string | undefined;
+        let expectedRevision = execution?.lock_version;
+
+        if (overrideConditions.length > 0) {
+            const reason = window.prompt(
+                `Explain why these requirements may be overridden: ${overrideConditions.join(', ')}`,
+            );
+            if (!reason?.trim()) {
+                alert('Override cancelled: a human reason is required.');
+                return 'cancelado';
+            }
+            const decision = await createExecutionOverrideDecision(
+                executionId!, reason.trim(), overrideConditions,
+            );
+            decisionId = decision.decision_id;
+            expectedRevision = decision.execution_revision;
+        }
+
+        const updated = await advanceAgentExecution(
+            executionId!,
+            missionInstructions,
+            selectedDocIds,
+            selectedDecisionIds,
+            overrideConditions.length > 0,
+            expectedRevision,
+            decisionId,
+            overrideConditions,
+        );
+        setExecution(updated);
+        setMissionInstructions('');
+        setManualOverrides({});
+        setRefusedConditions?.([]);
+        fetchSisters();
+
+        if (updated.id !== executionId) {
+            navigate(`/project/${projectId}/execution/${updated.id}`);
+        } else if (updated.status === 'done') {
+            setIsTimeTrackingModalOpen(true);
+        }
+        return 'avancou';
+    };
+
+    const detalheDoErro = (error: any): string => {
+        const detail = error?.response?.data?.detail;
+        return typeof detail === 'string' ? detail : 'Failed to advance phase. Please check requirements.';
+    };
+
     const handleAdvance = async () => {
         if (!executionId) return;
         setIsAdvancing(true);
+        const selecionadas = Object.entries(manualOverrides)
+            .filter(([, selected]) => selected)
+            .map(([condition]) => condition);
         try {
-            const overrideConditions = Object.entries(manualOverrides)
-                .filter(([, selected]) => selected)
-                .map(([condition]) => condition);
-            let decisionId: string | undefined;
-            let expectedRevision = execution?.lock_version;
-
-            if (overrideConditions.length > 0) {
-                const reason = window.prompt(
-                    `Explain why these requirements may be overridden: ${overrideConditions.join(', ')}`,
-                );
-                if (!reason?.trim()) {
-                    alert('Override cancelled: a human reason is required.');
-                    return;
-                }
-                const decision = await createExecutionOverrideDecision(
-                    executionId, reason.trim(), overrideConditions,
-                );
-                decisionId = decision.decision_id;
-                expectedRevision = decision.execution_revision;
-            }
-
-            const updated = await advanceAgentExecution(
-                executionId,
-                missionInstructions,
-                selectedDocIds,
-                selectedDecisionIds,
-                overrideConditions.length > 0,
-                expectedRevision,
-                decisionId,
-                overrideConditions,
-            );
-            setExecution(updated);
-            setMissionInstructions('');
-            setManualOverrides({});
-            setRefusedConditions?.([]);
-            fetchSisters();
-
-            if (updated.id !== executionId) {
-                navigate(`/project/${projectId}/execution/${updated.id}`);
-            } else if (updated.status === 'done') {
-                setIsTimeTrackingModalOpen(true);
-            }
+            await avancar(selecionadas);
         } catch (error: any) {
             console.error('Failed to advance phase:', error);
-            const errorMsg = error.response?.data?.detail || 'Failed to advance phase. Please check requirements.';
+            const errorMsg = detalheDoErro(error);
             // Toda recusa de gate diz o que o humano pode dispensar; a lista vira
             // itens clicaveis no checklist, inclusive recusas fora do template.
-            setRefusedConditions?.(parseOverridableConditions(
-                typeof errorMsg === 'string' ? errorMsg : undefined));
-            alert(errorMsg);
+            const dispensaveis = parseOverridableConditions(errorMsg);
+            setRefusedConditions?.(dispensaveis);
+            // O humano sempre pode avancar (SNA-SUP-81): a recusa oferece o
+            // override ali mesmo, em vez de so informar. Em 09/10 o alerta dizia
+            // "Human override available ... peer_review_generated" e nao havia
+            // o que clicar, porque a condicao ja estava no checklist.
+            const faltando = dispensaveis.filter(c => !selecionadas.includes(c));
+            if (faltando.length > 0 && window.confirm(
+                `${errorMsg}\n\nVoce pode dispensar: ${faltando.join(', ')}.\n`
+                + 'Dispensar com override humano e avancar agora?',
+            )) {
+                try {
+                    await avancar([...selecionadas, ...faltando]);
+                } catch (segunda: any) {
+                    console.error('Failed to advance phase with override:', segunda);
+                    setRefusedConditions?.(parseOverridableConditions(detalheDoErro(segunda)));
+                    alert(detalheDoErro(segunda));
+                }
+            } else if (faltando.length === 0) {
+                alert(errorMsg);
+            }
         } finally {
             setIsAdvancing(false);
         }
