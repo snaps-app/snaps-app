@@ -18,9 +18,12 @@ export interface ModeloSalvo {
   id: string;
   model_id: string;
   label: string | null;
-  price_input_usd_mtok: number | null;
-  price_output_usd_mtok: number | null;
-  adicionado_por: string | null;
+  price_input_usd_mtok: string | number | null; // números somente no reader legado
+  price_output_usd_mtok: string | number | null;
+  price_cache_write_5m_usd_mtok?: string | null;
+  price_cache_read_usd_mtok?: string | null;
+  lock_version?: number; // API antiga: leitura permitida, edição aguarda versão
+  adicionado_por: string | { id: string; email: string | null } | null;
   adicionado_em: string;
 }
 
@@ -37,7 +40,7 @@ export interface Categoria {
 
 export interface EventoDeConfiguracao {
   em: string;
-  por: string | null;
+  por: string | { id: string; email: string | null } | null;
   entidade: string;
   chave: string;
   antes: unknown;
@@ -54,9 +57,19 @@ export interface ConfiguracaoNeuron {
 export interface NovoModelo {
   model_id: string;
   label?: string;
-  price_input_usd_mtok?: number;
-  price_output_usd_mtok?: number;
+  price_input_usd_mtok?: string;
+  price_output_usd_mtok?: string;
 }
+
+export interface TarifasModelo {
+  price_input_usd_mtok: string | null;
+  price_output_usd_mtok: string | null;
+  price_cache_write_5m_usd_mtok: string | null;
+  price_cache_read_usd_mtok: string | null;
+}
+
+export const editarTarifasModelo = async (id: string, tarifas: TarifasModelo, lock_version: number): Promise<ModeloSalvo> =>
+  (await api.patch(`/api/system/neuron/modelos/${encodeURIComponent(id)}`, { ...tarifas, lock_version })).data;
 
 export const getConfiguracaoNeuron = async (): Promise<ConfiguracaoNeuron> =>
   (await api.get('/api/system/neuron')).data;

@@ -43,6 +43,11 @@ export function reduzirTurno(t:Turno,e:EventoNeuron):Turno {
     case 'done':
       registro.perfil=e.perfil;registro.incompleto ||= e.incompleto;
       registro.uso=e.uso;registro.custo_usd=e.custo_usd;registro.preco_estimado=e.preco_estimado;
+      for (const campo of ['raw_cost_usd','estimated_cost_usd','cost_basis','coverage','estimate_source'] as const) {
+        // Ausência é legado; NULL é desconhecido explícito. Não inferir factual
+        // a partir de custo_usd legado ou somar estimativa ao custo factual.
+        if (campo in e) Object.assign(registro, { [campo]: e[campo] });
+      }
       registro.recebeu_done=true;
       return terminarTurno(novo,'done');
   }

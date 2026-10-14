@@ -628,6 +628,14 @@ export interface RegistroDoTurnoV1 {
     snaps_referenciados: string[];
     incompleto: boolean;
     passos: PassoDoTurno[];
+    uso?: import('./neuronEvents').UsoNeuron;
+    custo_usd?: number | null;
+    preco_estimado?: boolean;
+    raw_cost_usd?: string | null;
+    estimated_cost_usd?: string | null;
+    cost_basis?: 'metered' | 'estimated' | 'unknown';
+    coverage?: 'complete' | 'partial' | 'none';
+    estimate_source?: string | null;
     [extra: string]: unknown;
 }
 

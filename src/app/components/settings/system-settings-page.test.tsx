@@ -13,6 +13,7 @@ vi.mock('@/services/system-settings', async (importOriginal) => {
     gravarChave: vi.fn(),
     testarChave: vi.fn(),
     adicionarModelo: vi.fn(),
+    editarTarifasModelo: vi.fn(),
     trocarModeloDaCategoria: vi.fn(),
   };
 });
@@ -22,6 +23,7 @@ import { Sidebar } from '@/app/components/layout/sidebar';
 import { SystemSettingsPage } from './system-settings-page';
 import {
   adicionarModelo,
+  editarTarifasModelo,
   getConfiguracaoNeuron,
   gravarChave,
   testarChave,
@@ -41,11 +43,11 @@ const categorias = (modeloB = 'modelo-b') => [
 const CONFIG: ConfiguracaoNeuron = {
   chave: { configurada: true, ultimos4: '1234', gravada_por: { id: 'u1', email: 'po@snaps.test' }, gravada_em: '2026-09-28T12:00:00Z' },
   modelos: [
-    { id: 'm1', model_id: 'modelo-a', label: 'Modelo A', price_input_usd_mtok: 4, price_output_usd_mtok: 20, adicionado_por: 'u1', adicionado_em: '2026-09-28T12:00:00Z' },
+    { id: 'm1', model_id: 'modelo-a', label: 'Modelo A', lock_version: 7, price_input_usd_mtok: '4', price_output_usd_mtok: '20', price_cache_write_5m_usd_mtok: null, price_cache_read_usd_mtok: null, adicionado_por: 'u1', adicionado_em: '2026-09-28T12:00:00Z' },
     { id: 'm2', model_id: 'modelo-b', label: null, price_input_usd_mtok: null, price_output_usd_mtok: null, adicionado_por: 'u1', adicionado_em: '2026-09-28T12:00:00Z' },
   ],
   categorias: categorias(),
-  historico: [{ em: '2026-09-28T12:05:00Z', por: 'po@snaps.test', entidade: 'system_model_categories', chave: 'B', antes: 'modelo-a', depois: 'modelo-b' }],
+  historico: [{ em: '2026-09-28T12:05:00Z', por: { id: 'u1', email: 'po@snaps.test' }, entidade: 'system_model_categories', chave: 'B', antes: 'modelo-a', depois: 'modelo-b' }],
 };
 
 const VAZIO: ConfiguracaoNeuron = {
@@ -133,6 +135,29 @@ describe('chave', () => {
 });
 
 describe('modelos e categorias', () => {
+  it('edita quatro tarifas como string e NULL, com CAS', async () => {
+    usuario('super_admin');
+    vi.mocked(getConfiguracaoNeuron).mockResolvedValue(CONFIG);
+    vi.mocked(editarTarifasModelo).mockResolvedValue(CONFIG.modelos[0]);
+    pagina();
+    fireEvent.change(await screen.findByLabelText('Entrada US$/MTok de modelo-a'), { target: { value: '3.1234' } });
+    fireEvent.change(screen.getByLabelText('Escrita de cache 5 min US$/MTok de modelo-a'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar tarifas de modelo-a' }));
+    await waitFor(() => expect(editarTarifasModelo).toHaveBeenCalledWith('m1', {
+      price_input_usd_mtok: '3.1234', price_output_usd_mtok: '20',
+      price_cache_write_5m_usd_mtok: '0', price_cache_read_usd_mtok: null,
+    }, 7));
+  });
+
+  it('409 nas tarifas recarrega valores e pede conferência', async () => {
+    usuario('super_admin');
+    vi.mocked(getConfiguracaoNeuron).mockResolvedValue(CONFIG);
+    vi.mocked(editarTarifasModelo).mockRejectedValue({ response: { status: 409 } });
+    pagina();
+    fireEvent.click(await screen.findByRole('button', { name: 'Salvar tarifas de modelo-a' }));
+    expect(await screen.findByText(/Outra pessoa mudou estas tarifas/)).toBeInTheDocument();
+    expect(getConfiguracaoNeuron).toHaveBeenCalledTimes(2);
+  });
   it('recusa de modelo inválido mostra o detail da API', async () => {
     usuario('super_admin');
     vi.mocked(getConfiguracaoNeuron).mockResolvedValue(CONFIG);
@@ -156,7 +181,7 @@ describe('modelos e categorias', () => {
     fireEvent.change(screen.getByLabelText('Preço de entrada US$/MTok (opcional)'), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText('Preço de saída US$/MTok (opcional)'), { target: { value: '5' } });
     fireEvent.click(screen.getByText('Adicionar modelo'));
-    expect(adicionarModelo).toHaveBeenCalledWith({ model_id: 'modelo-c', label: 'Modelo C', price_input_usd_mtok: 1, price_output_usd_mtok: 5 });
+    expect(adicionarModelo).toHaveBeenCalledWith({ model_id: 'modelo-c', label: 'Modelo C', price_input_usd_mtok: '1', price_output_usd_mtok: '5' });
     expect(await within(await screen.findByRole('list', { name: 'Lista de modelos' })).findByText('Modelo C (modelo-c)')).toBeInTheDocument();
   });
 

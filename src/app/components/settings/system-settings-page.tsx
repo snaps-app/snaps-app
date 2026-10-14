@@ -14,6 +14,7 @@ import { useCurrentUser } from '@/app/components/layout/use-current-user';
 import { ZoneEmpty, ZoneError } from '@/app/components/layout/zone-state';
 import {
   adicionarModelo,
+  editarTarifasModelo,
   detalheDoErro,
   getConfiguracaoNeuron,
   gravarChave,
@@ -22,6 +23,8 @@ import {
   trocarModeloDaCategoria,
   type Categoria,
   type ConfiguracaoNeuron,
+  type ModeloSalvo,
+  type TarifasModelo,
 } from '@/services/system-settings';
 
 const HISTORICO_MAX = 20;
@@ -135,6 +138,55 @@ function SecaoChave({ config, aoMudar }: { config: ConfiguracaoNeuron; aoMudar: 
   );
 }
 
+const CAMPOS_TARIFA = [
+  ['price_input_usd_mtok', 'Entrada'],
+  ['price_output_usd_mtok', 'Saída'],
+  ['price_cache_write_5m_usd_mtok', 'Escrita de cache 5 min'],
+  ['price_cache_read_usd_mtok', 'Leitura de cache'],
+] as const;
+
+function valoresDe(modelo: ModeloSalvo): TarifasModelo {
+  return Object.fromEntries(CAMPOS_TARIFA.map(([c]) => [c, modelo[c] == null ? null : String(modelo[c])])) as unknown as TarifasModelo;
+}
+
+function EditorDeTarifas({ modelo, recarregar }: { modelo: ModeloSalvo; recarregar: () => Promise<void> }) {
+  const [valores, setValores] = useState<TarifasModelo>(() => valoresDe(modelo));
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  useEffect(() => setValores(valoresDe(modelo)), [modelo]);
+  const salvar = async (e: FormEvent) => {
+    e.preventDefault();
+    if (modelo.lock_version == null || enviando) return;
+    setEnviando(true);
+    setAviso(null);
+    try {
+      await editarTarifasModelo(modelo.id, valores, modelo.lock_version);
+      await recarregar();
+      setAviso('Tarifas conferidas e salvas.');
+    } catch (erro) {
+      if (statusDoErro(erro) === 409) {
+        await recarregar();
+        setAviso('Outra pessoa mudou estas tarifas antes. A tela foi recarregada; confira e salve de novo.');
+      } else setAviso(detalheDoErro(erro));
+    } finally { setEnviando(false); }
+  };
+  return <form onSubmit={salvar} aria-label={`Tarifas de ${modelo.model_id}`} className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+    {CAMPOS_TARIFA.map(([chave, rotulo]) => <label key={chave} className="flex flex-col gap-1 text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
+      {rotulo} US$/MTok
+      <input aria-label={`${rotulo} US$/MTok de ${modelo.model_id}`} inputMode="decimal" pattern="[0-9]{1,8}(\.[0-9]{1,4})?"
+        placeholder="Desconhecido" value={valores[chave] ?? ''} disabled={enviando || modelo.lock_version == null}
+        onChange={e => setValores(v => ({ ...v, [chave]: e.target.value.trim() || null }))}
+        className={campo} style={{ color: 'var(--snaps-text-primary)' }} />
+    </label>)}
+    <span className="text-xs sm:col-span-2" style={{ color: 'var(--snaps-text-secondary)' }}>Em branco: preço desconhecido. Zero: tarifa gratuita conhecida.</span>
+    <button type="submit" disabled={enviando || modelo.lock_version == null} className={`${botao} sm:col-span-2`}>
+      {enviando ? 'Salvando…' : `Salvar tarifas de ${modelo.model_id}`}
+    </button>
+    {modelo.lock_version == null && <p className="text-xs sm:col-span-2">A edição fica disponível após a atualização da API.</p>}
+    {aviso && <p role="status" className="text-xs sm:col-span-2">{aviso}</p>}
+  </form>;
+}
+
 function SecaoModelos({ config, recarregar }: { config: ConfiguracaoNeuron; recarregar: () => Promise<void> }) {
   const [modelId, setModelId] = useState('');
   const [rotulo, setRotulo] = useState('');
@@ -152,8 +204,8 @@ function SecaoModelos({ config, recarregar }: { config: ConfiguracaoNeuron; reca
       await adicionarModelo({
         model_id: modelId.trim(),
         ...(rotulo.trim() ? { label: rotulo.trim() } : {}),
-        ...(entrada.trim() ? { price_input_usd_mtok: Number(entrada) } : {}),
-        ...(saida.trim() ? { price_output_usd_mtok: Number(saida) } : {}),
+        ...(entrada.trim() ? { price_input_usd_mtok: entrada.trim() } : {}),
+        ...(saida.trim() ? { price_output_usd_mtok: saida.trim() } : {}),
       });
       setModelId('');
       setRotulo('');
@@ -174,13 +226,14 @@ function SecaoModelos({ config, recarregar }: { config: ConfiguracaoNeuron; reca
       ) : (
         <ul className="flex flex-col gap-1 text-sm" aria-label="Lista de modelos">
           {config.modelos.map((m) => (
-            <li key={m.id} className="flex justify-between gap-4" style={{ color: 'var(--snaps-text-primary)' }}>
+            <li key={m.id} className="flex flex-col gap-3 border-b border-white/10 py-3" style={{ color: 'var(--snaps-text-primary)' }}>
               <span>{m.label ? `${m.label} (${m.model_id})` : m.model_id}</span>
               <span style={{ color: 'var(--snaps-text-secondary)' }}>
                 {m.price_input_usd_mtok != null && m.price_output_usd_mtok != null
                   ? `US$ ${m.price_input_usd_mtok} / ${m.price_output_usd_mtok} por MTok`
                   : 'sem preço'}
               </span>
+              <EditorDeTarifas modelo={m} recarregar={recarregar} />
             </li>
           ))}
         </ul>
@@ -265,7 +318,7 @@ function SecaoHistorico({ config }: { config: ConfiguracaoNeuron }) {
         <ul className="flex flex-col gap-1 text-xs" aria-label="Trocas recentes" style={{ color: 'var(--snaps-text-secondary)' }}>
           {itens.map((h, i) => (
             <li key={`${h.em}-${i}`}>
-              {dataHora(h.em)} · {h.por ?? 'sistema'} · {h.entidade} {h.chave}: {valor(h.antes)} → {valor(h.depois)}
+              {dataHora(h.em)} · {(typeof h.por === 'string' ? h.por : h.por?.email) ?? 'sistema'} · {h.entidade} {h.chave}: {valor(h.antes)} → {valor(h.depois)}
             </li>
           ))}
         </ul>
