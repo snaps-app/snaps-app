@@ -30,6 +30,21 @@ export interface SnapSugerido {
 
 export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno' | 'sem_resposta';
 
+export interface UsoNeuron {
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_input_tokens: number | null;
+  cache_creation_input_tokens?: number | null;
+}
+
+export interface CustoNeuron {
+  raw_cost_usd?: string | null;
+  estimated_cost_usd?: string | null;
+  cost_basis?: 'metered' | 'estimated' | 'unknown';
+  coverage?: 'complete' | 'partial' | 'none';
+  estimate_source?: string | null;
+}
+
 export type EventoNeuron =
   | { type: 'thinking'; content: string }
   | { type: 'token'; content: string }
@@ -40,14 +55,14 @@ export type EventoNeuron =
   | { type: 'board_changed'; entidades: Array<{ tipo: 'card' | 'task' | 'sprint'; id: string }> }
   | { type: 'guardrail_tripped'; guarda: string; limite: number; valor: number }
   | { type: 'error'; code: CodigoErroNeuron; message: string }
-  | {
+  | (CustoNeuron & {
       type: 'done';
       perfil: string;
-      uso: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number };
-      custo_usd: number;
+      uso: UsoNeuron;
+      custo_usd: number | null;
       preco_estimado: boolean;
       incompleto: boolean;
-    };
+    });
 
 const CAMPOS: Record<EventoNeuron['type'], string[]> = {
   thinking: ['content'],
