@@ -135,6 +135,33 @@ describe('chave', () => {
 });
 
 describe('modelos e categorias', () => {
+  it.each([409, 200])('bloqueia reenvio se a recarga após PATCH %s falhar, até conferir versão nova', async (status) => {
+    usuario('super_admin');
+    vi.mocked(editarTarifasModelo).mockReset();
+    const atualizada = { ...CONFIG, modelos: CONFIG.modelos.map(m => m.id === 'm1'
+      ? { ...m, lock_version: 8, price_input_usd_mtok: '9' } : m) };
+    vi.mocked(getConfiguracaoNeuron).mockResolvedValueOnce(CONFIG)
+      .mockRejectedValueOnce({ response: { status: 500 } }).mockResolvedValue(atualizada);
+    if (status === 409) vi.mocked(editarTarifasModelo).mockRejectedValueOnce({ response: { status } });
+    else vi.mocked(editarTarifasModelo).mockResolvedValueOnce(atualizada.modelos[0]);
+    pagina();
+    const salvar = await screen.findByRole('button', { name: 'Salvar tarifas de modelo-a' });
+    fireEvent.click(salvar);
+    expect(await screen.findByText(/Não foi possível atualizar as tarifas/)).toBeInTheDocument();
+    if (status === 409) expect(screen.getByText(/Outra pessoa mudou estas tarifas/)).toBeInTheDocument();
+    expect(screen.queryByText(/A tela foi recarregada/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Tarifas conferidas e salvas.')).not.toBeInTheDocument();
+    expect(salvar).toBeDisabled();
+    fireEvent.submit(screen.getByRole('form', { name: 'Tarifas de modelo-a' }));
+    expect(editarTarifasModelo).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Recarregar tarifas de modelo-a' }));
+    await waitFor(() => expect(salvar).toBeEnabled());
+    expect(screen.getByLabelText('Entrada US$/MTok de modelo-a')).toHaveValue('9');
+    vi.mocked(editarTarifasModelo).mockResolvedValue(atualizada.modelos[0]);
+    fireEvent.click(salvar);
+    await waitFor(() => expect(editarTarifasModelo).toHaveBeenLastCalledWith('m1', expect.objectContaining({ price_input_usd_mtok: '9' }), 8));
+  });
+
   it('edita quatro tarifas como string e NULL, com CAS', async () => {
     usuario('super_admin');
     vi.mocked(getConfiguracaoNeuron).mockResolvedValue(CONFIG);
