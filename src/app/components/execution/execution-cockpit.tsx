@@ -124,6 +124,7 @@ export const ExecutionCockpit: React.FC = () => {
         refusedConditions,
         handleRollback,
         updatePlanStatus,
+        reapprovePlan,
         deletePlanFn,
         handleApproveBDD,
         handleToggleScenario,
@@ -328,6 +329,7 @@ export const ExecutionCockpit: React.FC = () => {
                             copiedId={copiedId}
                             handleOpenPeerReview={handleOpenPeerReview}
                             updatePlanStatus={updatePlanStatus}
+                            reapprovePlan={reapprovePlan}
                             deletePlanFn={deletePlanFn}
                         />
                     )}
