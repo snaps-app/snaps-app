@@ -242,3 +242,17 @@ describe('modelos e categorias', () => {
     expect(screen.getByText('Guardrails do Neuron').closest('[aria-disabled="true"]')).not.toBeNull();
   });
 });
+
+
+it('edita effort com a mesma versão da categoria e recarrega no conflito', async () => {
+  usuario('super_admin');
+  vi.mocked(getConfiguracaoNeuron).mockResolvedValue(CONFIG);
+  vi.mocked(trocarModeloDaCategoria).mockRejectedValueOnce({ response: { status: 409 } });
+  pagina();
+  const effort = await screen.findByLabelText('Effort da categoria B');
+  expect(effort).toHaveValue('medium');
+  expect(screen.queryByLabelText('Effort da categoria E')).not.toBeInTheDocument();
+  fireEvent.change(effort, { target: { value: 'low' } });
+  await waitFor(() => expect(trocarModeloDaCategoria).toHaveBeenCalledWith('B', 'modelo-b', 3, 'low'));
+  expect(await screen.findByText(/A tela foi recarregada; confira e escolha de novo/)).toBeInTheDocument();
+});

@@ -87,8 +87,9 @@ export const trocarModeloDaCategoria = async (
   categoria: CategoriaModelo,
   model_id: string,
   lock_version: number,
+  effort?: string,
 ): Promise<Categoria> =>
-  (await api.patch(`/api/system/neuron/categorias/${categoria}`, { model_id, lock_version })).data;
+  (await api.patch(`/api/system/neuron/categorias/${categoria}`, { model_id, lock_version, ...(effort === undefined ? {} : { effort }) })).data;
 
 /** O `detail` da API, ou uma frase de produto quando ele não veio. */
 export const detalheDoErro = (erro: unknown, padrao = 'Não foi possível concluir. Tente de novo.'): string => {

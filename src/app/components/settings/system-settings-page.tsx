@@ -273,12 +273,18 @@ function SecaoModelos({ config, recarregar }: { config: ConfiguracaoNeuron; reca
 
 function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; recarregar: () => Promise<boolean> }) {
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro' | 'aguardando'; texto: string } | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
 
-  const trocar = async (categoria: Categoria, modelo: string) => {
+  const trocar = async (categoria: Categoria, modelo: string, effort?: string) => {
+    if (salvando || bloqueado) return;
+    setSalvando(true);
     setAviso({ tipo: 'aguardando', texto: `Trocando a categoria ${categoria.categoria}…` });
     try {
-      await trocarModeloDaCategoria(categoria.categoria, modelo, categoria.lock_version);
+      if (effort === undefined) await trocarModeloDaCategoria(categoria.categoria, modelo, categoria.lock_version);
+      else await trocarModeloDaCategoria(categoria.categoria, modelo, categoria.lock_version, effort);
       if (!await recarregar()) {
+        setBloqueado(true);
         setAviso({ tipo: 'erro', texto: 'Não foi possível atualizar a categoria. Recarregue a página para conferir.' });
         return;
       }
@@ -286,12 +292,15 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
     } catch (erro) {
       if (statusDoErro(erro) === 409) {
         const ok = await recarregar();
+        setBloqueado(!ok);
         setAviso({ tipo: 'erro', texto: ok
           ? 'Outra pessoa mudou esta categoria antes. A tela foi recarregada; confira e escolha de novo.'
           : 'Outra pessoa mudou esta categoria antes. Não foi possível atualizar; recarregue a página para conferir.' });
       } else {
         setAviso({ tipo: 'erro', texto: detalheDoErro(erro) });
       }
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -308,7 +317,9 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
                 executores externos (Axon)
               </span>
             ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
               <select
+                disabled={salvando || bloqueado}
                 aria-label={`Modelo da categoria ${c.categoria}`}
                 value={c.model_id ?? ''}
                 onChange={(e) => trocar(c, e.target.value)}
@@ -322,6 +333,13 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
                   </option>
                 ))}
               </select>
+              <select aria-label={`Effort da categoria ${c.categoria}`} value={c.effort ?? ''}
+                disabled={salvando || bloqueado || !c.model_id}
+                onChange={e => trocar(c, c.model_id!, e.target.value)} className={`${campo} sm:w-36`}>
+                {!c.effort && <option value="">Padrão do modelo</option>}
+                {['low', 'medium', 'high'].map(e => <option key={e} value={e} className="bg-zinc-900">{e}</option>)}
+              </select>
+              </div>
             )}
           </div>
         ))}
