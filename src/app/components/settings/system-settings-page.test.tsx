@@ -256,3 +256,20 @@ it('edita effort com a mesma versão da categoria e recarrega no conflito', asyn
   await waitFor(() => expect(trocarModeloDaCategoria).toHaveBeenCalledWith('B', 'modelo-b', 3, 'low'));
   expect(await screen.findByText(/A tela foi recarregada; confira e escolha de novo/)).toBeInTheDocument();
 });
+
+
+it('recupera a categoria após falha de recarga sem recarregar a página', async () => {
+  usuario('super_admin');
+  vi.mocked(getConfiguracaoNeuron).mockResolvedValueOnce(CONFIG)
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ ...CONFIG, categorias: categorias('modelo-a') });
+  vi.mocked(trocarModeloDaCategoria).mockResolvedValueOnce({} as never);
+  pagina();
+  fireEvent.change(await screen.findByLabelText('Modelo da categoria B'), { target: { value: 'modelo-a' } });
+  const retry = await screen.findByRole('button', { name: 'Recarregar categorias' });
+  expect(screen.getByLabelText('Modelo da categoria B')).toBeDisabled();
+  fireEvent.click(retry);
+  await waitFor(() => expect(screen.getByLabelText('Modelo da categoria B')).toBeEnabled());
+  expect(screen.getByLabelText('Modelo da categoria B')).toHaveValue('modelo-a');
+  expect(screen.queryByRole('button', { name: 'Recarregar categorias' })).not.toBeInTheDocument();
+});

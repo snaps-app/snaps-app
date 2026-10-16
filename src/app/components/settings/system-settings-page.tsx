@@ -276,6 +276,20 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
   const [salvando, setSalvando] = useState(false);
   const [bloqueado, setBloqueado] = useState(false);
 
+  const tentarRecarregar = async () => {
+    if (salvando) return;
+    setSalvando(true);
+    try {
+      const ok = await recarregar();
+      setBloqueado(!ok);
+      setAviso({ tipo: ok ? 'ok' : 'erro', texto: ok
+        ? 'Categorias recarregadas; confira antes de alterar.'
+        : 'Não foi possível atualizar as categorias. Tente recarregar novamente.' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   const trocar = async (categoria: Categoria, modelo: string, effort?: string) => {
     if (salvando || bloqueado) return;
     setSalvando(true);
@@ -285,7 +299,7 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
       else await trocarModeloDaCategoria(categoria.categoria, modelo, categoria.lock_version, effort);
       if (!await recarregar()) {
         setBloqueado(true);
-        setAviso({ tipo: 'erro', texto: 'Não foi possível atualizar a categoria. Recarregue a página para conferir.' });
+        setAviso({ tipo: 'erro', texto: 'Não foi possível atualizar a categoria. Recarregue as categorias para conferir.' });
         return;
       }
       setAviso({ tipo: 'ok', texto: `Categoria ${categoria.categoria} agora usa ${modelo}.` });
@@ -295,7 +309,7 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
         setBloqueado(!ok);
         setAviso({ tipo: 'erro', texto: ok
           ? 'Outra pessoa mudou esta categoria antes. A tela foi recarregada; confira e escolha de novo.'
-          : 'Outra pessoa mudou esta categoria antes. Não foi possível atualizar; recarregue a página para conferir.' });
+          : 'Outra pessoa mudou esta categoria antes. Não foi possível atualizar; recarregue as categorias para conferir.' });
       } else {
         setAviso({ tipo: 'erro', texto: detalheDoErro(erro) });
       }
@@ -345,6 +359,9 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
         ))}
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
+      {bloqueado && <button type="button" className={botao} disabled={salvando} onClick={tentarRecarregar}>
+        {salvando ? 'Recarregando…' : 'Recarregar categorias'}
+      </button>}
     </Secao>
   );
 }
