@@ -91,6 +91,31 @@ export const useCockpitPlans = (
         }
     };
 
+    // Reaprovacao sem mexer no status: o plano segue selected/in_execution.
+    // A revisao enviada e a que o PO viu; se o conteudo mudou no meio, a API
+    // recusa com 409 em vez de aprovar o que ele nao leu.
+    const reapprovePlan = async (planId: string, getAgentExecutionFn: (id: string) => Promise<AgentTaskExecution>) => {
+        if (!execution) return;
+        const plan = (execution.context_data?.plans || []).find(
+            (candidate: any) => candidate.id === planId
+        );
+        if (typeof plan?.content_revision !== 'number') {
+            alert('Revisao do plano ausente; recarregue antes de aprovar.');
+            return;
+        }
+        if (!confirm(`Aprovar a revisao ${plan.content_revision} de "${plan.title}"? O plano continua no status atual.`)) return;
+        try {
+            await approvePlan(planId, plan.content_revision, 'cockpit:reapproval-confirmed');
+        } catch (err: any) {
+            const detail = err?.response?.data?.detail;
+            alert(err?.response?.status === 409
+                ? `O plano mudou durante a aprovacao (${detail}). Revise o conteudo atual e aprove de novo.`
+                : `Falha ao aprovar: ${detail || err?.message || err}`);
+        }
+        const updated = await getAgentExecutionFn(execution.id);
+        setExecution(updated);
+    };
+
     const deletePlanFn = async (planId: string, getAgentExecutionFn: (id: string) => Promise<AgentTaskExecution>) => {
         if (!execution) return;
         if (!confirm('Are you sure you want to delete this plan?')) return;
@@ -117,6 +142,7 @@ export const useCockpitPlans = (
         handleEditPlan,
         handleSavePlan,
         updatePlanStatus,
+        reapprovePlan,
         deletePlanFn,
     };
 };
