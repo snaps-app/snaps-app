@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import { signIn, syncUserWithBackend } from '@/services/auth.service';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { safeNext } from '@/lib/safeNext';
 
 export function Login() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -20,7 +22,9 @@ export function Login() {
             const { user } = await signIn(email, password);
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
             if (user) await syncUserWithBackend(user, apiUrl);
-            navigate('/');
+            // Volta para onde a sessao caiu (SNA-SUP-84). `safeNext` barra
+            // destino fora do app; sem `next` valido, Dashboard.
+            navigate(safeNext(searchParams.get('next')), { replace: true });
         } catch (err: any) {
             setError(err?.message ?? 'Invalid credentials. Please try again.');
         } finally {
