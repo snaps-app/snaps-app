@@ -58,6 +58,7 @@ export const useExecutionCockpit = () => {
 
     const updatePlanStatus = (planId: string, status: string) => plansHook.updatePlanStatus(planId, status, getAgentExecution);
     const deletePlanFn = (planId: string) => plansHook.deletePlanFn(planId, getAgentExecution);
+    const reapprovePlan = (planId: string) => plansHook.reapprovePlan(planId, getAgentExecution);
 
     const handleCopy = (id: string, text: string) => {
         navigator.clipboard.writeText(text);
@@ -199,6 +200,7 @@ export const useExecutionCockpit = () => {
         refusedConditions: state.refusedConditions,
         handleRollback: actions.handleRollback,
         updatePlanStatus,
+        reapprovePlan,
         deletePlanFn,
         handleApproveBDD: actions.handleApproveBDD,
         handleToggleScenario: actions.handleToggleScenario,

@@ -10,9 +10,11 @@ import {
     RefreshCcw,
     Loader2,
     Copy,
-    Lock
+    Lock,
+    ShieldAlert
 } from 'lucide-react';
 import { Tag } from '@/app/components/shared/tag';
+import { planApprovalState } from './plan-approval';
 import type { AgentTaskExecution, Sprint } from '@/services/types';
 
 interface PlanPanelProps {
@@ -36,6 +38,7 @@ interface PlanPanelProps {
     copiedId: string | null;
     handleOpenPeerReview: () => Promise<void>;
     updatePlanStatus: (planId: string, status: string) => Promise<void>;
+    reapprovePlan?: (planId: string) => Promise<void>;
     deletePlanFn: (planId: string) => Promise<void>;
 }
 
@@ -60,6 +63,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     copiedId,
     handleOpenPeerReview,
     updatePlanStatus,
+    reapprovePlan,
     deletePlanFn
 }) => {
     const rawPlans = execution.context_data?.plans || [];
@@ -171,6 +175,27 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                                         <Lock className="w-3 h-3 text-yellow-400" />
                                                         Bloqueado
                                                     </span>
+                                                )}
+                                                {planApprovalState(plan) === 'reapproval_pending' && (
+                                                    <>
+                                                        <span
+                                                            data-testid={`reapproval-pending-${plan.id}`}
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase tracking-wider"
+                                                            title="O conteudo mudou depois da ultima aprovacao. O status nao muda, mas os gates recusam ate a revisao corrente ser aprovada."
+                                                        >
+                                                            <ShieldAlert className="w-3 h-3 text-amber-400" />
+                                                            Reaprovação pendente · rev {plan.content_revision}
+                                                        </span>
+                                                        {reapprovePlan && (
+                                                            <button
+                                                                onClick={() => reapprovePlan(plan.id)}
+                                                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-amber-900/20"
+                                                            >
+                                                                <Check className="w-3.5 h-3.5" />
+                                                                Aprovar rev {plan.content_revision}
+                                                            </button>
+                                                        )}
+                                                    </>
                                                 )}
                                                 {plan.status === 'draft' && (
                                                     <>
