@@ -28,7 +28,7 @@ export interface SnapSugerido {
   timestamp: string;
 }
 
-export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno' | 'sem_resposta';
+export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno' | 'sem_resposta' | 'politica_incompativel';
 
 export interface UsoNeuron {
   input_tokens: number | null;

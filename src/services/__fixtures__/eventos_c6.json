@@ -158,5 +158,10 @@
       "coverage": "partial",
       "estimate_source": null
     }
-  ]
+  ],
+  "tp4": {
+    "type": "error",
+    "code": "politica_incompativel",
+    "message": "O modelo não aceita a política configurada."
+  }
 }

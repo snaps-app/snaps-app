@@ -44,3 +44,9 @@ describe('lerSSE', () => {
     expect(vistos[1]).toEqual({ type: 'token', content: 'O card está em revisão' });
   });
 });
+
+
+it('lê politica_incompativel do contrato compartilhado', () => {
+  const evento: EventoNeuron = { type: 'error', code: 'politica_incompativel', message: exemplos.tp4.message };
+  expect(lerEventoNeuron(exemplos.tp4)).toEqual(evento);
+});
