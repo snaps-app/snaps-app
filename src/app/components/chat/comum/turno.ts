@@ -36,6 +36,8 @@ export function reduzirTurno(t:Turno,e:EventoNeuron):Turno {
     case 'snaps_referenced':
       registro.snaps_referenciados=[...new Set([...registro.snaps_referenciados,...e.snaps.map(s=>s.id)])];
       break;
+    case 'budget_warning':
+      registro.passos.push({type:'text',content:e.message});break;
     case 'guardrail_tripped':
       registro.guarda=e.guarda;registro.incompleto=true;break;
     case 'error':

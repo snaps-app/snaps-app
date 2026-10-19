@@ -49,3 +49,15 @@ it('repete somente o save e troca o ID temporário pelo ID persistido',async()=>
   expect(result.current.persistenciaPendente).toBe(false);
   expect(result.current.messages.find(m=>m.role==='assistant')).toMatchObject({id:'assistant-salvo',content:'Resposta'});
 });
+
+it('C206 parcial seguido de falha financeira preserva resposta e salva uma vez',async()=>{
+ vi.mocked(streamChat).mockImplementation(async(_p,emitir)=>{
+  emitir({type:'token',content:'Parcial'});
+  emitir({type:'error',code:'orcamento_indisponivel',message:'Não foi possível conferir o limite de gasto. Tente novamente em instantes.'});
+ });
+ const {result}=renderHook(()=>useConversa({projectId:'p',chave:'p/c',perfil:'project_chat',superficie:'chat',obterChat:async()=> 'c'}));
+ await act(async()=>{await result.current.enviar('Oi');});
+ expect(createMessage).toHaveBeenCalledTimes(2);
+ expect(createMessage).toHaveBeenLastCalledWith('c','Parcial','assistant',expect.objectContaining({incompleto:true,erro:'orcamento_indisponivel'}));
+ expect(streamChat).toHaveBeenCalledOnce();
+});
