@@ -204,6 +204,16 @@
       "type": "error",
       "code": "reserva_insuficiente",
       "message": "O saldo disponível no orçamento não comporta esta resposta. Nenhuma nova chamada foi enviada. Um super_admin pode ajustar o limite na Settings do sistema."
+    },
+    {
+      "type": "error",
+      "code": "cobranca_provider",
+      "message": "A Anthropic recusou a cobrança. Um super_admin precisa conferir os dados de pagamento no console da Anthropic."
+    },
+    {
+      "type": "error",
+      "code": "limite_gasto_provider",
+      "message": "A Anthropic recusou a chamada por um limite de gasto. Um super_admin precisa conferir os limites no console da Anthropic."
     }
   ]
 }

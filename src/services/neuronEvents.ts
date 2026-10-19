@@ -28,7 +28,7 @@ export interface SnapSugerido {
   timestamp: string;
 }
 
-export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno' | 'sem_resposta' | 'politica_incompativel' | 'saldo_esgotado' | 'chave_invalida' | 'limite_taxa' | 'orcamento_indisponivel' | 'teto_diario' | 'teto_mensal' | 'reserva_insuficiente';
+export type CodigoErroNeuron = 'grant_expired' | 'sem_chave' | 'modelo_sem_preco' | 'tool_error' | 'interno' | 'sem_resposta' | 'politica_incompativel' | 'saldo_esgotado' | 'chave_invalida' | 'limite_taxa' | 'orcamento_indisponivel' | 'teto_diario' | 'teto_mensal' | 'reserva_insuficiente' | 'cobranca_provider' | 'limite_gasto_provider';
 
 export interface UsoNeuron {
   input_tokens: number | null;
