@@ -588,7 +588,14 @@ export interface AgentTaskExecution {
 export type ExecutionListItem = Pick<AgentTaskExecution,
     'id' | 'project_id' | 'status' | 'tombstoned_at' | 'phase' | 'sprint_ids' | 'agent_name'
     | 'parent_id' | 'root_id' | 'branch_type' | 'workflow_template_id' | 'lock_version'
-    | 'created_at' | 'updated_at'>;
+    | 'created_at' | 'updated_at'> & {
+    /** Rótulos resolvidos no servidor (`listagem._rotular`); ausentes em API antiga. */
+    project_name?: string | null;
+    sprint_name?: string | null;
+    workflow_name?: string | null;
+    /** Códigos dos cards da execução: o "alvo" que o seletor `+` mostra. */
+    card_codes?: string[];
+};
 
 /** Contadores do topo, sobre TODAS as execucoes do escopo (nao so a pagina). */
 export interface ExecutionTotals {

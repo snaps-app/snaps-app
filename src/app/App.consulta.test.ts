@@ -27,6 +27,15 @@ describe('App e o cache de consulta', () => {
         expect(FONTE).not.toMatch(/^\s*import\s[^;]*['"]@tanstack\/react-query-devtools['"]/m);
     });
 
+    it('nenhum import estático de components/cockpit/: o Cockpit sai num chunk próprio', () => {
+        expect(FONTE).not.toMatch(/^\s*import\s[^;]*from\s*['"][^'"]*\/components\/cockpit\//m);
+    });
+
+    it('a página do Cockpit é carregada por lazy, na rota /cockpit/:rootId?', () => {
+        expect(FONTE).toMatch(/lazy\(\(\)\s*=>\s*\n?\s*import\('@\/app\/components\/cockpit\/PaginaDoCockpit'\)/);
+        expect(FONTE).toContain('path="/cockpit/:rootId?"');
+    });
+
     it('os devtools só são importados sob import.meta.env.DEV', () => {
         const posDev = FONTE.indexOf('import.meta.env.DEV');
         const posImport = FONTE.indexOf("import('@tanstack/react-query-devtools')");

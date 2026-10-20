@@ -17,10 +17,14 @@ export const chavesDeConsulta = {
     /** Prefixo de tudo que pertence a uma raiz. */
     raiz: (rootId: string) => ['raiz', rootId] as const,
     arvore: (rootId: string) => ['raiz', rootId, 'arvore'] as const,
+    /** Rótulo, projeto e status da raiz na barra de abas — e se ela existe para mim. */
+    rotuloDaRaiz: (rootId: string) => ['raiz', rootId, 'rotulo'] as const,
 
     /** Prefixo de tudo que pertence a um nó. */
     execucao: (id: string) => ['execucao', id] as const,
     snapshot: (id: string) => ['execucao', id, 'snapshot'] as const,
+    /** `GET /api/agent-executions/{id}`: o redirecionamento da rota antiga lê o `root_id` daqui. */
+    detalhe: (id: string) => ['execucao', id, 'detalhe'] as const,
     resumo: (id: string) => ['execucao', id, 'resumo'] as const,
     aba: (id: string, aba: string) => ['execucao', id, 'aba', aba] as const,
     atividade: (id: string, filtros: FiltrosDeAtividade) => ['execucao', id, 'atividade', filtros] as const,
@@ -29,8 +33,9 @@ export const chavesDeConsulta = {
     diretivas: () => ['diretivas'] as const,
 
     /**
-     * Busca do seletor `+`. O termo é aparado: " SNA-12" e "SNA-12" são a mesma
-     * busca e não devem ocupar duas entradas nem disparar duas chamadas.
+     * Busca do seletor `+`, paginada no servidor. O termo é aparado: " SNA-12" e
+     * "SNA-12" são a mesma busca e não devem ocupar duas entradas nem disparar
+     * duas chamadas.
      */
-    buscaDeRaizes: (termo: string) => ['raizes', 'busca', termo.trim()] as const,
+    buscaDeRaizes: (termo: string, pagina = 1) => ['raizes', 'busca', termo.trim(), pagina] as const,
 };
