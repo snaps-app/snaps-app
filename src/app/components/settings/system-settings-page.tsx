@@ -7,6 +7,7 @@
  * A chave é só de escrita: o campo é limpo depois de salvar e a tela nunca
  * recebe o valor de volta, só os metadados.
  */
+import {SecaoOrcamento} from './secao-orcamento';
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { KeyRound, Cpu, History, Settings as SettingsIcon } from 'lucide-react';
@@ -425,6 +426,7 @@ export function SystemSettingsPage() {
         <SecaoChave config={config} aoMudar={setConfig} />
         <SecaoModelos config={config} recarregar={recarregar} />
         <SecaoCategorias config={config} recarregar={recarregar} />
+        <SecaoOrcamento />
         <SecaoHistorico config={config} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4" aria-label="Seções futuras">
           {SECOES_FUTURAS.map((s) => (

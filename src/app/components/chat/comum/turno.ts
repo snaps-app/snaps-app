@@ -1,7 +1,7 @@
 import type {EventoNeuron} from '@/services/neuronEvents';
 import type {RegistroDoTurnoV1} from '@/services/types';
 
-export interface Turno {content:string; registro:RegistroDoTurnoV1; encerrado:boolean}
+export interface Turno {content:string; registro:RegistroDoTurnoV1; encerrado:boolean; avisoNoFim?:boolean}
 export function iniciarTurno(perfil:string):Turno {
   return {content:'',registro:{v:1,perfil,passos:[],snaps_referenciados:[],incompleto:false},encerrado:false};
 }
@@ -17,10 +17,10 @@ export function reduzirTurno(t:Turno,e:EventoNeuron):Turno {
       const content=type==='thinking'?e.content.slice(0,Math.max(0,1000-usado)):e.content;
       if(content) {
         const ultimo=registro.passos[registro.passos.length-1];
-        if(ultimo?.type===type) ultimo.content+=content;
+        if(ultimo?.type===type&&!(type==='text'&&t.avisoNoFim)) ultimo.content+=content;
         else registro.passos.push({type,content});
       }
-      if(type==='text') novo.content+=content;
+      if(type==='text') {novo.content+=content;novo.avisoNoFim=false;}
       break;
     }
     case 'tool_start':
@@ -36,6 +36,8 @@ export function reduzirTurno(t:Turno,e:EventoNeuron):Turno {
     case 'snaps_referenced':
       registro.snaps_referenciados=[...new Set([...registro.snaps_referenciados,...e.snaps.map(s=>s.id)])];
       break;
+    case 'budget_warning':
+      registro.passos.push({type:'text',content:e.message});novo.avisoNoFim=true;break;
     case 'guardrail_tripped':
       registro.guarda=e.guarda;registro.incompleto=true;break;
     case 'error':

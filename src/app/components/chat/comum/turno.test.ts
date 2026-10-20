@@ -52,3 +52,11 @@ it('deduplica start e end com ID sem fundir chamadas legadas',()=>{
   t=reduzirTurno(t,{type:'tool_start',tool:'buscar',resumo:'Legada'});
   expect(t.registro.passos).toHaveLength(3);
 });
+
+it('review: tokens após aviso financeiro não se fundem ao aviso',()=>{
+ let t=iniciarTurno('project_chat');
+ t=reduzirTurno(t,{type:'budget_warning',message:'Aviso seguro'});
+ t=reduzirTurno(t,{type:'token',content:'Resposta'});
+ expect(t.content).toBe('Resposta');
+ expect(t.registro.passos).toEqual([{type:'text',content:'Aviso seguro'},{type:'text',content:'Resposta'}]);
+});

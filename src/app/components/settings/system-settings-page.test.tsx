@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
+vi.mock('./secao-orcamento',()=>({SecaoOrcamento:()=>null}));
 vi.mock('@/app/components/layout/use-current-user', () => ({ useCurrentUser: vi.fn() }));
 vi.mock('@/app/components/layout/user-zone-menu', () => ({ UserZoneMenu: () => null }));
 vi.mock('@/services/system-settings', async (importOriginal) => {
