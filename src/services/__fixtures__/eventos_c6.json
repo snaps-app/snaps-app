@@ -86,6 +86,10 @@
       "custo_usd": 0.0145,
       "preco_estimado": false,
       "incompleto": false
+    },
+    {
+      "type": "budget_warning",
+      "message": "O consumo do Neuron atingiu 80% de um limite de gasto. Confira o orçamento na Settings do sistema."
     }
   ],
   "novos": [
@@ -157,6 +161,59 @@
       "cost_basis": "unknown",
       "coverage": "partial",
       "estimate_source": null
+    }
+  ],
+  "tp4": {
+    "type": "error",
+    "code": "politica_incompativel",
+    "message": "O modelo não aceita a política configurada."
+  },
+  "tp5": [
+    {
+      "type": "error",
+      "code": "saldo_esgotado",
+      "message": "O saldo da API da Anthropic acabou. Adicione créditos no console da Anthropic para o Neuron voltar a responder."
+    },
+    {
+      "type": "error",
+      "code": "chave_invalida",
+      "message": "A Anthropic recusou a chave de API. Um super_admin precisa conferir a chave na Settings do sistema."
+    },
+    {
+      "type": "error",
+      "code": "limite_taxa",
+      "message": "A Anthropic limitou temporariamente as chamadas. Aguarde e tente novamente.",
+      "retry_after": 3
+    },
+    {
+      "type": "error",
+      "code": "orcamento_indisponivel",
+      "message": "Não foi possível conferir o limite de gasto. Tente novamente em instantes."
+    },
+    {
+      "type": "error",
+      "code": "teto_diario",
+      "message": "O teto diário de gasto do Neuron foi atingido. Um super_admin pode ajustar o limite na Settings do sistema."
+    },
+    {
+      "type": "error",
+      "code": "teto_mensal",
+      "message": "O teto mensal de gasto do Neuron foi atingido. Um super_admin pode ajustar o limite na Settings do sistema."
+    },
+    {
+      "type": "error",
+      "code": "reserva_insuficiente",
+      "message": "O saldo disponível no orçamento não comporta esta resposta. Nenhuma nova chamada foi enviada. Um super_admin pode ajustar o limite na Settings do sistema."
+    },
+    {
+      "type": "error",
+      "code": "cobranca_provider",
+      "message": "A Anthropic recusou a cobrança. Um super_admin precisa conferir os dados de pagamento no console da Anthropic."
+    },
+    {
+      "type": "error",
+      "code": "limite_gasto_provider",
+      "message": "A Anthropic recusou a chamada por um limite de gasto. Um super_admin precisa conferir os limites no console da Anthropic."
     }
   ]
 }

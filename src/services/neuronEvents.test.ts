@@ -22,7 +22,7 @@ describe('lerEventoNeuron', () => {
     const tipos = exemplos.eventos.map((e) => lerEventoNeuron(e)?.type);
     expect(tipos).toEqual([
       'thinking', 'token', 'tool_start', 'tool_end', 'snaps_referenced',
-      'snap_suggested', 'board_changed', 'guardrail_tripped', 'error', 'done',
+      'snap_suggested', 'board_changed', 'guardrail_tripped', 'error', 'done', 'budget_warning',
     ]);
   });
 
@@ -43,4 +43,14 @@ describe('lerSSE', () => {
     expect(vistos).toHaveLength(exemplos.eventos.length);
     expect(vistos[1]).toEqual({ type: 'token', content: 'O card está em revisão' });
   });
+});
+
+
+it('lê politica_incompativel do contrato compartilhado', () => {
+  const evento: EventoNeuron = { type: 'error', code: 'politica_incompativel', message: exemplos.tp4.message };
+  expect(lerEventoNeuron(exemplos.tp4)).toEqual(evento);
+});
+
+it('C206 aceita erros financeiros novos e retry_after sem perder legado',()=>{
+ for(const e of exemplos.tp5)expect(lerEventoNeuron(e)).toEqual(e);
 });

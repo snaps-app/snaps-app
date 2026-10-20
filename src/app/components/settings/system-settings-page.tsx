@@ -7,6 +7,7 @@
  * A chave é só de escrita: o campo é limpo depois de salvar e a tela nunca
  * recebe o valor de volta, só os metadados.
  */
+import {SecaoOrcamento} from './secao-orcamento';
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { KeyRound, Cpu, History, Settings as SettingsIcon } from 'lucide-react';
@@ -273,25 +274,48 @@ function SecaoModelos({ config, recarregar }: { config: ConfiguracaoNeuron; reca
 
 function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; recarregar: () => Promise<boolean> }) {
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro' | 'aguardando'; texto: string } | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
 
-  const trocar = async (categoria: Categoria, modelo: string) => {
+  const tentarRecarregar = async () => {
+    if (salvando) return;
+    setSalvando(true);
+    try {
+      const ok = await recarregar();
+      setBloqueado(!ok);
+      setAviso({ tipo: ok ? 'ok' : 'erro', texto: ok
+        ? 'Categorias recarregadas; confira antes de alterar.'
+        : 'Não foi possível atualizar as categorias. Tente recarregar novamente.' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const trocar = async (categoria: Categoria, modelo: string, effort?: string) => {
+    if (salvando || bloqueado) return;
+    setSalvando(true);
     setAviso({ tipo: 'aguardando', texto: `Trocando a categoria ${categoria.categoria}…` });
     try {
-      await trocarModeloDaCategoria(categoria.categoria, modelo, categoria.lock_version);
+      if (effort === undefined) await trocarModeloDaCategoria(categoria.categoria, modelo, categoria.lock_version);
+      else await trocarModeloDaCategoria(categoria.categoria, modelo, categoria.lock_version, effort);
       if (!await recarregar()) {
-        setAviso({ tipo: 'erro', texto: 'Não foi possível atualizar a categoria. Recarregue a página para conferir.' });
+        setBloqueado(true);
+        setAviso({ tipo: 'erro', texto: 'Não foi possível atualizar a categoria. Recarregue as categorias para conferir.' });
         return;
       }
       setAviso({ tipo: 'ok', texto: `Categoria ${categoria.categoria} agora usa ${modelo}.` });
     } catch (erro) {
       if (statusDoErro(erro) === 409) {
         const ok = await recarregar();
+        setBloqueado(!ok);
         setAviso({ tipo: 'erro', texto: ok
           ? 'Outra pessoa mudou esta categoria antes. A tela foi recarregada; confira e escolha de novo.'
-          : 'Outra pessoa mudou esta categoria antes. Não foi possível atualizar; recarregue a página para conferir.' });
+          : 'Outra pessoa mudou esta categoria antes. Não foi possível atualizar; recarregue as categorias para conferir.' });
       } else {
         setAviso({ tipo: 'erro', texto: detalheDoErro(erro) });
       }
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -308,7 +332,9 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
                 executores externos (Axon)
               </span>
             ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
               <select
+                disabled={salvando || bloqueado}
                 aria-label={`Modelo da categoria ${c.categoria}`}
                 value={c.model_id ?? ''}
                 onChange={(e) => trocar(c, e.target.value)}
@@ -322,11 +348,21 @@ function SecaoCategorias({ config, recarregar }: { config: ConfiguracaoNeuron; r
                   </option>
                 ))}
               </select>
+              <select aria-label={`Effort da categoria ${c.categoria}`} value={c.effort ?? ''}
+                disabled={salvando || bloqueado || !c.model_id}
+                onChange={e => trocar(c, c.model_id!, e.target.value)} className={`${campo} sm:w-36`}>
+                {!c.effort && <option value="">Padrão do modelo</option>}
+                {['low', 'medium', 'high'].map(e => <option key={e} value={e} className="bg-zinc-900">{e}</option>)}
+              </select>
+              </div>
             )}
           </div>
         ))}
       </div>
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto}</Aviso>}
+      {bloqueado && <button type="button" className={botao} disabled={salvando} onClick={tentarRecarregar}>
+        {salvando ? 'Recarregando…' : 'Recarregar categorias'}
+      </button>}
     </Secao>
   );
 }
@@ -390,6 +426,7 @@ export function SystemSettingsPage() {
         <SecaoChave config={config} aoMudar={setConfig} />
         <SecaoModelos config={config} recarregar={recarregar} />
         <SecaoCategorias config={config} recarregar={recarregar} />
+        <SecaoOrcamento />
         <SecaoHistorico config={config} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4" aria-label="Seções futuras">
           {SECOES_FUTURAS.map((s) => (

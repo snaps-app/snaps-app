@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
+vi.mock('./secao-orcamento',()=>({SecaoOrcamento:()=>null}));
 vi.mock('@/app/components/layout/use-current-user', () => ({ useCurrentUser: vi.fn() }));
 vi.mock('@/app/components/layout/user-zone-menu', () => ({ UserZoneMenu: () => null }));
 vi.mock('@/services/system-settings', async (importOriginal) => {
@@ -241,4 +242,35 @@ describe('modelos e categorias', () => {
     expect(await screen.findByRole('list', { name: 'Trocas recentes' })).toHaveTextContent('system_model_categories B: modelo-a → modelo-b');
     expect(screen.getByText('Guardrails do Neuron').closest('[aria-disabled="true"]')).not.toBeNull();
   });
+});
+
+
+it('edita effort com a mesma versão da categoria e recarrega no conflito', async () => {
+  usuario('super_admin');
+  vi.mocked(getConfiguracaoNeuron).mockResolvedValue(CONFIG);
+  vi.mocked(trocarModeloDaCategoria).mockRejectedValueOnce({ response: { status: 409 } });
+  pagina();
+  const effort = await screen.findByLabelText('Effort da categoria B');
+  expect(effort).toHaveValue('medium');
+  expect(screen.queryByLabelText('Effort da categoria E')).not.toBeInTheDocument();
+  fireEvent.change(effort, { target: { value: 'low' } });
+  await waitFor(() => expect(trocarModeloDaCategoria).toHaveBeenCalledWith('B', 'modelo-b', 3, 'low'));
+  expect(await screen.findByText(/A tela foi recarregada; confira e escolha de novo/)).toBeInTheDocument();
+});
+
+
+it('recupera a categoria após falha de recarga sem recarregar a página', async () => {
+  usuario('super_admin');
+  vi.mocked(getConfiguracaoNeuron).mockResolvedValueOnce(CONFIG)
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ ...CONFIG, categorias: categorias('modelo-a') });
+  vi.mocked(trocarModeloDaCategoria).mockResolvedValueOnce({} as never);
+  pagina();
+  fireEvent.change(await screen.findByLabelText('Modelo da categoria B'), { target: { value: 'modelo-a' } });
+  const retry = await screen.findByRole('button', { name: 'Recarregar categorias' });
+  expect(screen.getByLabelText('Modelo da categoria B')).toBeDisabled();
+  fireEvent.click(retry);
+  await waitFor(() => expect(screen.getByLabelText('Modelo da categoria B')).toBeEnabled());
+  expect(screen.getByLabelText('Modelo da categoria B')).toHaveValue('modelo-a');
+  expect(screen.queryByRole('button', { name: 'Recarregar categorias' })).not.toBeInTheDocument();
 });
