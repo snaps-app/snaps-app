@@ -579,9 +579,101 @@ export interface AgentTaskExecution {
     root_id?: string;
     branch_type?: string;
     workflow_template_id?: string;
+    /**
+     * Workflow resolvido por valor no nascimento da execucao. E dele que saem
+     * as fases do no, nunca do catalogo de templates (Sprint 24.0, E21).
+     */
+    workflow_snapshot?: WorkflowSnapshot | null;
+    workflow_snapshot_hash?: string | null;
+    workflow_template_version?: number | null;
     lock_version: number;
     created_at: string;
     updated_at: string;
+}
+
+/** `agent_task_executions.workflow_snapshot` (migration 062). */
+export interface WorkflowSnapshot {
+    schema_version?: number;
+    template?: { id: string | null; name?: string | null; version: number };
+    phases: Partial<PhaseConfigItem>[];
+    default_agents?: string[];
+    /**
+     * A arvore leve tira `entry_prompt` e `exit_prompt` das fases para caber
+     * em 50 KB; o prompt que o no usou esta no node-snapshot.
+     */
+    prompts_das_fases_omitidos?: boolean;
+}
+
+/** Item de `GET /api/agent-executions/{id}/arvore`: sem prompt nem contexto. */
+export interface NoDaArvore {
+    id: string;
+    parent_id: string | null;
+    phase: string;
+    status: string;
+    branch_type: string | null;
+    plan_id: string | null;
+    plano_titulo: string | null;
+    agent_name: string | null;
+    card_ids: string[];
+    created_at: string;
+    updated_at: string;
+    lock_version: number;
+    workflow_snapshot_hash: string | null;
+}
+
+/** `GET /api/agent-executions/{id}/arvore` (ADR-0071): cada workflow uma vez por hash. */
+export interface ArvoreLeve {
+    root_id: string;
+    nos: NoDaArvore[];
+    workflows: Record<string, WorkflowSnapshot>;
+}
+
+/** `GET /api/agent-executions/{id}/node-snapshot` (plano f518941f §3.5). */
+export interface NodeSnapshot {
+    execution_id: string;
+    root_id: string;
+    parent_id: string | null;
+    phase: string;
+    status: string;
+    classe: 'concluido' | 'atual' | 'descartado';
+    imutavel: boolean;
+    agent_name: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    prompt: { entry: string | null; exit: string | null };
+    prompt_regravado_apos_conclusao: boolean;
+    workflow: {
+        template_id: string | null;
+        template_version: number | null;
+        snapshot_hash: string | null;
+        fase: { key: string; label: string; advance_conditions: Record<string, unknown> };
+    };
+    gates: {
+        advance_conditions: Record<string, unknown>;
+        avaliacoes: { at: string | null; gate: string | null; result: 'passed' | 'failed' | string | null }[];
+        overrides: { at: string | null; actor_id: string | null; payload: Record<string, unknown> }[];
+    };
+    artefatos: {
+        tipo: 'snap';
+        artifact_type: string | null;
+        id: string;
+        nome: string;
+        submetido_em: string | null;
+        hash_na_submissao: string | null;
+        hash_atual: string;
+        editado_apos_submissao: boolean;
+    }[];
+    planos: {
+        id: string;
+        titulo: string;
+        status: string;
+        content_revision: number;
+        approved_revision: number | null;
+        vinculo: 'plano_do_no' | 'produzido_pelo_no';
+    }[];
+    prs: { repo: string; pr_number: number; head_sha: string | null; motivo: string | null }[];
+    /** Nao registrado ate a Sprint 26.0. */
+    skills_ativadas: null;
 }
 
 /** Linha da lista de AI Executions: a API nao manda snapshots nem contexto aqui. */
