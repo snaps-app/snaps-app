@@ -46,6 +46,13 @@ export interface PhaseDirectivesVocabulary {
     defs?: Record<string, Record<string, unknown>>;
     /** Catalogo de advance_conditions que o motor conhece (SNA-RD-176). */
     conditions?: { name: string; kind: 'implemented' | 'human_judgment'; label?: string }[];
+    /**
+     * Status em que o no e imutavel (`estados.TERMINAIS`, trava da migration
+     * 080). O Cockpit classifica os nos por esta lista e nao guarda copia.
+     */
+    terminal_statuses?: string[];
+    /** Terminais que nao sao trabalho concluido (desfeito, substituido, descartado). */
+    discarded_statuses?: string[];
 }
 
 export const getPhaseDirectives = async (): Promise<PhaseDirectivesVocabulary> => {
