@@ -28,9 +28,14 @@ describe('controles reais do card aberto pela URL',()=>{
   it('carrega opções, mantém status do board e salva campos, tags, BDD e anexo',async()=>{
     const {container}=setup();
     await screen.findByRole('option',{name:'Epic do projeto'});
-    expect(screen.getByRole('option',{name:'Sprint do projeto'})).toBeInTheDocument();
+    // Épicos, sprints e o card chegam em chamadas separadas: achar uma opção não garante
+    // que os valores dos selects já foram aplicados (flaky sob carga).
+    await waitFor(()=>{
+      expect(screen.getByRole('option',{name:'Sprint do projeto'})).toBeInTheDocument();
+      const campos=screen.getAllByRole('combobox');
+      expect(campos[0]).toHaveValue('doing');expect(campos[3]).toHaveValue('e');expect(campos[4]).toHaveValue('s');
+    });
     const selects=screen.getAllByRole('combobox');
-    expect(selects[0]).toHaveValue('doing');expect(selects[3]).toHaveValue('e');expect(selects[4]).toHaveValue('s');
     fireEvent.change(selects[0],{target:{value:'review'}});
     fireEvent.change(selects[1],{target:{value:'High'}});
     fireEvent.change(selects[5],{target:{value:'api'}});

@@ -92,7 +92,9 @@ describe('AI Executions paginada', () => {
     ));
     await screen.findByText('Mostrando 41–58 de 58 branches');
     expect(screen.getByText('310')).toBeInTheDocument();
-    expect(within(nav).getByRole('button', { name: 'Próxima página' })).toBeDisabled();
+    // A paginação é remontada na troca de página: o `nav` de antes é um nó solto (flaky sob carga).
+    const navAtual = screen.getByRole('navigation', { name: 'Paginação' });
+    await waitFor(() => expect(within(navAtual).getByRole('button', { name: 'Próxima página' })).toBeDisabled());
   });
 
   it('a busca vai ao servidor e volta para a pagina 1', async () => {
