@@ -36,6 +36,24 @@ describe('invalidarPorEvento', () => {
         }
     });
 
+    it('commit novo na PR invalida a lista de arquivos de todo SHA do nó, e só dele', async () => {
+        const cliente = new QueryClient();
+        for (const chave of [['execucao', 'no', 'prs', 'snaps-api', 'aaa'], ['execucao', 'no', 'prs', 'snaps-app', 'bbb'],
+            ['execucao', 'outro', 'prs', 'snaps-api', 'aaa']]) {
+            cliente.setQueryData(chave, { ok: true });
+        }
+        const commit = { name: 'side_effect_receipt', execution_id: 'no', payload: { provider: 'github', operation: 'commit' } };
+
+        await invalidarPorEvento(cliente, commit, ctx);
+
+        expect(chavesDoEvento(commit, ctx)).toEqual([
+            ['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'prs'], ['execucao', 'no', 'prs'],
+        ]);
+        expect(cliente.getQueryState(['execucao', 'no', 'prs', 'snaps-api', 'aaa'])?.isInvalidated).toBe(true);
+        expect(cliente.getQueryState(['execucao', 'no', 'prs', 'snaps-app', 'bbb'])?.isInvalidated).toBe(true);
+        expect(cliente.getQueryState(['execucao', 'outro', 'prs', 'snaps-api', 'aaa'])?.isInvalidated).toBe(false);
+    });
+
     it('o prefixo da raiz alcança a árvore e o rótulo da aba, e só os da raiz do evento', async () => {
         const cliente = new QueryClient();
         for (const chave of [['raiz', 'raiz', 'arvore'], ['raiz', 'raiz', 'rotulo'], ['raiz', 'outra', 'rotulo']]) {

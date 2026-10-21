@@ -5,6 +5,10 @@
  * Evento desconhecido devolve `null` e não gera ponto. A novidade some quando
  * a aba abre.
  *
+ * `side_effect_receipt` só vai para PRs e CI quando o efeito é do GitHub e mexe
+ * na PR (commit, abrir ou fundir a PR): é o evento de commit novo, e a lista de
+ * arquivos da aba depende dele. Recibo de outro provedor não gera ponto.
+ *
  * `artifact_submitted` não diz o tipo do artefato no payload (só os hashes);
  * o que o agente submete no nó é o walkthrough, então ele vai para
  * Walkthroughs.
@@ -40,9 +44,15 @@ const POR_PREFIXO: ReadonlyArray<readonly [string, ChaveDeAba]> = [
     ['request_', 'no'],
 ];
 
+const OPERACOES_DA_PR = new Set(['commit', 'create_pr', 'merge_pr']);
+
 export function abaDoEvento(evento: EventoDoNo | null | undefined): ChaveDeAba | null {
     const nome = evento?.name;
     if (!nome) return null;
+    if (nome === 'side_effect_receipt') {
+        const { provider, operation } = evento?.payload ?? {};
+        return provider === 'github' && typeof operation === 'string' && OPERACOES_DA_PR.has(operation) ? 'prs' : null;
+    }
     if (nome in POR_NOME) return POR_NOME[nome];
     for (const [prefixo, aba] of POR_PREFIXO) {
         if (nome.startsWith(prefixo)) return aba;

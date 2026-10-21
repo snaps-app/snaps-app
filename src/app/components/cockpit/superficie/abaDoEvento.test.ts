@@ -20,6 +20,18 @@ describe('abaDoEvento', () => {
         expect(abaDoEvento({ name: nome })).toBe(aba);
     });
 
+    it('commit, abrir e fundir a PR (recibo do GitHub) vão para PRs e CI; outro provedor não', () => {
+        const recibo = (provider: string, operation: string) => ({
+            name: 'side_effect_receipt', payload: { provider, operation, status: 'ok' },
+        });
+        expect(abaDoEvento(recibo('github', 'commit'))).toBe('prs');
+        expect(abaDoEvento(recibo('github', 'create_pr'))).toBe('prs');
+        expect(abaDoEvento(recibo('github', 'merge_pr'))).toBe('prs');
+        expect(abaDoEvento(recibo('github', 'create_branch'))).toBeNull();
+        expect(abaDoEvento(recibo('github_sync', 'commit'))).toBeNull();
+        expect(abaDoEvento({ name: 'side_effect_receipt' })).toBeNull();
+    });
+
     it('evento desconhecido não gera ponto', () => {
         expect(abaDoEvento({ name: 'evento_que_ninguem_conhece' })).toBeNull();
         expect(abaDoEvento({ name: '' })).toBeNull();
