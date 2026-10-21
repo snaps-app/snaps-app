@@ -6,7 +6,8 @@ interface ExecutionPromptSnapshotProps {
     execution: AgentTaskExecution;
     entryReviewed: boolean;
     setEntryReviewed: React.Dispatch<React.SetStateAction<boolean>>;
-    handleRefresh: () => Promise<void>;
+    /** Sem ela (nó concluído no Cockpit novo), não há botão de gerar prompt. */
+    handleRefresh?: () => Promise<void>;
     isRefreshing: boolean;
 }
 
@@ -38,6 +39,7 @@ export const ExecutionPromptSnapshot: React.FC<ExecutionPromptSnapshotProps> = (
                     <p className="text-sm font-bold text-white/70">No Prompt Generated Yet</p>
                     <p className="text-xs text-white/40 mt-1 max-w-xs leading-relaxed">Review the selected cards on the right, provide your mission inputs below, and generate the prompt.</p>
                 </div>
+                {handleRefresh && (
                 <button
                     onClick={handleRefresh}
                     disabled={isRefreshing}
@@ -46,6 +48,7 @@ export const ExecutionPromptSnapshot: React.FC<ExecutionPromptSnapshotProps> = (
                     {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
                     Generate Prompt
                 </button>
+                )}
             </div>
         );
     }

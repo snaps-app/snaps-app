@@ -20,7 +20,7 @@ const isWalkthroughLike = (s: Snap) =>
  * mas porque o laço nunca rodava. Somar o escopo de árvore cobre o card avulso
  * sem perder o agrupamento por sprint, que continua funcionando.
  */
-const collectWalkthroughs = async (
+export const collectWalkthroughs = async (
     projectId: string,
     execution: AgentTaskExecution,
     bypassCache: boolean,

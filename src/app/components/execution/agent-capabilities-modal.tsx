@@ -40,39 +40,7 @@ export const AgentCapabilitiesModal: React.FC<AgentCapabilitiesModalProps> = ({
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent space-y-8">
-                    <div>
-                        <div className="flex items-center gap-2 mb-4">
-                            <Wrench className="w-4 h-4 text-blue-400" />
-                            <h3 className="text-sm font-bold text-white">Tools ({activePhase?.tools?.length || 0})</h3>
-                        </div>
-                        <div className="grid gap-2">
-                            {activePhase?.tools && activePhase.tools.length > 0 ? activePhase.tools.map(tool => (
-                                <div key={tool} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-3">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                                    <span className="text-xs text-white/80 font-mono">{tool}</span>
-                                </div>
-                            )) : (
-                                <p className="text-xs text-white/40 italic">No tools configured for this phase.</p>
-                            )}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="flex items-center gap-2 mb-4">
-                            <Cpu className="w-4 h-4 text-green-400" />
-                            <h3 className="text-sm font-bold text-white">Skills ({activePhase?.skills?.length || 0})</h3>
-                        </div>
-                        <div className="grid gap-2">
-                            {activePhase?.skills && activePhase.skills.length > 0 ? activePhase.skills.map(skill => (
-                                <div key={skill} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-3">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                                    <span className="text-xs text-white/80 font-mono">{skill}</span>
-                                </div>
-                            )) : (
-                                <p className="text-xs text-white/40 italic">No skills configured for this phase.</p>
-                            )}
-                        </div>
-                    </div>
+                    <CapacidadesDaFase fase={activePhase} />
                 </div>
                 <div className="p-6 border-t border-white/5 bg-white/[0.02] flex justify-end shrink-0">
                     <button
@@ -86,3 +54,48 @@ export const AgentCapabilitiesModal: React.FC<AgentCapabilitiesModalProps> = ({
         </div>
     );
 };
+
+/** Tools e skills de UMA fase. Quem chama decide de onde vem a fase: o modal do
+ *  Cockpit atual procura no catálogo; a aba Nó passa a fase do snapshot do nó (P7). */
+export interface FaseComCapacidades {
+    tools?: string[];
+    skills?: string[];
+}
+
+export const CapacidadesDaFase: React.FC<{ fase?: FaseComCapacidades | null }> = ({ fase: activePhase }) => (
+    <>
+        <div>
+            <div className="flex items-center gap-2 mb-4">
+                <Wrench className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-bold text-white">Tools ({activePhase?.tools?.length || 0})</h3>
+            </div>
+            <div className="grid gap-2">
+                {activePhase?.tools && activePhase.tools.length > 0 ? activePhase.tools.map(tool => (
+                    <div key={tool} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-3">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                        <span className="text-xs text-white/80 font-mono">{tool}</span>
+                    </div>
+                )) : (
+                    <p className="text-xs text-white/40 italic">No tools configured for this phase.</p>
+                )}
+            </div>
+        </div>
+
+        <div>
+            <div className="flex items-center gap-2 mb-4">
+                <Cpu className="w-4 h-4 text-green-400" />
+                <h3 className="text-sm font-bold text-white">Skills ({activePhase?.skills?.length || 0})</h3>
+            </div>
+            <div className="grid gap-2">
+                {activePhase?.skills && activePhase.skills.length > 0 ? activePhase.skills.map(skill => (
+                    <div key={skill} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-3">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                        <span className="text-xs text-white/80 font-mono">{skill}</span>
+                    </div>
+                )) : (
+                    <p className="text-xs text-white/40 italic">No skills configured for this phase.</p>
+                )}
+            </div>
+        </div>
+    </>
+);
