@@ -41,10 +41,23 @@ export interface ResumoDeAtividade {
     diagnostico_expirado: boolean;
 }
 
+/** Sessões de tempo do nó: o timer só de leitura do viewer conta a partir daqui. */
+export interface TempoEmSessoes {
+    encerradas_segundos: number;
+    ativas_desde: string[];
+}
+
 export interface ResumoDoNo {
     pendencias: PendenciaDoNo[];
     abas: Record<string, AbaDoResumo>;
     atividade: ResumoDeAtividade;
+    /** Ausente em API anterior à rodada do PO de 21/10: o timer do viewer mostra "—". */
+    sessoes?: TempoEmSessoes;
+    /**
+     * Quem pede pode fazer override neste nó: o dono da árvore ou admin
+     * (ADR-0072). A regra é da API; o app só lê. Ausente vale `false`.
+     */
+    pode_override?: boolean;
 }
 
 export const getResumoDoNo = async (executionId: string): Promise<ResumoDoNo> => {

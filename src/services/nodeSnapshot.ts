@@ -12,20 +12,57 @@
  * `If-None-Match` quando uma invalidação pede o snapshot de novo (304).
  *
  * O frescor do nó atual e da árvore vem por evento (`invalidarPorEvento`, do
- * TP-2), pelas chaves de `chavesDeConsulta`: nenhuma chave é montada aqui.
+ * TP-2), pelas chaves de `chavesDeConsulta`: nenhuma chave é montada aqui. A
+ * árvore tem também a checagem de novidades (ADR-0071, 5b), que revalida com
+ * `If-None-Match` e recebe 304 quando nada mudou.
  */
-import { useQuery, type Query } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type Query, type QueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { chavesDeConsulta } from './chavesDeConsulta';
 import type { ArvoreLeve, NodeSnapshot } from './types';
 import { getPhaseDirectives } from './workflowTemplates';
 import type { StatusDaApi } from './workflowSnapshot';
 
-/** `GET /api/agent-executions/{id}/arvore`. O `id` pode ser qualquer nó da árvore. */
-export const getArvore = async (executionId: string): Promise<ArvoreLeve> => {
-    const response = await api.get(`/api/agent-executions/${executionId}/arvore`);
-    return response.data;
+/**
+ * `GET /api/agent-executions/{id}/arvore`. O `id` pode ser qualquer nó da árvore.
+ *
+ * Com a árvore `anterior` (a do cache), manda `If-None-Match` com o ETag dela.
+ * O `304` devolve a MESMA árvore, a mesma referência: o TanStack não avisa
+ * ninguém e a tela não redesenha. O ETag vai junto da árvore (`etag`), e não
+ * num mapa à parte, porque o compartilhamento estrutural do TanStack troca o
+ * objeto quando algo muda, e o ETag precisa acompanhar o que ficou no cache.
+ */
+export const getArvore = async (executionId: string, anterior?: ArvoreLeve): Promise<ArvoreLeve> => {
+    const url = `/api/agent-executions/${executionId}/arvore`;
+    const etag = anterior?.etag;
+    const response = etag
+        ? await api.get(url, {
+            headers: { 'If-None-Match': etag },
+            validateStatus: (status: number) => (status >= 200 && status < 300) || status === 304,
+        })
+        : await api.get(url);
+    if (response.status === 304 && anterior) return anterior;
+    const novo = response.headers?.etag;
+    return typeof novo === 'string' ? { ...response.data, etag: novo } : response.data;
 };
+
+/**
+ * A consulta da árvore de uma raiz, igual para quem a lê: o Cockpit da raiz
+ * (`useArvore`) e a checagem de novidades. Duas formas de buscar a mesma chave
+ * divergiriam no que vai para o cache.
+ *
+ * `staleTime: Infinity`: o frescor é por evento e pela checagem, não pela
+ * idade. Com o padrão de 30 s, trocar de aba de raiz e voltar buscaria a
+ * árvore de novo a cada vez.
+ */
+export function consultaDaArvore(cliente: QueryClient, rootId: string) {
+    const queryKey = chavesDeConsulta.arvore(rootId);
+    return {
+        queryKey,
+        queryFn: () => getArvore(rootId, cliente.getQueryData<ArvoreLeve>(queryKey)),
+        staleTime: Infinity,
+    };
+}
 
 /** `GET /api/agent-executions/{id}/node-snapshot` (plano f518941f §3.5). */
 export const getNodeSnapshot = async (executionId: string): Promise<NodeSnapshot> => {
@@ -34,20 +71,17 @@ export const getNodeSnapshot = async (executionId: string): Promise<NodeSnapshot
 };
 
 /**
- * A árvore leve da raiz. Invalidada por `execution_created`, `phase_advanced` e
- * `execution_status_changed` (`invalidarPorEvento`, prefixo `raiz(rootId)`) e
- * pelas ações do nó (`useAcoesDoNo`).
- *
- * `staleTime: Infinity`: o frescor é por evento, não por relógio. Com o padrão
- * de 30 s, trocar de aba de raiz e voltar buscaria a árvore de novo a cada vez;
- * a meta da ADR-0071 é nenhuma chamada dentro do `gcTime` (10 min).
+ * A árvore leve da raiz. Invalidada por `execution_created`, `phase_advanced`,
+ * `execution_status_changed` e `execution_updated` (`invalidarPorEvento`) e
+ * pelas ações do nó (`useAcoesDoNo`); revalidada pela checagem de novidades
+ * (`useNovidadesDasRaizes`). Trocar de aba de raiz e voltar não a busca: a meta
+ * da ADR-0071 é nenhuma chamada dentro do `gcTime` (10 min) fora da checagem.
  */
 export function useArvore(rootId: string | null | undefined) {
+    const cliente = useQueryClient();
     return useQuery({
-        queryKey: chavesDeConsulta.arvore(rootId ?? ''),
-        queryFn: () => getArvore(rootId as string),
+        ...consultaDaArvore(cliente, rootId ?? ''),
         enabled: Boolean(rootId),
-        staleTime: Infinity,
     });
 }
 

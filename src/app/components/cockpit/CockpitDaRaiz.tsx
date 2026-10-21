@@ -5,7 +5,9 @@
  *
  * Quanto custa (ADR-0071), e é o que o teste de desempenho conta:
  *   - a raiz: a árvore leve uma vez (`staleTime: Infinity`, frescor por
- *     evento), `phase-directives` uma vez por sessão e os cards da raiz uma vez;
+ *     evento e pela checagem de novidades da página, ADR-0071 5b, que não
+ *     conta para estas metas), `phase-directives` uma vez por sessão e os
+ *     cards da raiz uma vez;
  *   - o nó: `/resumo`, `/node-snapshot` e o conteúdo da aba aberta. O nó vem
  *     da árvore, sem `GET /agent-executions/{id}`;
  *   - nó concluído já visto: nada (resumo, snapshot e abas com `staleTime:
@@ -40,7 +42,6 @@ import { ultimoEventoEm, useEventosDoNo } from './conversa/useEventosDoNo';
 import { PaineisDoCockpit } from './layout/PaineisDoCockpit';
 import { useEstadoDaAba } from './navegacao/EstadoDaAbaContexto';
 import { identidadeDoNo } from './identidadeDoNo';
-import { atualizarNovidadesDosNos, totalDeNovidadesDosNos, type VistosDosNos } from './novidadesDosNos';
 import { rotuloDoCard } from './cabecalho/FaixaDeCards';
 
 /** O nó da URL, se está na árvore; senão o atual da raiz; senão a própria raiz. */
@@ -92,9 +93,21 @@ export interface CockpitDaRaizProps {
     aba: string | null;
     layout: LayoutDoCockpit;
     onMudarLayout: (layout: LayoutDoCockpit) => void;
+    /**
+     * Marca de novidade por nó desta raiz, da checagem de novidades da página
+     * (`useNovidadesDasRaizes`, ADR-0071 5b), que também vê a árvore que volta
+     * por evento e por ação.
+     */
+    novidadesDosNos?: Readonly<Record<string, number>>;
+    /** O nó selecionado foi visto: a marca dele some. */
+    onVerNo?: (noId: string) => void;
 }
 
-export function CockpitDaRaiz({ raiz, no, aba, layout, onMudarLayout }: CockpitDaRaizProps) {
+const SEM_NOVIDADES: Readonly<Record<string, number>> = {};
+
+export function CockpitDaRaiz({
+    raiz, no, aba, layout, onMudarLayout, novidadesDosNos = SEM_NOVIDADES, onVerNo,
+}: CockpitDaRaizProps) {
     const rootId = raiz.rootId;
     const navigate = useNavigate();
     const { estado: estadoDaAba, atualizar } = useEstadoDaAba();
@@ -149,13 +162,13 @@ export function CockpitDaRaiz({ raiz, no, aba, layout, onMudarLayout }: CockpitD
         : abaDaUrl ?? (resumo.data ? abaAoAbrirNo(resumo.data.pendencias, noDaArvore.phase)
             : resumo.isError ? abaEmFocoDaFase(noDaArvore.phase) : null);
 
-    // Novidades: por aba do nó selecionado (eventos ao vivo) e por nó (árvore).
+    // Novidades: por aba do nó selecionado (eventos ao vivo) aqui; por nó, da
+    // checagem de novidades da página, que apaga a marca do nó selecionado.
     const [novidadesDasAbas, setNovidadesDasAbas] = useState<Record<string, Novidades>>({});
     const [novasNaConversa, setNovasNaConversa] = useState(0);
-    const [vistos, setVistos] = useState<VistosDosNos | null>(null);
     useEffect(() => {
-        if (arvore.data) setVistos((v) => atualizarNovidadesDosNos(v, arvore.data.nos, noId));
-    }, [arvore.data, noId]);
+        if (noId) onVerNo?.(noId);
+    }, [noId, onVerNo]);
     useEffect(() => {
         if (!layout.recolhidos.conversa) setNovasNaConversa(0);
     }, [layout.recolhidos.conversa]);
@@ -268,7 +281,7 @@ export function CockpitDaRaiz({ raiz, no, aba, layout, onMudarLayout }: CockpitD
                         <HistoryDaRaiz
                             tree={arvore.data}
                             selecionadoId={noDaArvore.id}
-                            novidades={vistos?.contagem ?? {}}
+                            novidades={novidadesDosNos}
                             onSelecionarNo={(id) => irPara({ id, root_id: rootId })}
                             destacados={destacados}
                         />
@@ -277,7 +290,7 @@ export function CockpitDaRaiz({ raiz, no, aba, layout, onMudarLayout }: CockpitD
                 superficie={superficie}
                 conversa={<ConversaDoNo identidade={identidade} eventos={eventos} estado={estadoDoStream} />}
                 trilhos={{
-                    workflow: { novidade: totalDeNovidadesDosNos(vistos) },
+                    workflow: { novidade: Object.values(novidadesDosNos).reduce((s, n) => s + n, 0) },
                     superficie: {
                         luz: pendencias.length > 0,
                         novidade: totalDeNovidades(novidadesDoNo),

@@ -63,6 +63,13 @@ describe('parseOverridableConditions', () => {
         ]);
     });
 
+    it('le tambem o marcador da ADR-0072 (dono da execucao ou admin)', () => {
+        const detalhe = 'Cannot advance phase. Requirements not met:\n- Missing env\n'
+            + 'Human override available (execution owner or project admin, with reason; agents cannot): '
+            + 'required_env, agent_profile';
+        expect(parseOverridableConditions(detalhe)).toEqual(['required_env', 'agent_profile']);
+    });
+
     it('recusa sem a linha nao inventa condicao', () => {
         expect(parseOverridableConditions('execution revision mismatch')).toEqual([]);
         expect(parseOverridableConditions(undefined)).toEqual([]);

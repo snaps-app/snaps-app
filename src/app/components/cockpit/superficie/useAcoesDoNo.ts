@@ -7,8 +7,12 @@
  *   rota nova de mutação.
  * - O papel vem do `ProjectRoleProvider` da aba de raiz (TP-3, ADR-0020):
  *   viewer não tem ação; member avança, aprova, valida, registra e mexe no
- *   contexto e no prompt; rollback e override são só de admin. A API recusa
- *   de novo se a tela errar.
+ *   contexto e no prompt; rollback é só de admin. A API recusa de novo se a
+ *   tela errar.
+ * - Override é do dono da árvore ou de admin (ADR-0072), e QUEM decide é a
+ *   API: o chamador passa o `pode_override` do `/resumo`. O app não refaz a
+ *   regra. Sem o campo (API anterior à ADR-0072, que só aceitava admin), vale
+ *   o papel admin, para a tela não oferecer o que aquele servidor recusaria.
  * - Depois do sucesso, a ação invalida `resumo(id)`, a aba afetada e, quando
  *   muda a árvore, o prefixo `raiz(rootId)` (árvore e rótulo das abas) e `snapshot(id)`. O evento SSE também chega
  *   e invalida o mesmo; invalidar duas vezes é inofensivo.
@@ -41,7 +45,7 @@ export type NomeDaAcao =
     | 'registrarResultadoDeTestPlan' | 'salvarSelecaoDeTestPlans'
     | 'salvarContexto' | 'marcarEntradaExecutada';
 
-const SO_ADMIN: ReadonlySet<NomeDaAcao> = new Set(['rollback', 'override']);
+const SO_ADMIN: ReadonlySet<NomeDaAcao> = new Set(['rollback']);
 
 export const TODAS_AS_ACOES: readonly NomeDaAcao[] = [
     'avancar', 'rollback', 'override', 'aprovarPlano', 'mudarStatusDoPlano', 'pedirAjusteNoPlano',
@@ -49,11 +53,18 @@ export const TODAS_AS_ACOES: readonly NomeDaAcao[] = [
     'salvarContexto', 'marcarEntradaExecutada',
 ];
 
-/** Quais ações o papel permite. Função pura, para o teste e para quem esconde botão. */
-export function acoesPermitidas(role: string | null, podeEscrever: boolean): Set<NomeDaAcao> {
+/**
+ * Quais ações o papel permite. Função pura, para o teste e para quem esconde
+ * botão. `podeOverride` é o que a API disse (ADR-0072); `undefined` é API sem
+ * o campo, e aí só admin, como ela aceitava.
+ */
+export function acoesPermitidas(role: string | null, podeEscrever: boolean, podeOverride?: boolean): Set<NomeDaAcao> {
     if (!podeEscrever) return new Set();
     const admin = role === 'admin' || role === 'owner';
-    return new Set(TODAS_AS_ACOES.filter((a) => admin || !SO_ADMIN.has(a)));
+    return new Set(TODAS_AS_ACOES.filter((a) => {
+        if (a === 'override') return podeOverride ?? admin;
+        return admin || !SO_ADMIN.has(a);
+    }));
 }
 
 /** Plano como o Cockpit lê de `context_data.plans`. */
@@ -73,11 +84,16 @@ export interface ContextoParaSalvar {
 
 type NoDoHook = Pick<AgentTaskExecution, 'id' | 'lock_version'> & { root_id?: string | null };
 
-export function useAcoesDoNo(execution: NoDoHook | null) {
+export interface OpcoesDasAcoes {
+    /** `pode_override` do `/resumo` do nó (ADR-0072). */
+    podeOverride?: boolean;
+}
+
+export function useAcoesDoNo(execution: NoDoHook | null, { podeOverride }: OpcoesDasAcoes = {}) {
     const cliente = useQueryClient();
     const { role, can } = useProjectRole();
     const [emAndamento, setEmAndamento] = useState<NomeDaAcao | null>(null);
-    const permitidas = useMemo(() => acoesPermitidas(role, can('write')), [role, can]);
+    const permitidas = useMemo(() => acoesPermitidas(role, can('write'), podeOverride), [role, can, podeOverride]);
 
     const id = execution?.id ?? null;
     const rootId = execution?.root_id || id;
@@ -175,8 +191,8 @@ export function useAcoesDoNo(execution: NoDoHook | null) {
         copiarPrompt,
         pode: (nome: NomeDaAcao) => permitidas.has(nome),
         podeAgir: permitidas.size > 0,
-        /** Admin ou owner: rollback, override e escopo de despacho. */
-        ehAdmin: permitidas.has('override'),
+        /** Admin ou owner: rollback e escopo de despacho. O override não diz isto (ADR-0072). */
+        ehAdmin: permitidas.has('rollback'),
         emAndamento,
     };
 }

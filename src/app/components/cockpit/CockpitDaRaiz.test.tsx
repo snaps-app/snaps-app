@@ -46,6 +46,7 @@ import {
 } from '@/test/cockpitFalso';
 import { JANELA_DO_REPLAY_MS } from './conversa/useEventosDoNo';
 import { AVISO_DO_COMPOSER } from './conversa/ConversaDoNo';
+import { AVISO_DO_OVERRIDE } from './cabecalho/CabecalhoDoNo';
 import { PaginaDoCockpit } from './PaginaDoCockpit';
 
 function OndeEstou() {
@@ -113,21 +114,50 @@ describe('Cockpit montado', () => {
         expect(await screen.findByRole('tablist', { name: 'Abas do nó' })).toBeInTheDocument();
     });
 
-    it('a Conversa mostra "execution · TP-1" na cor do TP-1, e o nó irmão que mudou ganha novidade', async () => {
+    it('a Conversa mostra "execution · TP-1" na cor do TP-1; um evento do nó selecionado traz a árvore e o irmão que mudou ganha novidade, sem esperar a checagem', async () => {
         abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
         await cabecalho();
         const chip = within(conversa()).getByTestId('identidade-do-no');
         expect(chip).toHaveTextContent('execution · TP-1');
         expect(chip).toHaveAttribute('data-cor', 'var(--snaps-accent-blue)');
 
+        // A janela do replay começa quando o stream abre: espera abrir antes de contar.
+        await waitFor(() => expect(streamFalso.abertas()).toHaveLength(1));
         await fimDoReplay();
-        // O TP-2 mudou no servidor; um evento do nó atual faz a árvore voltar.
+        // O TP-2 mudou no servidor; um evento do nó atual faz a árvore voltar (por evento, não pelo relógio).
         const arvore = estadoDaApi.arvores[RAIZ];
         estadoDaApi.arvores[RAIZ] = { ...arvore, nos: arvore.nos.map((n) => (n.id === EXEC_TP2 ? { ...n, updated_at: '2026-10-21T09:00:00Z' } : n)) };
         act(() => streamFalso.abertas()[0].emitir(evento('execution_status_changed', EXEC_TP1, { from_status: 'pending', to_status: 'in_progress' })));
 
         expect(await screen.findByText('1 novo')).toBeInTheDocument();
         expect(within(conversa()).getByText('Status: pending → in_progress')).toBeInTheDocument();
+    });
+
+    it('execution_updated do nó selecionado recarrega a árvore: a revisão nova chega às ações e o irmão que mudou ganha novidade', async () => {
+        estadoDaApi.cards[CARD_1] = card(CARD_1, 'assurance');
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        await cabecalho();
+        await waitFor(() => expect(streamFalso.abertas()).toHaveLength(1));
+        await fimDoReplay();
+        const antes = apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${RAIZ}/arvore`).length;
+        const arvore = estadoDaApi.arvores[RAIZ];
+        estadoDaApi.arvores[RAIZ] = {
+            ...arvore,
+            nos: arvore.nos.map((n) => (n.id === EXEC_TP1 ? { ...n, lock_version: 7 } : n.id === EXEC_TP2 ? { ...n, lock_version: 9 } : n)),
+        };
+        act(() => streamFalso.abertas()[0].emitir(evento('execution_updated', EXEC_TP1, { fields: ['context_data'] })));
+
+        expect(await screen.findByText('1 novo')).toBeInTheDocument();
+        expect(apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${RAIZ}/arvore`).length).toBe(antes + 1);
+
+        // A ação seguinte manda a revisão nova, a da árvore que voltou.
+        const topo = await cabecalho();
+        const avancar = await within(topo).findByRole('button', { name: 'Avançar' });
+        await waitFor(() => expect(avancar).toBeEnabled());
+        fireEvent.click(avancar);
+        await waitFor(() => expect(apiFalsa.patch).toHaveBeenCalledWith(
+            `/api/agent-executions/${EXEC_TP1}/advance`, expect.objectContaining({ expected_revision: 7 }), expect.anything(),
+        ));
     });
 
     it('o composer existe e está desabilitado até a Sprint 25.0', async () => {
@@ -146,13 +176,134 @@ describe('Cockpit montado', () => {
         await waitFor(() => expect(within(topo).queryByRole('button', { name: /Avançar|Rollback|Override/ })).not.toBeInTheDocument());
     });
 
-    it('member avança, mas não vê Rollback nem Override', async () => {
+    it('member que não é o dono avança, mas não vê Rollback nem Override (ADR-0072: a API diz quem pode)', async () => {
         papel.role = 'member';
+        estadoDaApi.podeOverride = false;
         abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
         const topo = await cabecalho();
         expect(await within(topo).findByRole('button', { name: 'Avançar' })).toBeInTheDocument();
+        await screen.findByRole('group', { name: 'Cards do escopo' });
         expect(within(topo).queryByRole('button', { name: /Rollback/ })).not.toBeInTheDocument();
         expect(within(topo).queryByRole('button', { name: 'Override' })).not.toBeInTheDocument();
+    });
+
+    it('member que não é o dono, com gate pendente: Avançar desabilitado e a tela diz que o override é do dono ou de admin', async () => {
+        papel.role = 'member';
+        estadoDaApi.podeOverride = false;
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        const avancar = await within(topo).findByRole('button', { name: 'Avançar' });
+        await waitFor(() => expect(avancar).toBeDisabled());
+        expect(topo).toHaveTextContent('Faltam: Tasks concluídas (cards em assurance)');
+        expect(await within(topo).findByTestId('aviso-do-override')).toHaveTextContent(AVISO_DO_OVERRIDE);
+        expect(within(topo).queryByRole('button', { name: /Avançar com override/ })).not.toBeInTheDocument();
+    });
+
+    it('member dono da execução: Override e "Avançar com override", com o que falta já marcado; Rollback continua só de admin', async () => {
+        papel.role = 'member';
+        estadoDaApi.podeOverride = true;
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        expect(await within(topo).findByRole('button', { name: 'Override' })).toBeInTheDocument();
+        expect(within(topo).queryByRole('button', { name: /Rollback/ })).not.toBeInTheDocument();
+
+        fireEvent.click(await within(topo).findByRole('button', { name: 'Avançar com override' }));
+        const dialogo = screen.getByRole('dialog', { name: /Override do gate · execution/ });
+        expect(within(dialogo).getByRole('checkbox', { name: /Tasks concluídas/ })).toBeChecked();
+        expect(within(dialogo).getByRole('checkbox', { name: /CI verde/ })).not.toBeChecked();
+        expect(within(dialogo).getByRole('button', { name: 'Aplicar override' })).toBeDisabled();
+    });
+
+    it('Override disponível com os gates ok e com condição que só o motor confere', async () => {
+        estadoDaApi.cards[CARD_1] = card(CARD_1, 'assurance');
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        const avancar = await within(topo).findByRole('button', { name: 'Avançar' });
+        await waitFor(() => expect(avancar).toBeEnabled());
+        expect(within(topo).getByRole('list', { name: 'Gates da fase' })).toHaveTextContent('(o motor confere)');
+        fireEvent.click(within(topo).getByRole('button', { name: 'Override' }));
+        const dialogo = screen.getByRole('dialog', { name: /Override do gate · execution/ });
+        // Todas as condições da fase, do workflow_snapshot do nó; nenhuma marcada, porque nada falta.
+        expect(within(dialogo).getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)).toEqual([
+            expect.stringContaining('tasks_finished'), expect.stringContaining('ci_passed'),
+        ]);
+        fireEvent.change(within(dialogo).getByRole('textbox', { name: 'Motivo do override' }), { target: { value: 'decisão do PO' } });
+        expect(within(dialogo).getByRole('button', { name: 'Aplicar override' })).toBeDisabled();
+        expect(dialogo).toHaveTextContent('Marque ao menos uma condição');
+    });
+
+    it('recusa do motor: aparece escrita com o nome de cada condição e o override abre com elas marcadas, inclusive as estruturais', async () => {
+        estadoDaApi.cards[CARD_1] = card(CARD_1, 'assurance');
+        estadoDaApi.recusaDoAvanco = {
+            status: 400,
+            detail: 'Cannot advance phase. Requirements not met:\n- Missing env DATABASE_URL\n- Agent profile missing\n'
+                + 'Human override available (execution owner or project admin, with reason; agents cannot): required_env, agent_profile',
+        };
+        const NOVO = 'a0000009-0000-4000-8000-000000000009';
+        estadoDaApi.aoAvancar = () => ({ id: NOVO, phase: 'ci_gate', status: 'pending' });
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        const avancar = await within(topo).findByRole('button', { name: 'Avançar' });
+        await waitFor(() => expect(avancar).toBeEnabled());
+        fireEvent.click(avancar);
+
+        const dialogo = await screen.findByRole('dialog', { name: /Override do gate · execution/ });
+        expect(within(dialogo).getByRole('region', { name: 'Recusa do motor' })).toHaveTextContent('Missing env DATABASE_URL');
+        expect(within(dialogo).getByRole('checkbox', { name: /required_env/ })).toBeChecked();
+        expect(within(dialogo).getByRole('checkbox', { name: /Perfil do agente/ })).toBeChecked();
+        expect(within(topo).getByTestId('condicoes-recusadas')).toHaveTextContent('Configuracao exigida pela proxima fase (required_env), Perfil do agente da proxima fase');
+
+        fireEvent.change(within(dialogo).getByRole('textbox', { name: 'Motivo do override' }), { target: { value: 'env no cofre do PO' } });
+        fireEvent.click(within(dialogo).getByRole('button', { name: 'Aplicar override' }));
+        await waitFor(() => expect(apiFalsa.post).toHaveBeenCalledWith(
+            `/api/agent-executions/${EXEC_TP1}/override-decisions`,
+            { reason: 'env no cofre do PO', conditions: ['required_env', 'agent_profile'] },
+        ));
+        await waitFor(() => expect(apiFalsa.patch).toHaveBeenCalledWith(
+            `/api/agent-executions/${EXEC_TP1}/advance`,
+            expect.objectContaining({ force: true, override_decision_id: 'd-1', override_conditions: ['required_env', 'agent_profile'] }),
+            expect.anything(),
+        ));
+        await waitFor(() => expect(screen.getByTestId('destino')).toHaveTextContent(`?no=${NOVO}`));
+    });
+
+    it('recusa do motor para quem não pode fazer override: a recusa aparece e a tela diz de quem é o override, sem abrir o diálogo', async () => {
+        papel.role = 'member';
+        estadoDaApi.podeOverride = false;
+        estadoDaApi.cards[CARD_1] = card(CARD_1, 'assurance');
+        estadoDaApi.recusaDoAvanco = {
+            status: 409,
+            detail: 'CI gate not cleared\nHuman override available (execution owner or project admin, with reason; agents cannot): ci_passed',
+        };
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        const avancar = await within(topo).findByRole('button', { name: 'Avançar' });
+        await waitFor(() => expect(avancar).toBeEnabled());
+        fireEvent.click(avancar);
+
+        const alerta = await within(topo).findByRole('alert');
+        expect(alerta).toHaveTextContent('CI gate not cleared');
+        expect(alerta).toHaveTextContent('Condições recusadas: CI verde');
+        expect(alerta).toHaveTextContent(AVISO_DO_OVERRIDE);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('recusa que não é gate (revisão em conflito): a mensagem aparece e "Recarregar" relê a árvore e o nó', async () => {
+        estadoDaApi.cards[CARD_1] = card(CARD_1, 'assurance');
+        estadoDaApi.recusaDoAvanco = { status: 409, detail: 'execution revision mismatch: expected 3, current 4' };
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        const avancar = await within(topo).findByRole('button', { name: 'Avançar' });
+        await waitFor(() => expect(avancar).toBeEnabled());
+        fireEvent.click(avancar);
+
+        const alerta = await within(topo).findByRole('alert');
+        expect(alerta).toHaveTextContent('execution revision mismatch');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        const arvoresAntes = apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${RAIZ}/arvore`).length;
+        fireEvent.click(within(alerta).getByRole('button', { name: 'Recarregar' }));
+        await waitFor(() => expect(apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${RAIZ}/arvore`).length).toBe(arvoresAntes + 1));
+        await waitFor(() => expect(within(topo).queryByRole('alert')).not.toBeInTheDocument());
     });
 
     it('com gate pendente, Avançar fica desabilitado e diz o que falta', async () => {
@@ -190,6 +341,37 @@ describe('Cockpit montado', () => {
         expect(aplicar).toBeDisabled();
         fireEvent.change(within(dialogo).getByRole('textbox', { name: 'Motivo do override' }), { target: { value: 'CI fora do ar' } });
         expect(aplicar).toBeEnabled();
+    });
+
+    it('viewer vê o timer e a lista de sessões só para leitura, sem "Registrar horas", controles do timer nem override de sessão', async () => {
+        papel.role = 'viewer';
+        estadoDaApi.sessoes = [{
+            id: 's-9', agent_execution_id: EXEC_TP1, user_id: 'outra', user_display_name: 'Maria Souza',
+            started_at: '2026-10-21T10:00:00Z', ended_at: '2026-10-21T11:00:00Z', duration_hours: 1, locked: false,
+        }];
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        const timer = await within(topo).findByTestId('timer-da-execucao');
+        expect(timer).toHaveAttribute('data-somente-leitura', 'true');
+        await waitFor(() => expect(timer).toHaveTextContent('01:00:00'));
+        expect(within(topo).queryByRole('button', { name: 'Registrar horas' })).not.toBeInTheDocument();
+        expect(within(topo).queryByRole('button', { name: /Pausar sessão|Retomar sessão/ })).not.toBeInTheDocument();
+        expect(apiFalsa.post).not.toHaveBeenCalledWith(expect.stringMatching(/\/sessions\/start$/));
+
+        fireEvent.click(within(topo).getByRole('button', { name: 'Sessões' }));
+        expect(await screen.findByText('Maria Souza')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Sessões' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Apontar horas/ })).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Excluir sessão')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Atribuir a outro membro')).not.toBeInTheDocument();
+        for (const campo of document.querySelectorAll('input[type="datetime-local"]')) expect(campo).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Execution, concluído/ }));
+        await waitFor(() => expect(screen.getByTestId('destino')).toHaveTextContent(`?no=${EXEC_TP2}`));
+        const outro = await cabecalho();
+        await waitFor(() => expect(within(outro).queryByTestId('timer-da-execucao')).not.toBeInTheDocument());
+        expect(within(outro).queryByRole('button', { name: 'Sessões' })).not.toBeInTheDocument();
     });
 
     it('timer, "Registrar horas" e "Sessões" no nó atual; nada disso no nó concluído', async () => {

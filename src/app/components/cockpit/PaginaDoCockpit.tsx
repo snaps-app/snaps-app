@@ -19,6 +19,7 @@ import { EstadoDaAbaProvider } from './navegacao/EstadoDaAbaContexto';
 import { SeletorDeRaiz } from './navegacao/SeletorDeRaiz';
 import { useIdDoUsuario } from './navegacao/useIdDoUsuario';
 import { ControlesDePaineis } from './layout/ControlesDePaineis';
+import { useNovidadesDasRaizes, type NovidadesDasRaizes } from './novidades/useNovidadesDasRaizes';
 import { CockpitDaRaiz } from './CockpitDaRaiz';
 
 export const AVISO_SEM_ACESSO = 'Raiz sem acesso ou inexistente.';
@@ -72,8 +73,10 @@ function useAbasDoUsuario(userId: string | null | undefined) {
  * da Superfície dela. As abas salvas só lembram o que estava aberto. Trocar de
  * aba é navegar, para que voltar no navegador volte de aba também.
  *
- * Só a aba ativa monta conteúdo. As inativas existem na barra com o rótulo, e
- * nada mais: sem árvore, sem nó, sem stream (ADR-0071).
+ * Só a aba ativa monta conteúdo. As inativas existem na barra com o rótulo e
+ * a marca de novidade: sem nó e sem stream (ADR-0071). A árvore de cada aba
+ * aberta é conferida pela checagem de novidades (exceção 5b), num hook só,
+ * montado aqui.
  */
 export function PaginaDoCockpit() {
     const { rootId: raizDaRota } = useParams<{ rootId?: string }>();
@@ -143,7 +146,13 @@ export function PaginaDoCockpit() {
 
     const escolher = useCallback((raiz: ResumoDaRaiz) => focar(raiz.rootId), [focar]);
 
-    const abertas = useMemo(() => new Set(estado?.abas.map((a) => a.rootId) ?? []), [estado]);
+    const raizesAbertas = useMemo(() => estado?.abas.map((a) => a.rootId) ?? [], [estado]);
+    const abertas = useMemo(() => new Set(raizesAbertas), [raizesAbertas]);
+    const novidades = useNovidadesDasRaizes(raizesAbertas, raizValida);
+    const comNovidade = useMemo(
+        () => new Set(Object.entries(novidades.porRaiz).filter(([, v]) => v.aba).map(([rootId]) => rootId)),
+        [novidades.porRaiz],
+    );
     const estadoDaAtiva = estado?.abas.find((a) => a.rootId === raizValida) ?? null;
     const contexto = useMemo(
         () => ({
@@ -165,6 +174,7 @@ export function PaginaDoCockpit() {
                 onFocar={focar}
                 onFechar={fechar}
                 onInexistente={inexistente}
+                comNovidade={comNovidade}
                 seletor={<SeletorDeRaiz abertas={abertas} onEscolher={escolher} />}
                 direita={raizValida ? <ControlesDePaineis layout={layout} onMudarLayout={mudarLayout} /> : null}
             />
@@ -193,6 +203,7 @@ export function PaginaDoCockpit() {
                             layout={layout}
                             onMudarLayout={mudarLayout}
                             onRaizDiferente={raizDiferente}
+                            novidades={novidades}
                         />
                     </EstadoDaAbaProvider>
                 ) : (
@@ -231,6 +242,7 @@ function ConteudoDaRaiz({
     layout,
     onMudarLayout,
     onRaizDiferente,
+    novidades,
 }: {
     rootId: string;
     no: string | null;
@@ -238,8 +250,11 @@ function ConteudoDaRaiz({
     layout: LayoutDoCockpit;
     onMudarLayout: (layout: LayoutDoCockpit) => void;
     onRaizDiferente: (pedido: string, raiz: ResumoDaRaiz) => void;
+    novidades: NovidadesDasRaizes;
 }) {
     const { data: raiz, isPending, isError } = useRaizDaAba(rootId);
+    const { verNo } = novidades;
+    const verNoDaRaiz = useCallback((noId: string) => verNo(rootId, noId), [verNo, rootId]);
     const diferente = !!raiz && raiz.rootId !== rootId;
     useEffect(() => {
         if (raiz && diferente) onRaizDiferente(rootId, raiz);
@@ -257,7 +272,15 @@ function ConteudoDaRaiz({
 
     return (
         <AbaDeRaiz projectId={raiz.projectId}>
-            <CockpitDaRaiz raiz={raiz} no={no} aba={aba} layout={layout} onMudarLayout={onMudarLayout} />
+            <CockpitDaRaiz
+                raiz={raiz}
+                no={no}
+                aba={aba}
+                layout={layout}
+                onMudarLayout={onMudarLayout}
+                novidadesDosNos={novidades.porRaiz[rootId]?.contagem}
+                onVerNo={verNoDaRaiz}
+            />
         </AbaDeRaiz>
     );
 }

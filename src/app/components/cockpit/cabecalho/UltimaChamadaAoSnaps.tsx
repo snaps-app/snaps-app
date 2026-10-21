@@ -1,10 +1,12 @@
 /**
  * "Última chamada ao Snaps há X min", no cabeçalho do nó (P25).
  *
- * Este é o ÚNICO lugar do Cockpit com `refetchInterval` (ADR-0071, item 5; a
- * trava de `cockpit.travas.test.ts` aceita só arquivos `UltimaChamada*`). As
- * chamadas MCP gravam em `tool_invocations` e não geram evento SSE, então sem
- * isto o indicador ficaria parado no horário de quando o nó abriu.
+ * Uma das duas consultas periódicas do Cockpit (ADR-0071, item 5, exceção a;
+ * a outra é a checagem de novidades, 5b). A trava de `cockpit.travas.test.ts`
+ * aceita `refetchInterval` só neste arquivo e em `useNovidadesDasRaizes.ts`,
+ * pelo caminho. As chamadas MCP gravam em `tool_invocations` e não geram
+ * evento SSE, então sem isto o indicador ficaria parado no horário de quando o
+ * nó abriu.
  *
  * A revalidação segue `intervaloDeRevalidacao`: só nó `in_progress`, uma vez ao
  * cruzar 15 min e, enquanto âmbar, no máximo a cada 5 min. Com a aba do

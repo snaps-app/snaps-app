@@ -100,6 +100,19 @@ describe('HistoryDaRaiz', () => {
         expect(screen.queryByText('3 novos')).not.toBeInTheDocument();
     });
 
+    it('filtro por card (TP-4): os nós de fora ficam esmaecidos, sem sair da árvore', async () => {
+        renderComConsulta(
+            <HistoryDaRaiz tree={ARVORE} selecionadoId={null} onSelecionarNo={vi.fn()}
+                destacados={new Set(['macro', 'tp2-exec'])} />,
+        );
+        const fora = (await screen.findByRole('button', { name: /^Micro planning/ })).closest('li');
+        const dentro = linha(/^Execution, atual, in_progress$/).closest('li');
+        expect(fora).toHaveAttribute('data-fora-do-filtro', 'true');
+        expect(fora).toHaveClass('opacity-40');
+        expect(dentro).not.toHaveAttribute('data-fora-do-filtro');
+        expect(screen.getAllByRole('button', { name: /^(Macro|Micro|Execution|CI gate)/ }).length).toBeGreaterThanOrEqual(6);
+    });
+
     it('modo compacto por container query: subtítulo e legenda somem abaixo de 250 px', async () => {
         const { container } = renderComConsulta(<HistoryDaRaiz tree={ARVORE} selecionadoId={null} onSelecionarNo={vi.fn()} />);
         await screen.findByRole('list', { name: 'History da árvore' });

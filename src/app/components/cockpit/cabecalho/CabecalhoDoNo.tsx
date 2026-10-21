@@ -7,15 +7,25 @@
  * - Gates: as condições do `workflow_snapshot` do NÓ (`gatesDoNo.ts`), nunca
  *   do catálogo. A recusa do motor aparece escrita, e as condições que ela
  *   nomeia vão para o override.
- * - Ações só por `useAcoesDoNo` (TP-2): viewer não vê nenhuma; Rollback e
- *   Override só admin. O override abre em qualquer nó atual, com ou sem gate
- *   pendente: o override humano sempre prevalece.
+ * - Ações só por `useAcoesDoNo` (TP-2): viewer não vê nenhuma; Rollback só
+ *   admin. Override é do dono da execução ou de admin, como a API disser
+ *   (`resumo.pode_override`, ADR-0072), e abre em qualquer nó atual, com ou
+ *   sem gate pendente: o override humano sempre prevalece. Com gate pendente,
+ *   "Avançar com override" abre com o que falta já marcado; quem não pode
+ *   fazer override lê de quem é.
+ * - Recusa do motor ao avançar: aparece escrita e, para quem pode, o override
+ *   abre com as condições recusadas marcadas, inclusive as estruturais. Recusa
+ *   que não é gate (revisão em conflito, origem já avançou) não vira override:
+ *   a tela mostra a mensagem e oferece recarregar.
  * - Tempo e sessões do Cockpit antigo (timer, "Registrar horas", "Sessões"),
- *   reusados sem cópia, só no nó atual e para quem escreve.
+ *   reusados sem cópia, só no nó atual. Quem escreve opera; o viewer vê o
+ *   tempo e a lista, só para leitura (`TimerDasSessoes`).
  * - "Última chamada ao Snaps" (P25), do `/resumo`, sem chamada própria.
  */
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
 import type { NodeSnapshot, AgentTaskExecution, Card, WorkflowSnapshot } from '@/services/types';
 import type { ResumoDoNo } from '@/services/resumoDoNo';
 import { idCurto, rotuloDaRaiz, type ResumoDaRaiz } from '@/services/raizesDoCockpit';
@@ -25,10 +35,14 @@ import { TimeTrackingModal } from '@/app/components/execution/time-tracking-moda
 import { SessionManagerModal } from '@/app/components/execution/session-manager-modal';
 import { useAcoesDoNo } from '../superficie/useAcoesDoNo';
 import { ChipDaIdentidade, type IdentidadeDoNo } from '../identidadeDoNo';
-import { alvoDoRollback, avaliarGates, condicoesDaFase, gatesQueFaltam, type GateDoNo } from './gatesDoNo';
+import { alvoDoRollback, avaliarGates, condicoesDaFase, gatesQueFaltam, rotuloDoGate, type GateDoNo } from './gatesDoNo';
 import { DialogoDeOverride } from './DialogoDeOverride';
 import { FaixaDeCards, cardsQuePedemAcao, textoDosCards } from './FaixaDeCards';
 import { UltimaChamadaAoSnaps } from './UltimaChamadaAoSnaps';
+import { TimerDasSessoes } from './TimerDasSessoes';
+
+/** O que o member que não é o dono lê quando um gate trava o Avançar (ADR-0072). */
+export const AVISO_DO_OVERRIDE = 'o override é do dono da execução ou de admin';
 
 const STATUS: Record<string, { texto: string; cor: string }> = {
     pending: { texto: 'Aguardando despacho', cor: 'var(--snaps-accent-yellow)' },
@@ -93,7 +107,9 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
         raiz, execucao, identidade, terminal, descartado, workflow, snapshot, resumo, cards,
         filtroDeCard, onFiltrarCard, recolhido, onAlternarRecolhido, ultimoEventoEm, onNovoNo,
     } = props;
-    const acoes = useAcoesDoNo(terminal ? null : execucao);
+    const cliente = useQueryClient();
+    const acoes = useAcoesDoNo(terminal ? null : execucao, { podeOverride: resumo?.pode_override });
+    const podeOverride = acoes.pode('override');
     const [recusa, setRecusa] = useState<{ no: string; texto: string; condicoes: string[] } | null>(null);
     const [overrideAberto, setOverrideAberto] = useState(false);
     const [erroDoOverride, setErroDoOverride] = useState<string | null>(null);
@@ -117,6 +133,11 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
     const status = STATUS[execucao.status] ?? { texto: execucao.status, cor: 'var(--snaps-accent-slate)' };
     const pedemAcao = cardsQuePedemAcao(cards ?? [], resumo?.pendencias ?? []).size;
     const registroDoMotor = (snapshot?.gates?.advance_conditions ?? {}) as { error?: unknown; info?: unknown };
+    // A recusa desta tela, ou a última que o motor gravou no nó (de quem quer que tenha pedido).
+    const textoDaRecusa = recusaDoNo?.texto ?? (typeof registroDoMotor.error === 'string' ? registroDoMotor.error : null);
+    const recusadas = recusaDoNo?.condicoes ?? parseOverridableConditions(textoDaRecusa);
+    // Recusa sem condição que o override dispense: não é gate (revisão em conflito, origem já avançou).
+    const recusaSemGate = !!recusaDoNo && recusaDoNo.condicoes.length === 0;
 
     const executar = async (acao: () => Promise<AgentTaskExecution>, aoFalhar: (texto: string) => void) => {
         try {
@@ -132,8 +153,26 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
         }
     };
 
-    const avancar = () => executar(() => acoes.acoes.avancar(), (texto) =>
-        setRecusa({ no: execucao.id, texto, condicoes: parseOverridableConditions(texto) }));
+    const abrirOverride = () => {
+        setErroDoOverride(null);
+        setOverrideAberto(true);
+    };
+
+    const avancar = () => executar(() => acoes.acoes.avancar(), (texto) => {
+        const condicoes = parseOverridableConditions(texto);
+        setRecusa({ no: execucao.id, texto, condicoes });
+        // A execução nunca fica travada: quem pode cai direto no override, com as recusadas marcadas.
+        if (condicoes.length > 0 && podeOverride) abrirOverride();
+    });
+
+    /** Recusa que não é gate: relê o nó e a árvore (a revisão que as ações enviam vem da árvore). */
+    const recarregar = async () => {
+        setRecusa(null);
+        await Promise.all([
+            cliente.invalidateQueries({ queryKey: chaves.arvore(raiz.rootId) }),
+            cliente.invalidateQueries({ queryKey: chaves.execucao(execucao.id) }),
+        ]);
+    };
 
     const rollback = async () => {
         setConfirmarRollback(false);
@@ -163,14 +202,17 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
                 {!compacto && textoDeFaltam && (
                     <span className="text-xs text-[var(--snaps-accent-yellow)]">{textoDeFaltam}</span>
                 )}
+                {!compacto && faltam.length > 0 && resumo && !podeOverride && (
+                    <span data-testid="aviso-do-override" className="text-xs text-[var(--snaps-text-secondary)]">{AVISO_DO_OVERRIDE}</span>
+                )}
                 {acoes.pode('rollback') && alvo && (
                     <button type="button" className={BOTAO_FANTASMA} onClick={() => setConfirmarRollback(true)}
                         disabled={acoes.emAndamento !== null}>
                         {compacto ? 'Rollback' : `Rollback → ${alvo}`}
                     </button>
                 )}
-                {acoes.pode('override') && (
-                    <button type="button" className={BOTAO_FANTASMA} onClick={() => { setErroDoOverride(null); setOverrideAberto(true); }}
+                {podeOverride && (
+                    <button type="button" className={BOTAO_FANTASMA} onClick={abrirOverride}
                         disabled={acoes.emAndamento !== null}>
                         Override
                     </button>
@@ -181,22 +223,34 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
                         className={BOTAO_PRIMARIO}
                         onClick={avancar}
                         disabled={faltam.length > 0 || acoes.emAndamento !== null}
-                        title={textoDeFaltam ?? undefined}
+                        title={faltam.length > 0 && !podeOverride ? `${textoDeFaltam} · ${AVISO_DO_OVERRIDE}` : textoDeFaltam ?? undefined}
                     >
                         {acoes.emAndamento === 'avancar' ? 'Avançando…' : rotuloDoAvanco}
+                    </button>
+                )}
+                {podeOverride && faltam.length > 0 && (
+                    <button type="button" className={BOTAO_PRIMARIO} onClick={abrirOverride}
+                        disabled={acoes.emAndamento !== null}>
+                        {compacto ? 'Com override' : 'Avançar com override'}
                     </button>
                 )}
             </div>
         );
     };
 
-    const tempoESessoes = atual && acoes.podeAgir && (
+    // Nó concluído: nada disto, para ninguém. Viewer: o tempo e a lista, só leitura.
+    const tempoESessoes = atual && (acoes.podeAgir ? (
         <div className="flex items-center gap-1.5">
             <ExecutionTimer key={execucao.id} executionId={execucao.id} projectId={execucao.project_id} embutido />
             <button type="button" className={BOTAO_FANTASMA} onClick={() => setModal('horas')}>Registrar horas</button>
             <button type="button" className={BOTAO_FANTASMA} onClick={() => setModal('sessoes')}>Sessões</button>
         </div>
-    );
+    ) : (
+        <div className="flex items-center gap-1.5">
+            <TimerDasSessoes sessoes={resumo?.sessoes} />
+            <button type="button" className={BOTAO_FANTASMA} onClick={() => setModal('sessoes')}>Sessões</button>
+        </div>
+    ));
 
     const modais = (
         <>
@@ -204,7 +258,8 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
                 <DialogoDeOverride
                     fase={execucao.phase}
                     gates={gates}
-                    recusadas={recusaDoNo?.condicoes ?? []}
+                    recusadas={recusadas}
+                    recusa={textoDaRecusa}
                     aplicando={acoes.emAndamento === 'override'}
                     erro={erroDoOverride}
                     onAplicar={aplicarOverride}
@@ -217,10 +272,11 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
                     executionId={execucao.id}
                     projectId={execucao.project_id}
                     onClose={() => setModal(null)}
-                    onLogHours={() => setModal('horas')}
+                    onLogHours={acoes.podeAgir ? () => setModal('horas') : undefined}
+                    somenteLeitura={!acoes.podeAgir}
                 />
             )}
-            {(modal === 'horas' || modal === 'horas-finais') && (
+            {acoes.podeAgir && (modal === 'horas' || modal === 'horas-finais') && (
                 <TimeTrackingModal
                     partial={modal === 'horas'}
                     execution={execucao}
@@ -324,10 +380,33 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
                     ))}
                 </ul>
             )}
-            {atual && (recusaDoNo || typeof registroDoMotor.error === 'string') && (
-                <p role="alert" className="rounded-xl border border-[var(--snaps-error)]/30 bg-[var(--snaps-error)]/10 px-3 py-2 text-xs whitespace-pre-wrap text-[var(--snaps-error)]">
-                    {recusaDoNo?.texto ?? String(registroDoMotor.error)}
-                </p>
+            {atual && textoDaRecusa && (
+                <div role="alert" className="flex flex-col gap-2 rounded-xl border border-[var(--snaps-error)]/30 bg-[var(--snaps-error)]/10 px-3 py-2 text-xs text-[var(--snaps-error)]">
+                    <p className="whitespace-pre-wrap">{textoDaRecusa}</p>
+                    {recusadas.length > 0 && (
+                        <p data-testid="condicoes-recusadas" className="text-[var(--snaps-text-primary)]">
+                            Condições recusadas: {recusadas.map(rotuloDoGate).join(', ')}
+                        </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {recusaSemGate && (
+                            <>
+                                <span className="text-[var(--snaps-text-secondary)]">
+                                    Isto não é um gate: o nó mudou ou já avançou. Recarregue para ver o estado atual.
+                                </span>
+                                <button type="button" className={BOTAO_FANTASMA} onClick={recarregar}>Recarregar</button>
+                            </>
+                        )}
+                        {recusadas.length > 0 && acoes.podeAgir && (podeOverride ? (
+                            <button type="button" className={BOTAO_FANTASMA} onClick={abrirOverride}
+                                disabled={acoes.emAndamento !== null}>
+                                Override das recusadas
+                            </button>
+                        ) : (
+                            <span className="text-[var(--snaps-text-secondary)]">{AVISO_DO_OVERRIDE}</span>
+                        ))}
+                    </div>
+                </div>
             )}
             {atual && !recusaDoNo && typeof registroDoMotor.info === 'string' && (
                 <p className="rounded-xl border border-[var(--snaps-accent-blue)]/30 bg-[var(--snaps-accent-blue)]/10 px-3 py-2 text-xs whitespace-pre-wrap text-[var(--snaps-accent-blue)]">

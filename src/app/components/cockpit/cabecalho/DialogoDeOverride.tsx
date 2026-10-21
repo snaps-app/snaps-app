@@ -3,9 +3,12 @@
  *
  * O override humano sempre prevalece (requisito do PO): o diálogo abre em
  * qualquer nó atual, com ou sem gate pendente, e oferece TODA condição da fase
- * mais as que a última recusa do motor nomeou. Vêm marcadas as que a tela sabe
- * que faltam e as recusadas. Quem pode abrir é só admin (`useAcoesDoNo`); a API
- * confere de novo.
+ * mais as que a última recusa do motor nomeou, inclusive as estruturais. Vêm
+ * marcadas as que a tela sabe que faltam e as recusadas, e a recusa aparece
+ * escrita. Quem pode abrir é o dono da execução ou admin, como a API disser
+ * (`pode_override`, ADR-0072); a API confere de novo.
+ *
+ * A API exige ao menos uma condição nomeada: sem nenhuma marcada, não aplica.
  */
 import { useId, useState } from 'react';
 import { rotuloDoGate, type GateDoNo } from './gatesDoNo';
@@ -15,13 +18,15 @@ export interface DialogoDeOverrideProps {
     gates: readonly GateDoNo[];
     /** Condições que a última recusa do motor disse que o humano pode dispensar. */
     recusadas: readonly string[];
+    /** O texto da última recusa do motor, quando houver. */
+    recusa?: string | null;
     aplicando: boolean;
     erro: string | null;
     onAplicar: (condicoes: string[], motivo: string) => void;
     onCancelar: () => void;
 }
 
-export function DialogoDeOverride({ fase, gates, recusadas, aplicando, erro, onAplicar, onCancelar }: DialogoDeOverrideProps) {
+export function DialogoDeOverride({ fase, gates, recusadas, recusa = null, aplicando, erro, onAplicar, onCancelar }: DialogoDeOverrideProps) {
     const titulo = useId();
     const todas = [...new Set([...gates.map((g) => g.chave), ...recusadas])];
     const [marcadas, setMarcadas] = useState<Set<string>>(
@@ -45,10 +50,19 @@ export function DialogoDeOverride({ fase, gates, recusadas, aplicando, erro, onA
             >
                 <h2 id={titulo} className="text-lg font-bold text-[var(--snaps-text-primary)]">Override do gate · {fase}</h2>
 
+                {recusa && (
+                    <section aria-label="Recusa do motor" className="flex flex-col gap-1.5">
+                        <p className="text-xs font-bold uppercase tracking-wider text-[var(--snaps-text-secondary)]">O motor recusou</p>
+                        <p className="max-h-32 overflow-y-auto rounded-xl border border-[var(--snaps-error)]/30 bg-[var(--snaps-error)]/10 px-3 py-2 text-xs whitespace-pre-wrap text-[var(--snaps-error)]">
+                            {recusa}
+                        </p>
+                    </section>
+                )}
+
                 <p className="text-xs font-bold uppercase tracking-wider text-[var(--snaps-text-secondary)]">Condições ignoradas</p>
                 {todas.length === 0 ? (
                     <p className="text-sm text-[var(--snaps-text-secondary)]">
-                        Esta fase não declara condição. O override avança sem dispensar nenhuma.
+                        Esta fase não declara condição e o motor não recusou nenhuma: não há o que dispensar. Use Avançar.
                     </p>
                 ) : (
                     <ul className="space-y-1.5">
@@ -81,9 +95,12 @@ export function DialogoDeOverride({ fase, gates, recusadas, aplicando, erro, onA
                     />
                 </label>
                 <p className="text-xs leading-relaxed text-[var(--snaps-text-secondary)]">
-                    Impacto: o avanço acontece sem as condições marcadas. Fica registrado no History com você, o motivo e as
-                    condições. Exige papel admin.
+                    Impacto: o avanço acontece sem as condições marcadas. Fica registrado no History com você, o motivo, as
+                    condições e a base (dono da execução ou admin do projeto).
                 </p>
+                {todas.length > 0 && marcadas.size === 0 && (
+                    <p className="text-xs text-[var(--snaps-accent-yellow)]">Marque ao menos uma condição para dispensar.</p>
+                )}
                 {erro && <p role="alert" className="text-xs text-[var(--snaps-error)] whitespace-pre-wrap">{erro}</p>}
 
                 <div className="flex justify-end gap-2">
@@ -93,7 +110,7 @@ export function DialogoDeOverride({ fase, gates, recusadas, aplicando, erro, onA
                     </button>
                     <button
                         type="button"
-                        disabled={!motivo.trim() || aplicando}
+                        disabled={!motivo.trim() || marcadas.size === 0 || aplicando}
                         onClick={() => onAplicar(todas.filter((c) => marcadas.has(c)), motivo.trim())}
                         className="h-8 rounded-lg border border-[var(--snaps-accent-purple)] bg-[var(--snaps-accent-purple)]/30 px-3.5 text-sm font-bold text-[var(--snaps-text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
                     >

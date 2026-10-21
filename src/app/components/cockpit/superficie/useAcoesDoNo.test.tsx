@@ -32,13 +32,13 @@ import { acoesPermitidas, useAcoesDoNo } from './useAcoesDoNo';
 
 const NO = { id: 'no', lock_version: 3, root_id: 'raiz' };
 
-function montar() {
+function montar(opcoes: { podeOverride?: boolean } = {}) {
     const cliente = novoClienteDeTeste();
     const invalidar = vi.spyOn(cliente, 'invalidateQueries');
     const wrapper = ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={cliente}>{children}</QueryClientProvider>
     );
-    const { result } = renderHook(() => useAcoesDoNo(NO), { wrapper });
+    const { result } = renderHook(() => useAcoesDoNo(NO, opcoes), { wrapper });
     const chavesInvalidadas = () => invalidar.mock.calls.map(([f]) => f?.queryKey);
     return { result, chavesInvalidadas };
 }
@@ -67,6 +67,25 @@ describe('useAcoesDoNo — papel', () => {
         const { result } = montar();
         expect(result.current.pode('rollback') && result.current.pode('override')).toBe(true);
         expect(result.current.ehAdmin).toBe(true);
+    });
+
+    it('override segue o pode_override da API (ADR-0072): dono member pode, admin que a API recusa não', () => {
+        const dono = montar({ podeOverride: true });
+        expect(dono.result.current.pode('override')).toBe(true);
+        expect(dono.result.current.pode('rollback')).toBe(false);
+        expect(dono.result.current.ehAdmin).toBe(false);
+
+        papel.role = 'admin';
+        const recusado = montar({ podeOverride: false });
+        expect(recusado.result.current.pode('override')).toBe(false);
+        expect(recusado.result.current.pode('rollback')).toBe(true);
+        expect(recusado.result.current.ehAdmin).toBe(true);
+    });
+
+    it('viewer não faz override nem com pode_override', () => {
+        papel.role = 'viewer';
+        expect(montar({ podeOverride: true }).result.current.pode('override')).toBe(false);
+        expect(acoesPermitidas('viewer', false, true).size).toBe(0);
     });
 
     it('a ação recusada pelo papel não chama o serviço', async () => {
@@ -119,6 +138,22 @@ describe('useAcoesDoNo — as mesmas funções de serviço do Cockpit atual', ()
         expect(syncAgentExecution).toHaveBeenCalledWith('no', 'foco', undefined, undefined, undefined, 3);
         await act(() => result.current.acoes.marcarEntradaExecutada());
         expect(updateAgentExecutionStatus).toHaveBeenCalledWith('no', 'in_progress', 3);
+    });
+
+    it('salvar contexto e seleção de test plans invalida também a raiz e o snapshot (o sync muda a revisão que a árvore carrega)', async () => {
+        const { result, chavesInvalidadas } = montar();
+        await act(() => result.current.acoes.salvarContexto({ missionContext: 'foco' }));
+        expect(chavesInvalidadas()).toEqual([
+            ['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'contexto'], ['execucao', 'no', 'aba', 'prompt'],
+            ['raiz', 'raiz'], ['execucao', 'no', 'snapshot'],
+        ]);
+        const segundo = montar();
+        await act(() => segundo.result.current.acoes.salvarSelecaoDeTestPlans(['tp-1']));
+        expect(syncAgentExecution).toHaveBeenLastCalledWith('no', undefined, undefined, undefined, ['tp-1'], 3);
+        expect(segundo.chavesInvalidadas()).toEqual([
+            ['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'testplans'], ['execucao', 'no', 'aba', 'contexto'],
+            ['raiz', 'raiz'], ['execucao', 'no', 'snapshot'],
+        ]);
     });
 
     it('override num ponto só: decisão com motivo e avanço com ela; motivo vazio é recusado', async () => {

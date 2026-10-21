@@ -86,6 +86,7 @@ export function resumoPadrao(extra: Partial<ResumoDoNo> = {}): ResumoDoNo {
             chamadas: 81, falhas: 0, recusas: 0, tempo_total_ms: 876_000,
             ultima_atividade_em: new Date(Date.now() - 3 * 60_000).toISOString(), diagnostico_expirado: false,
         },
+        sessoes: { encerradas_segundos: 3_600, ativas_desde: [] },
         ...extra,
     };
 }
@@ -108,9 +109,23 @@ export interface EstadoDaApiFalsa {
     cards: Record<string, Card>;
     /** O que o `PATCH /advance` devolve (o nó criado). */
     aoAvancar?: (id: string) => Partial<AgentTaskExecution>;
+    /** A recusa do `PATCH /advance`, como a API manda em `response.data.detail`. */
+    recusaDoAvanco?: { status: number; detail: string };
+    /** O `pode_override` do `/resumo` (ADR-0072): a API decide; o resumo explícito vence. */
+    podeOverride: boolean;
+    /** `GET /agent-executions/{id}/sessions`: as sessões de tempo da árvore. */
+    sessoes: Record<string, unknown>[];
 }
 
-export const estadoDaApi: EstadoDaApiFalsa = { arvores: {}, resumos: {}, cards: {} };
+export const estadoDaApi: EstadoDaApiFalsa = { arvores: {}, resumos: {}, cards: {}, podeOverride: true, sessoes: [] };
+
+/** ETag da árvore como a API calcula: muda com qualquer campo. */
+export const etagDe = (arvore: unknown) => `"${JSON.stringify(arvore).length}-${hash(JSON.stringify(arvore))}"`;
+function hash(texto: string): number {
+    let h = 0;
+    for (let i = 0; i < texto.length; i += 1) h = (h * 31 + texto.charCodeAt(i)) | 0;
+    return h >>> 0;
+}
 
 function noPorId(id: string): NoDaArvore | undefined {
     for (const arvore of Object.values(estadoDaApi.arvores)) {
@@ -135,7 +150,9 @@ function responderGet(url: string, config?: { params?: Record<string, unknown> }
     if (url === '/workflow-templates/phase-directives') {
         return { directives: [], retired: [], terminal_statuses: TERMINAIS, discarded_statuses: DESCARTADOS };
     }
-    if ((m = url.match(/^\/api\/agent-executions\/([^/]+)\/resumo$/))) return estadoDaApi.resumos[m[1]] ?? resumoPadrao();
+    if ((m = url.match(/^\/api\/agent-executions\/([^/]+)\/resumo$/))) {
+        return { pode_override: estadoDaApi.podeOverride, ...(estadoDaApi.resumos[m[1]] ?? resumoPadrao()) };
+    }
     if ((m = url.match(/^\/api\/agent-executions\/([^/]+)\/node-snapshot$/))) {
         const n = noPorId(m[1]);
         return n ? snapshotDe(n) : undefined;
@@ -156,16 +173,45 @@ function responderGet(url: string, config?: { params?: Record<string, unknown> }
         return n && { ...n, project_id: PROJETO, root_id: RAIZ, sprint_ids: [SPRINT], advance_conditions: {}, context_data: { plans: [], prs: [] } };
     }
     if ((m = url.match(/^\/cards\/(.+)$/))) return estadoDaApi.cards[m[1]];
+    if (/^\/agent-executions\/[^/]+\/sessions$/.test(url)) return estadoDaApi.sessoes;
     return [];
 }
 
+type ConfigFalsa = { params?: Record<string, unknown>; headers?: Record<string, string> };
+
+/** Cada resposta do `/arvore`, na ordem: a raiz, o status e se veio com `If-None-Match`. */
+export const respostasDaArvore: { rootId: string; status: 200 | 304; condicional: boolean }[] = [];
+
+/** O `/arvore` responde com ETag, e 304 sem corpo quando `If-None-Match` casa (ADR-0071, 5b). */
+function responderArvore(rootId: string, config?: ConfigFalsa) {
+    const arvore = estadoDaApi.arvores[rootId];
+    const etag = etagDe(arvore);
+    const condicional = Boolean(config?.headers?.['If-None-Match']);
+    if (config?.headers?.['If-None-Match'] === etag) {
+        respostasDaArvore.push({ rootId, status: 304, condicional });
+        return { data: '', status: 304, headers: { etag } };
+    }
+    respostasDaArvore.push({ rootId, status: 200, condicional });
+    return { data: arvore, status: 200, headers: { etag } };
+}
+
 export const apiFalsa = {
-    get: vi.fn(async (url: string, config?: { params?: Record<string, unknown> }) => ({ data: responderGet(url, config) })),
-    post: vi.fn(async (url: string) => ({
-        data: url.endsWith('/sessions/start') ? { session_id: 's-1', started_at: new Date().toISOString() } : {},
+    get: vi.fn(async (url: string, config?: ConfigFalsa) => {
+        const arvore = url.match(/^\/api\/agent-executions\/([^/]+)\/arvore$/);
+        if (arvore) return responderArvore(arvore[1], config);
+        return { data: responderGet(url, config) };
+    }),
+    post: vi.fn(async (url: string, corpo?: { conditions?: string[] }) => ({
+        data: url.endsWith('/sessions/start') ? { session_id: 's-1', started_at: new Date().toISOString() }
+            : url.endsWith('/override-decisions') ? { decision_id: 'd-1', execution_revision: 3, conditions: corpo?.conditions ?? [] }
+                : {},
     })),
-    patch: vi.fn(async (url: string) => {
+    patch: vi.fn(async (url: string, corpo?: { force?: boolean }) => {
         const m = url.match(/^\/api\/agent-executions\/([^/]+)\/advance$/);
+        if (m && estadoDaApi.recusaDoAvanco && !corpo?.force) {
+            const { status, detail } = estadoDaApi.recusaDoAvanco;
+            throw Object.assign(new Error(`Request failed with status code ${status}`), { response: { status, data: { detail } } });
+        }
         if (m) return { data: { ...noPorId(m[1]), root_id: RAIZ, ...estadoDaApi.aoAvancar?.(m[1]) } };
         return { data: {} };
     }),
@@ -225,6 +271,10 @@ export function reiniciarCockpitFalso() {
     estadoDaApi.resumos = {};
     estadoDaApi.cards = { [CARD_1]: card(CARD_1, 'in_progress'), [CARD_2]: card(CARD_2, 'assurance') };
     estadoDaApi.aoAvancar = undefined;
+    estadoDaApi.recusaDoAvanco = undefined;
+    estadoDaApi.podeOverride = true;
+    estadoDaApi.sessoes = [];
+    respostasDaArvore.length = 0;
     for (const fn of Object.values(apiFalsa)) fn.mockClear();
     streamFalso.conexoes = [];
     streamFalso.replay = {};

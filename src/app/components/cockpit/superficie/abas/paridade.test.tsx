@@ -18,6 +18,17 @@ vi.mock('@/services/agentExecutions', () => ({ getAgentExecution: vi.fn() }));
 vi.mock('@/services/governance', () => ({ getGovernanceDocs: vi.fn(), updateGovernanceDoc: vi.fn(), getAgents: vi.fn() }));
 vi.mock('@/services/decisions', () => ({ getDecisions: vi.fn(async () => []) }));
 vi.mock('@/services/snaps', () => ({ getSnaps: vi.fn(), deleteSnap: vi.fn(), createSnap: vi.fn(), updateSnap: vi.fn() }));
+vi.mock('@/services/testPlans', () => ({ getTestPlans: vi.fn(async () => []), getExecutionTroubleReport: vi.fn(async () => null) }));
+vi.mock('@/app/components/execution/trouble-panel', () => ({
+    TroublePanel: ({ selectedTestPlanIds, onSaveTestPlanContext }: {
+        selectedTestPlanIds: string[]; onSaveTestPlanContext?: (ids: string[]) => Promise<void>;
+    }) => (
+        <div>
+            <p data-testid="selecionados">{selectedTestPlanIds.join(',')}</p>
+            <button type="button" onClick={() => onSaveTestPlanContext?.([...selectedTestPlanIds, 'tp-9'])}>Salvar seleção</button>
+        </div>
+    ),
+}));
 vi.mock('@/services/contextSelection', async (original) => ({
     ...(await original<typeof import('@/services/contextSelection')>()),
     getExecutionContextSelection: vi.fn(async () => ({
@@ -34,6 +45,7 @@ import { deleteSnap, getSnaps } from '@/services/snaps';
 import { AbaCards } from './AbasDeCards';
 import { AbaContexto } from './AbasDeContexto';
 import AbaScratch from './AbaScratch';
+import AbaTestPlans from './AbaTestPlans';
 
 const NO = {
     id: 'no-1', project_id: 'p', root_id: 'raiz', status: 'in_progress', phase: 'execution', sprint_ids: ['s'],
@@ -42,7 +54,10 @@ const NO = {
 
 function acoesFalsas(): AcoesDoNo {
     return {
-        acoes: { salvarContexto: vi.fn(async () => NO) } as unknown as AcoesDoNo['acoes'],
+        acoes: {
+            salvarContexto: vi.fn(async () => NO),
+            salvarSelecaoDeTestPlans: vi.fn(async () => NO),
+        } as unknown as AcoesDoNo['acoes'],
         copiarPrompt: vi.fn(),
         pode: () => true,
         podeAgir: true,
@@ -80,6 +95,17 @@ describe('paridade com o Cockpit antigo', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Done' }));
 
         await waitFor(() => expect(acoes.acoes.salvarContexto).toHaveBeenCalledWith({ docIds: ['d0', 'd1'], decisionIds: [] }));
+    });
+
+    it('Test plans: a seleção salva vem do nó (a árvore leve não traz context_data), e salvar parte dela', async () => {
+        vi.mocked(getAgentExecution).mockResolvedValue({ ...NO, context_data: { selected_test_plan_ids: ['tp-1', 'tp-2'] } } as AgentTaskExecution);
+        const acoes = acoesFalsas();
+        renderComConsulta(<AbaTestPlans {...props(acoes)} />);
+
+        expect(await screen.findByTestId('selecionados')).toHaveTextContent('tp-1,tp-2');
+        expect(getAgentExecution).toHaveBeenCalledWith('no-1');
+        fireEvent.click(screen.getByRole('button', { name: 'Salvar seleção' }));
+        expect(acoes.acoes.salvarSelecaoDeTestPlans).toHaveBeenCalledWith(['tp-1', 'tp-2', 'tp-9']);
     });
 
     it('Scratch: excluir uma nota pede confirmação e apaga', async () => {

@@ -167,7 +167,7 @@ describe('metas de desempenho (ADR-0071)', () => {
         expect(getsFeitos().slice(antes)).toEqual([`/api/agent-executions/${EXEC_TP1}/resumo`]);
     });
 
-    it('trava: refetchInterval em components/cockpit/** só no indicador de última chamada', () => {
+    it('trava: refetchInterval em components/cockpit/** só nas duas exceções nomeadas da ADR-0071 (5a e 5b)', () => {
         const raiz = dirname(fileURLToPath(import.meta.url));
         const todos = (dir: string): string[] => readdirSync(dir).flatMap((nome) => {
             const caminho = join(dir, nome);
@@ -177,6 +177,7 @@ describe('metas de desempenho (ADR-0071)', () => {
             .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.(ts|tsx)$/.test(f))
             .filter((f) => /refetchInterval/.test(readFileSync(f, 'utf-8')))
             .map((f) => relative(raiz, f).replace(/\\/g, '/'));
-        expect(comRelogio).toEqual(['cabecalho/UltimaChamadaAoSnaps.tsx']);
+        // 5a: indicador "última chamada ao Snaps"; 5b: checagem de novidades da árvore (emenda de 21/10/2026).
+        expect(comRelogio.sort()).toEqual(['cabecalho/UltimaChamadaAoSnaps.tsx', 'novidades/useNovidadesDasRaizes.ts']);
     });
 });

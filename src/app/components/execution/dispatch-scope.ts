@@ -6,13 +6,19 @@
  * ao override humano, entao toda recusa precisa virar algo clicavel aqui.
  */
 
-const MARCADOR = 'Human override available (project admin, with reason; agents cannot):';
+/**
+ * A linha comeca sempre com "Human override available"; o parenteses diz quem
+ * pode, e mudou com a ADR-0072 ("execution owner or project admin"). Le pelo
+ * comeco, para valer com a API de antes e a de agora, e com a recusa antiga
+ * que ficou gravada em `advance_conditions.error`.
+ */
+const MARCADOR = /^Human override available[^:]*:/;
 
 export const parseOverridableConditions = (detail?: string | null): string[] => {
     if (!detail || typeof detail !== 'string') return [];
-    const linha = detail.split('\n').reverse().find(l => l.startsWith(MARCADOR));
+    const linha = detail.split('\n').reverse().find(l => MARCADOR.test(l));
     if (!linha) return [];
-    return linha.slice(MARCADOR.length).split(',').map(s => s.trim()).filter(Boolean);
+    return linha.replace(MARCADOR, '').split(',').map(s => s.trim()).filter(Boolean);
 };
 
 /** Recusas que nao sao condicao do template, com o texto para o humano. */

@@ -17,10 +17,10 @@ const GATES: GateDoNo[] = [
     { chave: 'ci_passed', rotulo: 'CI verde', estado: 'motor' },
 ];
 
-function montar(recusadas: string[] = []) {
+function montar(recusadas: string[] = [], { gates = GATES, recusa = null }: { gates?: GateDoNo[]; recusa?: string | null } = {}) {
     const onAplicar = vi.fn();
     render(
-        <DialogoDeOverride fase="micro_planning" gates={GATES} recusadas={recusadas} aplicando={false} erro={null}
+        <DialogoDeOverride fase="micro_planning" gates={gates} recusadas={recusadas} recusa={recusa} aplicando={false} erro={null}
             onAplicar={onAplicar} onCancelar={vi.fn()} />,
     );
     return { onAplicar };
@@ -45,6 +45,28 @@ describe('DialogoDeOverride', () => {
         expect(onAplicar).toHaveBeenCalledWith(
             ['tactical_plans_approved', 'plan_approved', 'single_execution_multiple_plans'], 'decisão do PO',
         );
+    });
+
+    it('a recusa do motor aparece escrita no diálogo', () => {
+        montar(['required_env'], { recusa: 'Cannot advance phase. Requirements not met:\n- Missing env DATABASE_URL' });
+        expect(screen.getByRole('region', { name: 'Recusa do motor' })).toHaveTextContent('Missing env DATABASE_URL');
+        expect(screen.getByRole('checkbox', { name: /required_env/ })).toBeChecked();
+    });
+
+    it('sem condição marcada não aplica: a API exige ao menos uma', () => {
+        const { onAplicar } = montar([], { gates: GATES.map((g) => ({ ...g, estado: 'ok' as const })) });
+        fireEvent.change(screen.getByRole('textbox', { name: 'Motivo do override' }), { target: { value: 'decisão do PO' } });
+        expect(screen.getByRole('button', { name: 'Aplicar override' })).toBeDisabled();
+        expect(screen.getByText('Marque ao menos uma condição para dispensar.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('checkbox', { name: /CI verde/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Aplicar override' }));
+        expect(onAplicar).toHaveBeenCalledWith(['ci_passed'], 'decisão do PO');
+    });
+
+    it('fase sem condição e sem recusa: nada a dispensar, use Avançar', () => {
+        montar([], { gates: [] });
+        expect(screen.getByText(/não há o que dispensar\. Use Avançar\./)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Aplicar override' })).toBeDisabled();
     });
 
     it('sem motivo não aplica', () => {

@@ -17,6 +17,9 @@ interface SessionManagerModalProps {
     onChanged?: () => void;
     // Abre o apontamento parcial de horas (as sessões apontadas ficam travadas).
     onLogHours?: () => void;
+    // Só leitura (viewer no Cockpit novo, TP-4 da 24.0): a lista, sem criar,
+    // editar, reatribuir, excluir nem apontar horas.
+    somenteLeitura?: boolean;
 }
 
 function pad(n: number): string {
@@ -44,7 +47,7 @@ function fmtDuration(hours: number): string {
 const inputCls =
     'bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]';
 
-export function SessionManagerModal({ executionId, projectId, onClose, onChanged, onLogHours }: SessionManagerModalProps) {
+export function SessionManagerModal({ executionId, projectId, onClose, onChanged, onLogHours, somenteLeitura = false }: SessionManagerModalProps) {
     const [sessions, setSessions] = useState<ExecutionSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -73,6 +76,7 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
 
     // Load members + resolve whether the current user may reassign (owner/admin).
     useEffect(() => {
+        if (somenteLeitura) return undefined;
         let active = true;
         (async () => {
             try {
@@ -90,7 +94,7 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
             }
         })();
         return () => { active = false; };
-    }, [projectId]);
+    }, [projectId, somenteLeitura]);
 
     const handleReassign = async (session: ExecutionSession, userId: string) => {
         if (!userId || userId === session.user_id) return;
@@ -172,7 +176,7 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                 <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
                     <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-purple-400" />
-                        <h3 className="text-white font-semibold text-sm">Gerenciar sessões</h3>
+                        <h3 className="text-white font-semibold text-sm">{somenteLeitura ? 'Sessões' : 'Gerenciar sessões'}</h3>
                         <span className="text-white/30 text-xs">Total: {fmtDuration(totalHours)}</span>
                     </div>
                     <button onClick={onClose} className="text-white/30 hover:text-white/60 transition-colors">
@@ -190,12 +194,14 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                             <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
                         </div>
                     ) : sessions.length === 0 ? (
-                        <p className="text-white/30 text-sm italic py-4">Nenhuma sessão registrada ainda. Crie uma abaixo.</p>
+                        <p className="text-white/30 text-sm italic py-4">
+                            {somenteLeitura ? 'Nenhuma sessão registrada ainda.' : 'Nenhuma sessão registrada ainda. Crie uma abaixo.'}
+                        </p>
                     ) : (
                         <div className="space-y-2">
                             {sessions.map((s) => {
                                 const active = !s.ended_at;
-                                const locked = !!s.locked;
+                                const locked = !!s.locked || somenteLeitura;
                                 return (
                                     <div key={s.id} className={`flex items-center gap-3 flex-wrap bg-white/[0.02] border border-white/5 rounded-lg px-3 py-2 ${locked ? 'opacity-70' : ''}`}>
                                         {canReassign && !locked ? (
@@ -239,7 +245,7 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                                         <span className={`text-xs font-mono ml-auto ${active ? 'text-amber-300' : 'text-purple-300'}`}>
                                             {active ? 'em andamento' : fmtDuration(s.duration_hours)}
                                         </span>
-                                        {locked ? (
+                                        {somenteLeitura ? null : locked ? (
                                             <span
                                                 className="p-1.5 text-white/40"
                                                 title="Sessão já apontada em um time log. Apague o apontamento (aba Time) para liberá-la."
@@ -263,6 +269,7 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                     )}
 
                     {/* Create new session */}
+                    {!somenteLeitura && (
                     <div className="border-t border-white/5 pt-4">
                         <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-2">Nova sessão manual</p>
                         <div className="flex items-end gap-3 flex-wrap">
@@ -294,10 +301,11 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                             </button>
                         </div>
                     </div>
+                    )}
                 </div>
 
                 <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-white/5">
-                    {onLogHours && (
+                    {onLogHours && !somenteLeitura && (
                         <button
                             onClick={onLogHours}
                             className="flex items-center gap-1.5 text-sm font-medium text-purple-300 hover:text-purple-200 px-4 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 transition-colors"
