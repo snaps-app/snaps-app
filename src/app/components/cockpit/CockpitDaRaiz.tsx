@@ -102,7 +102,10 @@ export function CockpitDaRaiz({ raiz, no, aba, layout, onMudarLayout }: CockpitD
     const status = useStatusDaApi();
 
     const nos = arvore.data?.nos ?? [];
-    const noDaArvore = escolherNo(nos, no, raiz.atualId, rootId);
+    // Nó recém-criado (avanço, rollback): a URL já aponta para ele e a árvore
+    // ainda está voltando. Espera a árvore em vez de mostrar outro nó no meio.
+    const esperandoONo = !!no && !nos.some((n) => n.id === no) && arvore.isFetching;
+    const noDaArvore = esperandoONo ? null : escolherNo(nos, no, raiz.atualId, rootId);
     const noId = noDaArvore?.id ?? null;
     const workflow = workflowDoNo(arvore.data, noDaArvore);
     const terminal = !!noDaArvore && !!status.data?.terminais.includes(noDaArvore.status);
@@ -197,7 +200,7 @@ export function CockpitDaRaiz({ raiz, no, aba, layout, onMudarLayout }: CockpitD
                     <p role="alert" className="text-sm text-[var(--snaps-error)]">Não foi possível carregar a árvore desta raiz.</p>
                 ) : (
                     <p role="status" className="text-sm text-[var(--snaps-text-secondary)]">
-                        {arvore.data ? 'Esta raiz não tem nós.' : 'Carregando a árvore…'}
+                        {arvore.data && !esperandoONo ? 'Esta raiz não tem nós.' : 'Carregando a árvore…'}
                     </p>
                 )}
             </div>
