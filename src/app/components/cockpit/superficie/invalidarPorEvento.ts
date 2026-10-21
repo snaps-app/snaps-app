@@ -39,6 +39,10 @@ export function chavesDoEvento(evento: EventoDoNo, contexto: ContextoDoEvento): 
     if (!id) return [];
     const aba = abaDoEvento(evento);
     const lista: QueryKey[] = [chaves.resumo(id)];
+    // `execution_updated` não tem aba, mas muda a revisão do nó (`lock_version`),
+    // que a árvore leve carrega e as ações enviam: sem isso, avançar depois de
+    // um sync do agente daria 409 por revisão velha (TP-4).
+    if (evento.name === 'execution_updated') lista.push(chaves.arvore(contexto.rootId), chaves.snapshot(id));
     if (!aba) return lista;
 
     lista.push(chaves.aba(id, aba));

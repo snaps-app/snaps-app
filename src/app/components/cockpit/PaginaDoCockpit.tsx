@@ -11,16 +11,37 @@ import {
     type AbasDoCockpit,
     type EstadoDaAba,
 } from '@/services/cockpitAbas';
-import { rotuloDaRaiz, type ResumoDaRaiz } from '@/services/raizesDoCockpit';
+import { type ResumoDaRaiz } from '@/services/raizesDoCockpit';
+import { gravarLayout, layoutPadrao, lerLayout, type LayoutDoCockpit } from '@/services/cockpitLayout';
 import { AbaDeRaiz } from './navegacao/AbaDeRaiz';
 import { BarraDeRaizes, useRaizDaAba } from './navegacao/BarraDeRaizes';
 import { EstadoDaAbaProvider } from './navegacao/EstadoDaAbaContexto';
 import { SeletorDeRaiz } from './navegacao/SeletorDeRaiz';
 import { useIdDoUsuario } from './navegacao/useIdDoUsuario';
+import { ControlesDePaineis } from './layout/ControlesDePaineis';
+import { CockpitDaRaiz } from './CockpitDaRaiz';
 
 export const AVISO_SEM_ACESSO = 'Raiz sem acesso ou inexistente.';
 
 const rotaDaAba = (aba: EstadoDaAba) => rotaDoNo({ id: aba.no ?? aba.rootId, root_id: aba.rootId }, aba.aba);
+
+const larguraDaJanela = () => (typeof window === 'undefined' ? undefined : window.innerWidth);
+
+/**
+ * O layout dos painéis do usuário (P14): por usuário, e não por aba de raiz.
+ * Abaixo de `lg` abre com os laterais recolhidos (`lerLayout`).
+ */
+function useLayoutDoUsuario(userId: string | null | undefined) {
+    const [layout, setLayout] = useState<LayoutDoCockpit>(() => layoutPadrao(larguraDaJanela()));
+    useEffect(() => {
+        if (userId) setLayout(lerLayout(userId, larguraDaJanela()));
+    }, [userId]);
+    const mudar = useCallback((novo: LayoutDoCockpit) => {
+        setLayout(novo);
+        if (userId) gravarLayout(userId, novo);
+    }, [userId]);
+    return { layout, mudar };
+}
 
 /** As abas do usuário, carregadas do storage só depois de saber quem ele é. */
 function useAbasDoUsuario(userId: string | null | undefined) {
@@ -61,6 +82,7 @@ export function PaginaDoCockpit() {
     const navigate = useNavigate();
     const userId = useIdDoUsuario();
     const { estado, mudar } = useAbasDoUsuario(userId);
+    const { layout, mudar: mudarLayout } = useLayoutDoUsuario(userId);
     const [aviso, setAviso] = useState<string | null>(null);
     const raizValida = eIdDeExecucao(raizDaRota) ? raizDaRota : null;
 
@@ -144,6 +166,7 @@ export function PaginaDoCockpit() {
                 onFechar={fechar}
                 onInexistente={inexistente}
                 seletor={<SeletorDeRaiz abertas={abertas} onEscolher={escolher} />}
+                direita={raizValida ? <ControlesDePaineis layout={layout} onMudarLayout={mudarLayout} /> : null}
             />
             {aviso && (
                 <div
@@ -162,7 +185,15 @@ export function PaginaDoCockpit() {
                     <SemAcesso />
                 ) : raizValida ? (
                     <EstadoDaAbaProvider value={contexto}>
-                        <ConteudoDaRaiz key={raizValida} rootId={raizValida} no={no} aba={aba} onRaizDiferente={raizDiferente} />
+                        <ConteudoDaRaiz
+                            key={raizValida}
+                            rootId={raizValida}
+                            no={no}
+                            aba={aba}
+                            layout={layout}
+                            onMudarLayout={mudarLayout}
+                            onRaizDiferente={raizDiferente}
+                        />
                     </EstadoDaAbaProvider>
                 ) : (
                     <SemRaizAberta />
@@ -189,19 +220,23 @@ function SemRaizAberta() {
 }
 
 /**
- * Conteúdo da aba ativa. A estrutura de painéis (History, Superfície, Conversa)
- * é do TP-4; aqui ficam o papel por projeto e o tratamento de raiz inexistente,
- * que valem para tudo que for montado dentro.
+ * Conteúdo da aba ativa: o papel por projeto e o tratamento de raiz
+ * inexistente, que valem para tudo que for montado dentro, e o Cockpit da raiz
+ * (cabeçalho, History, Superfície e Conversa; TP-4).
  */
 function ConteudoDaRaiz({
     rootId,
     no,
     aba,
+    layout,
+    onMudarLayout,
     onRaizDiferente,
 }: {
     rootId: string;
     no: string | null;
     aba: string | null;
+    layout: LayoutDoCockpit;
+    onMudarLayout: (layout: LayoutDoCockpit) => void;
     onRaizDiferente: (pedido: string, raiz: ResumoDaRaiz) => void;
 }) {
     const { data: raiz, isPending, isError } = useRaizDaAba(rootId);
@@ -222,16 +257,7 @@ function ConteudoDaRaiz({
 
     return (
         <AbaDeRaiz projectId={raiz.projectId}>
-            <section aria-label={`Raiz ${rotuloDaRaiz(raiz)}`} className="flex flex-col gap-1 p-6">
-                <h1 className="text-lg font-bold" style={{ color: 'var(--snaps-text-primary)' }}>
-                    {rotuloDaRaiz(raiz)}
-                </h1>
-                <p className="font-mono text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
-                    {[raiz.workflowName, raiz.fase, raiz.status, `nó ${(no ?? raiz.atualId).slice(0, 8)}`, aba]
-                        .filter(Boolean)
-                        .join(' · ')}
-                </p>
-            </section>
+            <CockpitDaRaiz raiz={raiz} no={no} aba={aba} layout={layout} onMudarLayout={onMudarLayout} />
         </AbaDeRaiz>
     );
 }

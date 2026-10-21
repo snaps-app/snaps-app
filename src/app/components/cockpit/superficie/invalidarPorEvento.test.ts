@@ -19,6 +19,7 @@ describe('invalidarPorEvento', () => {
         ['phase_rolled_back', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
         ['execution_status_changed', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
         ['evento_desconhecido', [['execucao', 'no', 'resumo']]],
+        ['execution_updated', [['execucao', 'no', 'resumo'], ['raiz', 'raiz', 'arvore'], ['execucao', 'no', 'snapshot']]],
     ])('%s invalida exatamente as chaves esperadas', (nome, esperadas) => {
         expect(chavesDoEvento(ev(nome), ctx)).toEqual(esperadas);
     });

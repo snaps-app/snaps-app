@@ -15,6 +15,10 @@ const TODAS: Array<[string, () => readonly unknown[]]> = [
     ['buscaDeRaizes', () => chaves.buscaDeRaizes('SNA-12')],
     ['rotuloDaRaiz', () => chaves.rotuloDaRaiz('r1')],
     ['detalhe', () => chaves.detalhe('e1')],
+    ['eventos', () => chaves.eventos('e1')],
+    ['cardsDaRaiz', () => chaves.cardsDaRaiz('r1', ['c2', 'c1'])],
+    ['apoioDoCard', () => chaves.apoioDoCard('p1')],
+    ['catalogoDeContexto', () => chaves.catalogoDeContexto('p1')],
 ];
 
 describe('chavesDeConsulta', () => {

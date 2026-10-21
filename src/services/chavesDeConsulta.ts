@@ -19,6 +19,12 @@ export const chavesDeConsulta = {
     arvore: (rootId: string) => ['raiz', rootId, 'arvore'] as const,
     /** Rótulo, projeto e status da raiz na barra de abas — e se ela existe para mim. */
     rotuloDaRaiz: (rootId: string) => ['raiz', rootId, 'rotulo'] as const,
+    /**
+     * Os cards da raiz (a união dos `card_ids` da árvore, ou os da sprint), uma
+     * vez por raiz: a faixa do cabeçalho e os gates filtram daqui o escopo de
+     * cada nó, sem uma chamada por nó (TP-4).
+     */
+    cardsDaRaiz: (rootId: string, ids: readonly string[]) => ['raiz', rootId, 'cards', [...ids].sort()] as const,
 
     /** Prefixo de tudo que pertence a um nó. */
     execucao: (id: string) => ['execucao', id] as const,
@@ -29,8 +35,19 @@ export const chavesDeConsulta = {
     aba: (id: string, aba: string) => ['execucao', id, 'aba', aba] as const,
     atividade: (id: string, filtros: FiltrosDeAtividade) => ['execucao', id, 'atividade', filtros] as const,
     prs: (id: string, repo: string, sha: string) => ['execucao', id, 'prs', repo, sha] as const,
+    /**
+     * Os eventos de um nó TERMINAL, depois do replay único do stream (P13).
+     * Voltar ao nó concluído mostra daqui, sem reabrir o stream. Fica no cache
+     * em memória, que o logout limpa (item 9), e nunca em disco.
+     */
+    eventos: (id: string) => ['execucao', id, 'eventos'] as const,
 
     diretivas: () => ['diretivas'] as const,
+
+    /** Épicos, sprints, colunas e repos do projeto, para editar um card pela aba Cards. Só ao abrir o card. */
+    apoioDoCard: (projectId: string) => ['projeto', projectId, 'apoio-do-card'] as const,
+    /** Docs e ADRs do projeto, para acrescentar ao contexto pela aba Contexto. Só ao abrir o seletor. */
+    catalogoDeContexto: (projectId: string) => ['projeto', projectId, 'catalogo-de-contexto'] as const,
 
     /**
      * Busca do seletor `+`, paginada no servidor. O termo é aparado: " SNA-12" e

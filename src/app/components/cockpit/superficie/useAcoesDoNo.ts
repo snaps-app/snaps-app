@@ -155,10 +155,11 @@ export function useAcoesDoNo(execution: NoDoHook | null) {
                 executar('registrarResultadoDeTestPlan', ['testplans'], false, () =>
                     updateTestPlan(testPlanId, { status: resultado })),
             salvarSelecaoDeTestPlans: (ids: string[]) =>
-                executar('salvarSelecaoDeTestPlans', ['testplans', 'contexto'], false, (no) =>
+                executar('salvarSelecaoDeTestPlans', ['testplans', 'contexto'], true, (no) =>
                     syncAgentExecution(no.id, undefined, undefined, undefined, ids, no.lock_version)),
+            // O sync muda a revisão do nó, que a árvore leve carrega: `mudaArvore`.
             salvarContexto: ({ missionContext, docIds, decisionIds }: ContextoParaSalvar) =>
-                executar('salvarContexto', ['contexto', 'prompt'], false, (no) =>
+                executar('salvarContexto', ['contexto', 'prompt'], true, (no) =>
                     syncAgentExecution(no.id, missionContext, docIds, decisionIds, undefined, no.lock_version)),
             /** F24: "marcar a entrada como executada" é a transição `pending → in_progress`. */
             marcarEntradaExecutada: () => executar('marcarEntradaExecutada', ['prompt'], true, (no) =>

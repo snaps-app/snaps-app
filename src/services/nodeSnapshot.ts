@@ -33,12 +33,21 @@ export const getNodeSnapshot = async (executionId: string): Promise<NodeSnapshot
     return response.data;
 };
 
-/** A árvore leve da raiz. Invalidada por `execution_created`, `phase_advanced` e `execution_status_changed`. */
+/**
+ * A árvore leve da raiz. Invalidada por `execution_created`, `phase_advanced` e
+ * `execution_status_changed` (`invalidarPorEvento`, prefixo `raiz(rootId)`) e
+ * pelas ações do nó (`useAcoesDoNo`).
+ *
+ * `staleTime: Infinity`: o frescor é por evento, não por relógio. Com o padrão
+ * de 30 s, trocar de aba de raiz e voltar buscaria a árvore de novo a cada vez;
+ * a meta da ADR-0071 é nenhuma chamada dentro do `gcTime` (10 min).
+ */
 export function useArvore(rootId: string | null | undefined) {
     return useQuery({
         queryKey: chavesDeConsulta.arvore(rootId ?? ''),
         queryFn: () => getArvore(rootId as string),
         enabled: Boolean(rootId),
+        staleTime: Infinity,
     });
 }
 

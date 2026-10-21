@@ -19,13 +19,20 @@ export const EVENTOS_QUE_REVALIDAM = new Set([
     'execution_tombstoned',
 ]);
 
-export type EstadoStream = 'conectando' | 'aberto' | 'reconectando' | 'recusado' | 'parado';
+export type EstadoStream = 'conectando' | 'aberto' | 'reconectando' | 'recusado' | 'parado' | 'encerrado';
 
 interface Opcoes {
     /** Desligue quando a execução já estiver encerrada (`estaEncerrada`, SNA-SUP-73). */
     ativo?: boolean;
+    /**
+     * `false`: uma conexão só. Para nó terminal (P13): o servidor entrega o
+     * replay e fecha, e a tela não reconecta em laço. Padrão `true`.
+     */
+    reconectar?: boolean;
     onEvento?: (evento: EventoDeExecucao) => void;
     onRevalidar?: () => void;
+    /** A conexão única (`reconectar: false`) terminou: o replay chegou inteiro. */
+    onEncerrado?: () => void;
     /** Injeção para testes. */
     conectar?: typeof conectarStreamDeExecucao;
     esperaInicialMs?: number;
@@ -81,6 +88,7 @@ export function useExecutionStream(executionId: string | undefined, opcoes: Opco
             while (!controle.signal.aborted) {
                 setEstado(primeira ? 'conectando' : 'reconectando');
                 primeira = false;
+                let terminouNormal = false;
                 try {
                     await conectar(executionId, {
                         lastEventId: ultimoIdRef.current,
@@ -89,6 +97,7 @@ export function useExecutionStream(executionId: string | undefined, opcoes: Opco
                         onRetry: (ms) => { espera = ms; setEstado('aberto'); },
                         fetchImpl: callbacks.current.fetchImpl,
                     });
+                    terminouNormal = true;
                 } catch (erro) {
                     if (controle.signal.aborted) return;
                     if (erro instanceof StreamRecusado && erro.status >= 400 && erro.status < 500) {
@@ -97,6 +106,13 @@ export function useExecutionStream(executionId: string | undefined, opcoes: Opco
                     }
                 }
                 if (controle.signal.aborted) return;
+                // Conexão única: o servidor fechou depois do replay. Falha de rede
+                // não conta: o replay não chegou, então tenta de novo.
+                if (terminouNormal && callbacks.current.reconectar === false) {
+                    setEstado('encerrado');
+                    callbacks.current.onEncerrado?.();
+                    return;
+                }
                 // Revalida ao voltar: o que mudou fora do catálogo de eventos também aparece.
                 callbacks.current.onRevalidar?.();
                 await dormir(espera);

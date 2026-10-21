@@ -1,12 +1,13 @@
 /**
  * Aba Scratch (P21): as notas do time na árvore inteira, editáveis em qualquer
  * nó, inclusive concluído. Abrir a aba não cria nada: a nota só nasce quando há
- * texto (`salvarScratch`). O agente não lê o scratch.
+ * texto (`salvarScratch`). O agente não lê o scratch. Excluir uma nota, como
+ * na janela `/scratch` do Cockpit antigo, pede confirmação (TP-4, paridade).
  */
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
-import { getSnaps } from '@/services/snaps';
+import { deleteSnap, getSnaps } from '@/services/snaps';
 import type { Snap } from '@/services/types';
 import { salvarScratch, temTexto } from '../salvarScratch';
 import { EstadoDaConsulta, Secao, Vazio, useConteudoDaAba, type PropsDaAba } from './comum';
@@ -38,6 +39,18 @@ export default function AbaScratch(props: PropsDaAba) {
                 projectId: execucao.project_id, executionId: execucao.id, notaId: nota?.id, nome, conteudo,
             });
             if (salva) abrir(salva);
+            await cliente.invalidateQueries({ queryKey: chaves.aba(execucao.id, 'scratch') });
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    const excluir = async () => {
+        if (!nota || !window.confirm(`Excluir a nota "${nota.name}"?`)) return;
+        setSalvando(true);
+        try {
+            await deleteSnap(nota.id, execucao.project_id);
+            abrir(null);
             await cliente.invalidateQueries({ queryKey: chaves.aba(execucao.id, 'scratch') });
         } finally {
             setSalvando(false);
@@ -76,7 +89,13 @@ export default function AbaScratch(props: PropsDaAba) {
                             <textarea aria-label="Texto da nota" value={conteudo} onChange={(e) => setConteudo(e.target.value)}
                                 rows={10} placeholder="Escreva uma nota para o time…"
                                 className="w-full resize-y rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-[var(--snaps-text-primary)] focus:outline-none" />
-                            <div className="flex justify-end">
+                            <div className="flex justify-end gap-2">
+                                {nota && (
+                                    <button type="button" onClick={excluir} disabled={salvando}
+                                        className="rounded-lg border border-[var(--snaps-error)]/30 px-3 py-1.5 text-[10px] font-bold text-[var(--snaps-error)] hover:bg-[var(--snaps-error)]/10 disabled:opacity-40">
+                                        Excluir nota
+                                    </button>
+                                )}
                                 <button type="button" onClick={salvar}
                                     disabled={salvando || (!nota && !temTexto({ nome, conteudo }))}
                                     className="rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-bold text-[var(--snaps-text-primary)] disabled:opacity-40">
