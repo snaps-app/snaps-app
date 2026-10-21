@@ -14,9 +14,10 @@ describe('invalidarPorEvento', () => {
         ['override_applied', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no']]],
         ['command_failed', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'atividade'], ['execucao', 'no', 'atividade']]],
         ['pr_heads_captured', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'prs'], ['execucao', 'no', 'prs']]],
-        ['phase_advanced', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz', 'arvore'], ['execucao', 'no', 'snapshot']]],
-        ['execution_created', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz', 'arvore'], ['execucao', 'no', 'snapshot']]],
-        ['execution_status_changed', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz', 'arvore'], ['execucao', 'no', 'snapshot']]],
+        ['phase_advanced', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
+        ['execution_created', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
+        ['phase_rolled_back', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
+        ['execution_status_changed', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
         ['evento_desconhecido', [['execucao', 'no', 'resumo']]],
     ])('%s invalida exatamente as chaves esperadas', (nome, esperadas) => {
         expect(chavesDoEvento(ev(nome), ctx)).toEqual(esperadas);
@@ -33,6 +34,19 @@ describe('invalidarPorEvento', () => {
         for (const [filtro] of espiao.mock.calls) {
             expect(filtro?.queryKey?.length).toBeGreaterThan(0);
         }
+    });
+
+    it('o prefixo da raiz alcança a árvore e o rótulo da aba, e só os da raiz do evento', async () => {
+        const cliente = new QueryClient();
+        for (const chave of [['raiz', 'raiz', 'arvore'], ['raiz', 'raiz', 'rotulo'], ['raiz', 'outra', 'rotulo']]) {
+            cliente.setQueryData(chave, { ok: true });
+        }
+
+        await invalidarPorEvento(cliente, ev('execution_status_changed'), ctx);
+
+        expect(cliente.getQueryState(['raiz', 'raiz', 'arvore'])?.isInvalidated).toBe(true);
+        expect(cliente.getQueryState(['raiz', 'raiz', 'rotulo'])?.isInvalidated).toBe(true);
+        expect(cliente.getQueryState(['raiz', 'outra', 'rotulo'])?.isInvalidated).toBe(false);
     });
 
     it('sem nó identificável, não invalida nada', () => {

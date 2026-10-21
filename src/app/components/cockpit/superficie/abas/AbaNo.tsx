@@ -28,6 +28,7 @@ export default function AbaNo(props: PropsDaAba) {
         queryKey: chaves.resumo(execucao.id),
         queryFn: () => getResumoDoNo(execucao.id),
         enabled: props.ativa,
+        ...(props.somenteLeitura ? { staleTime: Infinity } : {}),
     });
     const doNo = (resumo.data?.pendencias ?? []).filter((p) => p.aba === 'no');
 

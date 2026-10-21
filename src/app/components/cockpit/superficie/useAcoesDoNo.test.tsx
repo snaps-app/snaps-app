@@ -77,13 +77,13 @@ describe('useAcoesDoNo — papel', () => {
 });
 
 describe('useAcoesDoNo — as mesmas funções de serviço do Cockpit atual', () => {
-    it('avançar chama advanceAgentExecution e invalida resumo, aba, árvore e snapshot', async () => {
+    it('avançar chama advanceAgentExecution e invalida resumo, aba, raiz (árvore e rótulo) e snapshot', async () => {
         const { result, chavesInvalidadas } = montar();
         await act(() => result.current.acoes.avancar());
         expect(advanceAgentExecution).toHaveBeenCalledWith('no', undefined, undefined, undefined, false, 3);
         expect(chavesInvalidadas()).toEqual([
             ['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'],
-            ['raiz', 'raiz', 'arvore'], ['execucao', 'no', 'snapshot'],
+            ['raiz', 'raiz'], ['execucao', 'no', 'snapshot'],
         ]);
     });
 

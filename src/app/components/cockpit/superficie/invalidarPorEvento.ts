@@ -4,8 +4,10 @@
  * invalida SÓ as chaves que o evento afeta.
  *
  *  - Todo evento conhecido do nó invalida `resumo(id)` e `aba(id, abaDoEvento)`.
- *  - `execution_created`, `phase_advanced` e `execution_status_changed` também
- *    invalidam `arvore(rootId)` e `snapshot(id)`.
+ *  - Os eventos de status e de fase (`execution_created`, `phase_advanced`,
+ *    `phase_rolled_back`, `execution_status_changed`) também invalidam o
+ *    prefixo `raiz(rootId)` e `snapshot(id)`. O prefixo cobre a árvore e o
+ *    rótulo das abas de raiz (`staleTime: Infinity`, só muda por evento).
  *  - Evento desconhecido invalida só `resumo(id)`.
  *  - Nunca invalida tudo: não existe chamada sem chave aqui.
  *
@@ -17,7 +19,9 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
 import { abaDoEvento, type EventoDoNo } from './abaDoEvento';
 
-const MUDAM_A_ARVORE = new Set(['execution_created', 'phase_advanced', 'execution_status_changed']);
+const MUDAM_A_ARVORE = new Set([
+    'execution_created', 'phase_advanced', 'phase_rolled_back', 'execution_status_changed',
+]);
 
 export interface ContextoDoEvento {
     /** Nó a que o evento pertence, quando o evento não traz `execution_id`. */
@@ -41,7 +45,7 @@ export function chavesDoEvento(evento: EventoDoNo, contexto: ContextoDoEvento): 
     if (aba === 'atividade') lista.push(prefixo(chaves.atividade(id, {}), 3));
     if (aba === 'prs') lista.push(prefixo(chaves.prs(id, '', ''), 3));
     if (MUDAM_A_ARVORE.has(evento.name)) {
-        lista.push(chaves.arvore(contexto.rootId), chaves.snapshot(id));
+        lista.push(chaves.raiz(contexto.rootId), chaves.snapshot(id));
     }
     return lista;
 }

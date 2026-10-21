@@ -10,7 +10,7 @@
  *   contexto e no prompt; rollback e override são só de admin. A API recusa
  *   de novo se a tela errar.
  * - Depois do sucesso, a ação invalida `resumo(id)`, a aba afetada e, quando
- *   muda a árvore, `arvore(rootId)` e `snapshot(id)`. O evento SSE também chega
+ *   muda a árvore, o prefixo `raiz(rootId)` (árvore e rótulo das abas) e `snapshot(id)`. O evento SSE também chega
  *   e invalida o mesmo; invalidar duas vezes é inofensivo.
  * - O override fica num ponto só (`override`): o TP-6 do E7 troca a
  *   implementação pela rota unificada `POST /override` AQUI dentro (X2).
@@ -94,7 +94,7 @@ export function useAcoesDoNo(execution: NoDoHook | null) {
         try {
             const resultado = await acao(execution);
             const alvo: QueryKey[] = [chaves.resumo(execution.id), ...abas.map((a) => chaves.aba(execution.id, a))];
-            if (mudaArvore && rootId) alvo.push(chaves.arvore(rootId), chaves.snapshot(execution.id));
+            if (mudaArvore && rootId) alvo.push(chaves.raiz(rootId), chaves.snapshot(execution.id));
             await Promise.all(alvo.map((queryKey) => cliente.invalidateQueries({ queryKey })));
             return resultado;
         } finally {
