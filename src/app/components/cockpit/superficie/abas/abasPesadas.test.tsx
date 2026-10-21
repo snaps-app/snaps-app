@@ -12,6 +12,7 @@ vi.mock('@/services/atividadeDoNo', async (original) => ({
 
 import { getAmbienteDoNo } from '@/services/ambienteDoNo';
 import { getAtividadeDoNo } from '@/services/atividadeDoNo';
+import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
 import AbaAmbiente from './AbaAmbiente';
 import AbaAtividade from './AbaAtividade';
 import { capacidadePelaLargura } from '../Superficie';
@@ -52,6 +53,9 @@ describe('aba Ambiente', () => {
     });
 });
 
+// Cursor opaco `(created_at|id)`: o app o devolve como veio, sem interpretar.
+const CURSOR = '2026-10-20T12:00:00+00:00|7c1e2b7a-0000-4000-8000-000000000001';
+
 const pagina = (proximo: string | null, tool: string) => ({
     resumo: { chamadas: 2, falhas: 1, recusas: 0, tempo_total_ms: 2000, ultima_atividade_em: null, diagnostico_expirado: false },
     chamadas: [{ id: tool, em: '2026-10-20T12:00:00Z', tool, operacao: 'op', recurso: null, desfecho: 'error' as const,
@@ -64,9 +68,9 @@ const pagina = (proximo: string | null, tool: string) => ({
 describe('aba Atividade', () => {
     it('mostra os rótulos fixos, os códigos, o motivo dos turnos e pagina sobre `antes`', async () => {
         vi.mocked(getAtividadeDoNo)
-            .mockResolvedValueOnce(pagina('2026-10-20T11:00:00Z', 'tool_a'))
+            .mockResolvedValueOnce(pagina(CURSOR, 'tool_a'))
             .mockResolvedValueOnce(pagina(null, 'tool_b'));
-        renderComConsulta(<AbaAtividade {...props} />);
+        const { cliente } = renderComConsulta(<AbaAtividade {...props} />);
         expect(await screen.findByText(/Só o que passa pelo Snaps/)).toBeInTheDocument();
         expect(await screen.findByText(/Uso não medido: o CLI não reporta consumo ao Snaps/)).toBeInTheDocument();
         expect(screen.getByText(/decifra_recusada/)).toBeInTheDocument();
@@ -74,9 +78,13 @@ describe('aba Atividade', () => {
         expect(document.body.textContent).not.toContain('US$ 0,00');
 
         fireEvent.click(screen.getByRole('button', { name: 'Carregar mais antigas' }));
-        await waitFor(() => expect(getAtividadeDoNo).toHaveBeenLastCalledWith('no', { soFalhas: false }, '2026-10-20T11:00:00Z'));
+        await waitFor(() => expect(getAtividadeDoNo).toHaveBeenLastCalledWith('no', { soFalhas: false }, CURSOR));
         expect((await screen.findAllByText(/tool_b/)).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/tool_a/).length).toBeGreaterThan(0);
+        // As duas páginas moram na MESMA chave: o cursor novo não a muda.
+        const consultas = cliente.getQueryCache().findAll({ queryKey: chaves.atividade('no', { soFalhas: false }) });
+        expect(consultas).toHaveLength(1);
+        expect((consultas[0].state.data as any).pages).toHaveLength(2);
     });
 });
 
