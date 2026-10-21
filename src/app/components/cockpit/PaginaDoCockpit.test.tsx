@@ -1,6 +1,7 @@
 /** Cockpit: abas de raízes, rota e 404 (TP-3 da Sprint 24.0). */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { onlineManager } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 const A = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -96,6 +97,23 @@ describe('PaginaDoCockpit', () => {
 
         expect(buscasPor(B)).toBe(1);
         expect(getAgentExecution).not.toHaveBeenCalled();
+    });
+
+    it('o rótulo da aba inativa não é buscado de novo sozinho: nem com o tempo, nem ao reconectar', async () => {
+        gravarAbas('eu', abrirAba(ABAS_VAZIAS, B));
+        abrir(`/cockpit/${A}`);
+        await screen.findByRole('heading', { name: 'Snaps · Sprint 24.0' });
+
+        const relogio = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 3_600_000);
+        try {
+            act(() => onlineManager.setOnline(false));
+            act(() => onlineManager.setOnline(true));
+            await act(() => new Promise((r) => setTimeout(r, 0)));
+        } finally {
+            relogio.mockRestore();
+        }
+
+        expect(buscasPor(B)).toBe(1);
     });
 
     it('raiz que responde 404 sai da barra com aviso, sem exibir dado', async () => {

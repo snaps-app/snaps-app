@@ -44,6 +44,26 @@ describe('SeletorDeRaiz', () => {
         expect(opcao).toHaveTextContent('SDLC v4.0 (CI Gate) · execution · in_progress');
     });
 
+    it('termo novo começa na página 1, sem buscar a página antiga dele', async () => {
+        vi.mocked(getExecutionBranchesPage).mockResolvedValue({
+            items: [item], page: 1, page_size: 10, total_branches: 25,
+            totals: { total: 25, done: 0, active: 25, failed: 0, discarded: 0 },
+        });
+        renderComConsulta(<SeletorDeRaiz abertas={new Set()} onEscolher={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Abrir raiz' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Próxima' }));
+        await waitFor(() =>
+            expect(getExecutionBranchesPage).toHaveBeenCalledWith({ search: '', page: 2, pageSize: 10 }),
+        );
+
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar raiz' }), { target: { value: 'sna' } });
+
+        await waitFor(() =>
+            expect(getExecutionBranchesPage).toHaveBeenCalledWith({ search: 'sna', page: 1, pageSize: 10 }),
+        );
+        expect(getExecutionBranchesPage).not.toHaveBeenCalledWith({ search: 'sna', page: 2, pageSize: 10 });
+    });
+
     it('escolher entrega a raiz, e a raiz já aberta vem marcada', async () => {
         const onEscolher = vi.fn();
         renderComConsulta(<SeletorDeRaiz abertas={new Set([R])} onEscolher={onEscolher} />);

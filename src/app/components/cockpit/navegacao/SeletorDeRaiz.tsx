@@ -40,9 +40,13 @@ export function SeletorDeRaiz({
 }) {
     const [aberto, setAberto] = useState(false);
     const [texto, setTexto] = useState('');
-    const [pagina, setPagina] = useState(1);
     const termo = useAtrasado(texto.trim(), ATRASO_DA_BUSCA_MS);
-    useEffect(() => setPagina(1), [termo]);
+    // A página pertence ao termo: termo novo começa na 1 já no mesmo render. Um
+    // efeito que voltasse à 1 deixaria passar um render com o termo novo e a
+    // página antiga, e essa chave também seria buscada.
+    const [paginacao, setPaginacao] = useState({ termo, pagina: 1 });
+    const pagina = paginacao.termo === termo ? paginacao.pagina : 1;
+    const irPara = (p: number) => setPaginacao({ termo, pagina: p });
 
     const { data, isFetching, isError } = useQuery({
         queryKey: chavesDeConsulta.buscaDeRaizes(termo, pagina),
@@ -125,13 +129,13 @@ export function SeletorDeRaiz({
                     )}
                     {totalDePaginas > 1 && (
                         <div className="flex items-center justify-end gap-2 text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
-                            <button type="button" disabled={pagina <= 1} onClick={() => setPagina((p) => p - 1)}>
+                            <button type="button" disabled={pagina <= 1} onClick={() => irPara(pagina - 1)}>
                                 Anterior
                             </button>
                             <span>
                                 {pagina} de {totalDePaginas}
                             </span>
-                            <button type="button" disabled={pagina >= totalDePaginas} onClick={() => setPagina((p) => p + 1)}>
+                            <button type="button" disabled={pagina >= totalDePaginas} onClick={() => irPara(pagina + 1)}>
                                 Próxima
                             </button>
                         </div>

@@ -16,11 +16,17 @@ const COR_DO_TOM: Record<TomDaRaiz, string> = {
  * O rótulo de uma raiz aberta. É a ÚNICA consulta de uma aba inativa: nada da
  * árvore, do nó ou do stream roda enquanto ela não for a ativa. Voltar a ela
  * usa o cache (`gcTime` de 10 min).
+ *
+ * Busca uma vez e não refaz sozinha: com o `staleTime` padrão (30 s), cada
+ * reconexão da rede e cada remontagem buscariam de novo o rótulo de todas as
+ * abas abertas. O frescor vem por evento (ADR-0071, item 5): a chave fica sob
+ * o prefixo `raiz(rootId)`, que `invalidarPorEvento` invalida.
  */
 export function useRaizDaAba(rootId: string) {
     return useQuery({
         queryKey: chavesDeConsulta.rotuloDaRaiz(rootId),
         queryFn: () => buscarRaiz(rootId),
+        staleTime: Infinity,
     });
 }
 
