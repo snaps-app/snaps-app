@@ -19,3 +19,17 @@ describe('Cockpit novo sem hex', () => {
         expect(comHex).toEqual([]);
     });
 });
+
+describe('Superfície sem consulta periódica (ADR-0071, item 5)', () => {
+    it('nenhum refetchInterval em cockpit/superficie/: o frescor vem por evento', () => {
+        const comIntervalo = arquivos(resolve(__dirname))
+            .filter((f) => /refetchInterval/.test(readFileSync(f, 'utf-8')));
+        expect(comIntervalo).toEqual([]);
+    });
+
+    it('nenhuma chamada ao catálogo de workflow na Superfície (P7)', () => {
+        const comCatalogo = arquivos(resolve(__dirname))
+            .filter((f) => /getWorkflowTemplates|templates\.find\(/.test(readFileSync(f, 'utf-8')));
+        expect(comCatalogo).toEqual([]);
+    });
+});

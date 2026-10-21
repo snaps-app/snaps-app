@@ -40,7 +40,7 @@ export async function cardsDoEscopo(
     }
     if (escopo.fonte === 'sprint') {
         const listas = await Promise.all(escopo.sprintIds.map((id) => deps.getCardsBySprint(id)));
-        return listas.flat();
+        return listas.flatMap((lista) => lista ?? []);
     }
     return [];
 }
