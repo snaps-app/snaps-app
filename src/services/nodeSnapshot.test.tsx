@@ -31,7 +31,7 @@ beforeEach(() => vi.mocked(api.get).mockReset());
 
 describe('useNodeSnapshot', () => {
     it('nó terminal: remontar não refaz a chamada', async () => {
-        vi.mocked(api.get).mockResolvedValue({ data: { phase: 'micro_planning' } });
+        vi.mocked(api.get).mockResolvedValue({ data: { phase: 'micro_planning', imutavel: true } });
         const cliente = novoClienteDeTeste();
 
         const primeira = renderComConsulta(<Snapshot id="n1" terminal />, { cliente });
@@ -44,7 +44,29 @@ describe('useNodeSnapshot', () => {
         expect(api.get).toHaveBeenCalledOnce();
         expect(api.get).toHaveBeenCalledWith('/api/agent-executions/n1/node-snapshot');
         const consulta = cliente.getQueryCache().find({ queryKey: chavesDeConsulta.snapshot('n1') });
-        expect(consulta?.options).toMatchObject({ staleTime: Infinity });
+        expect(consulta?.isStale()).toBe(false);
+    });
+
+    it('nó que terminou depois de visto: o snapshot de quando era atual não congela', async () => {
+        vi.mocked(api.get)
+            .mockResolvedValueOnce({ data: { phase: 'execution', imutavel: false } })
+            .mockResolvedValue({ data: { phase: 'execution', imutavel: true } });
+        const cliente = novoClienteDeTeste();
+
+        const atual = renderComConsulta(<Snapshot id="n3" terminal={false} />, { cliente });
+        await screen.findByText('fase execution');
+        atual.unmount();
+
+        // O nó avançou: a tela passa `terminal`, e o cache ainda é o de antes.
+        const terminou = renderComConsulta(<Snapshot id="n3" terminal />, { cliente });
+        await vi.waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+        await vi.waitFor(() =>
+            expect(cliente.getQueryData<{ imutavel: boolean }>(chavesDeConsulta.snapshot('n3'))?.imutavel).toBe(true));
+        terminou.unmount();
+
+        renderComConsulta(<Snapshot id="n3" terminal />, { cliente });
+        await screen.findByText('fase execution');
+        expect(api.get).toHaveBeenCalledTimes(2);
     });
 
     it('nó atual usa o padrão do app, não Infinity', async () => {

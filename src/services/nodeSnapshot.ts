@@ -14,7 +14,7 @@
  * O frescor do nó atual e da árvore vem por evento (`invalidarPorEvento`, do
  * TP-2), pelas chaves de `chavesDeConsulta`: nenhuma chave é montada aqui.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type Query } from '@tanstack/react-query';
 import { api } from './client';
 import { chavesDeConsulta } from './chavesDeConsulta';
 import type { ArvoreLeve, NodeSnapshot } from './types';
@@ -42,13 +42,21 @@ export function useArvore(rootId: string | null | undefined) {
     });
 }
 
-/** O snapshot do nó. Terminal: `staleTime: Infinity`; atual: o padrão, com frescor por evento. */
+/**
+ * O snapshot do nó. Terminal: `staleTime: Infinity`; atual: o padrão, com frescor por evento.
+ *
+ * O `Infinity` vale só quando o snapshot em cache já diz `imutavel`. O que foi
+ * buscado enquanto o nó era atual não congela quando ele termina: é buscado de
+ * novo uma vez (com o head capturado na conclusão) e só então fica.
+ */
 export function useNodeSnapshot(executionId: string | null | undefined, terminal: boolean) {
     return useQuery({
         queryKey: chavesDeConsulta.snapshot(executionId ?? ''),
         queryFn: () => getNodeSnapshot(executionId as string),
         enabled: Boolean(executionId),
-        ...(terminal ? { staleTime: Infinity } : {}),
+        ...(terminal
+            ? { staleTime: (consulta: Query<NodeSnapshot>) => (consulta.state.data?.imutavel ? Infinity : 0) }
+            : {}),
     });
 }
 

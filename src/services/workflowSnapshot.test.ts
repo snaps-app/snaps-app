@@ -165,6 +165,28 @@ describe('montarHistory a partir da árvore leve', () => {
             .toEqual(['creation']);
     });
 
+    it('raiz com mais de 20 nós: cadeia e tentativas num recuo só, sem ramo', () => {
+        // Macro, micro e dez ciclos execução → assurance desfeita, como numa raiz
+        // real de 20+ nós. Pelo nível antigo (profundidade), o último recuaria 20 vezes.
+        const cadeia = [no('n0', 'macro_planning', 'completed'), no('n1', 'micro_planning', 'completed', { parent_id: 'n0' })];
+        for (let i = 2; i <= 21; i++) {
+            const execucao = i % 2 === 0;
+            const status = i === 21 ? 'in_progress' : execucao ? 'completed' : 'rolled_back';
+            cadeia.push(no(`n${i}`, execucao ? 'execution' : 'assurance', status, {
+                parent_id: `n${i - 1}`, plan_id: 'P1',
+                created_at: `2026-10-21T09:${String(i).padStart(2, '0')}:00Z`,
+            }));
+        }
+
+        const itens = montarHistory(arvore(cadeia), STATUS);
+        const doHistory = nos(itens);
+
+        expect(doHistory.map((n) => n.id)).toEqual(cadeia.map((n) => n.id));
+        expect(doHistory.every((n) => n.nivel === 0 && !n.abreRamo)).toBe(true);
+        expect(doHistory[doHistory.length - 1]).toMatchObject({ phase: 'assurance', tentativa: 10, classe: 'atual' });
+        expect(futuras(itens).map((f) => [f.key, f.nivel])).toEqual([['retro', 0]]);
+    });
+
     it('última fase concluída não projeta nada; pai fora da árvore vira raiz', () => {
         const retro = no('r', 'retro', 'done', { parent_id: 'fora-da-arvore' });
         const itens = montarHistory(arvore([retro]), STATUS);
