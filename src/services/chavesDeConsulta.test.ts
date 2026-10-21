@@ -13,6 +13,8 @@ const TODAS: Array<[string, () => readonly unknown[]]> = [
     ['prs', () => chaves.prs('e1', 'snaps-app', 'abc123')],
     ['diretivas', () => chaves.diretivas()],
     ['buscaDeRaizes', () => chaves.buscaDeRaizes('SNA-12')],
+    ['rotuloDaRaiz', () => chaves.rotuloDaRaiz('r1')],
+    ['detalhe', () => chaves.detalhe('e1')],
 ];
 
 describe('chavesDeConsulta', () => {
@@ -20,7 +22,7 @@ describe('chavesDeConsulta', () => {
         expect(hashKey(gerar())).toBe(hashKey(gerar()));
     });
 
-    it('as oito chaves são distintas entre si', () => {
+    it('as chaves são distintas entre si', () => {
         const hashes = TODAS.map(([, gerar]) => hashKey(gerar()));
         expect(new Set(hashes).size).toBe(TODAS.length);
     });
@@ -62,5 +64,15 @@ describe('chavesDeConsulta', () => {
 
     it('a busca do seletor ignora espaço nas pontas', () => {
         expect(chaves.buscaDeRaizes('  SNA-12 ')).toEqual(chaves.buscaDeRaizes('SNA-12'));
+    });
+
+    it('cada página da busca tem a sua chave, e a primeira é o padrão', () => {
+        expect(chaves.buscaDeRaizes('x')).toEqual(chaves.buscaDeRaizes('x', 1));
+        expect(hashKey(chaves.buscaDeRaizes('x', 1))).not.toBe(hashKey(chaves.buscaDeRaizes('x', 2)));
+    });
+
+    it('o rótulo e o detalhe ficam sob o prefixo da raiz e do nó', () => {
+        expect(chaves.rotuloDaRaiz('r1').slice(0, 2)).toEqual([...chaves.raiz('r1')]);
+        expect(chaves.detalhe('e1').slice(0, 2)).toEqual([...chaves.execucao('e1')]);
     });
 });

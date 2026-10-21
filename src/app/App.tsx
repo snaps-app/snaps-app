@@ -34,6 +34,7 @@ import { RetroView } from '@/app/components/views/retro-view';
 import { TimelineView } from '@/app/components/views/timeline-view';
 import { ExecutionCockpit } from '@/app/components/execution/execution-cockpit';
 import { ScratchView } from '@/app/components/views/scratch-view';
+import { EsqueletoDoCockpit } from '@/app/components/layout/esqueleto-do-cockpit';
 import { TimeView } from '@/app/views/TimeView';
 import { ProjectTimeView } from '@/app/views/ProjectTimeView';
 import { supabase } from '@/lib/supabaseClient';
@@ -48,6 +49,13 @@ const DevtoolsDeConsulta = import.meta.env.DEV
           import('@tanstack/react-query-devtools').then((m) => ({ default: m.ReactQueryDevtools })),
       )
     : null;
+
+// O Cockpit sai num chunk próprio: quem não abre o Cockpit não baixa o Cockpit.
+// Nada de `components/cockpit/` pode ser importado estaticamente aqui — a trava
+// está em `App.consulta.test.ts`.
+const PaginaDoCockpit = lazy(() =>
+    import('@/app/components/cockpit/PaginaDoCockpit').then((m) => ({ default: m.PaginaDoCockpit })),
+);
 
 /**
  * Rota antiga -> aba do Hub de Settings (B3).
@@ -180,6 +188,14 @@ export default function App() {
                     >
                         <Route path="/project/:projectId/execution/:executionId" element={<ExecutionCockpit />} />
                         <Route path="/project/:projectId/execution/:executionId/scratch" element={<ScratchView />} />
+                        <Route
+                            path="/cockpit/:rootId?"
+                            element={
+                                <Suspense fallback={<EsqueletoDoCockpit />}>
+                                    <PaginaDoCockpit />
+                                </Suspense>
+                            }
+                        />
                     </Route>
 
                     {/* Fallback */}
