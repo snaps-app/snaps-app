@@ -9,4 +9,7 @@ describe('rotas existentes das referências',()=>{
     expect(rotaDaPagina('memory','p')).toBe('/memory?project=p');
     expect(rotaDaEntidade({...candidato,tipo:'decision'},'p')).toBe('/project/p/decisions?adr=s');
   });
+  it('execução abre no Cockpit novo, que acha a raiz do nó sozinho (TP-4)',()=>{
+    expect(rotaDaEntidade({...candidato,tipo:'execution',id:'e1'},'p')).toBe('/cockpit/e1?no=e1');
+  });
 });

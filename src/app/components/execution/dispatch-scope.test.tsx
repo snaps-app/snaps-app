@@ -10,7 +10,6 @@ import { setDispatchScope } from '@/services/agentExecutions';
 import type { AgentTaskExecution } from '@/services/types';
 import { parseOverridableConditions } from './dispatch-scope';
 import { DispatchScopePanel } from './dispatch-scope-panel';
-import { ExecutionRequirementsChecklist } from './execution-requirements-checklist';
 
 const plano = (id: string, title: string, status: string, extra: Record<string, unknown> = {}) => ({
     id, title, status, author: 'micro-planner', content_revision: 2,
@@ -157,46 +156,6 @@ describe('DispatchScopePanel', () => {
     });
 });
 
-describe('ExecutionRequirementsChecklist: override humano sempre disponivel', () => {
-    const template = {
-        id: 't1', name: 'SDLC', phases: [{
-            key: 'micro_planning', label: 'Micro',
-            advance_conditions: { tactical_plans_approved: true, plan_approved: true },
-        }],
-    } as any;
-
-    it('aprovacao de plano tambem tem toggle de override', () => {
-        const onToggle = vi.fn(async () => {});
-        render(<ExecutionRequirementsChecklist execution={execucao({ workflow_template_id: 't1' })}
-            templates={[template]} cards={[]} manualOverrides={{}} onRequirementToggle={onToggle} />);
-
-        fireEvent.click(screen.getByRole('button', { name: /All Tactical Plans Approved/ }));
-        fireEvent.click(screen.getByRole('button', { name: /Strategic Plan Approved/ }));
-        expect(onToggle).toHaveBeenCalledWith('tactical_plans_approved', true);
-        expect(onToggle).toHaveBeenCalledWith('plan_approved', true);
-    });
-
-    it('com escopo, plano approved escolhido conta para a aprovacao tatica', () => {
-        const escopo = { ...ESCOPO, plan_ids: ['tp4'] };
-        const { container } = render(<ExecutionRequirementsChecklist
-            execution={execucao({ workflow_template_id: 't1',
-                context_data: { plans: PLANOS, dispatch_scope: escopo } })}
-            templates={[template]} cards={[]} manualOverrides={{}} />);
-        const item = screen.getByRole('button', { name: /All Tactical Plans Approved/ });
-        expect(item.textContent).not.toMatch(/missing or stale/);
-        expect(container).toBeTruthy();
-    });
-
-    it('recusa estrutural vira item dispensavel com rotulo', () => {
-        const onToggle = vi.fn(async () => {});
-        render(<ExecutionRequirementsChecklist execution={execucao({ workflow_template_id: 't1' })}
-            templates={[template]} cards={[]} manualOverrides={{}} onRequirementToggle={onToggle}
-            refusedConditions={['single_execution_multiple_plans', 'tactical_plans_approved']} />);
-
-        const item = screen.getByRole('button', { name: /varios planos/i });
-        fireEvent.click(item);
-        expect(onToggle).toHaveBeenCalledWith('single_execution_multiple_plans', true);
-        // Condicao do template nao aparece duas vezes.
-        expect(screen.getAllByRole('button', { name: /All Tactical Plans Approved/ })).toHaveLength(1);
-    });
-});
+// As garantias do checklist do Cockpit antigo (aprovação de plano dispensável,
+// recusa estrutural com rótulo, sem duplicar) passaram para o diálogo de
+// override do Cockpit novo: `components/cockpit/cabecalho/DialogoDeOverride.test.tsx`.

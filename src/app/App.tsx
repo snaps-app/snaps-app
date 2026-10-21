@@ -32,9 +32,8 @@ import { WorkflowEditorCanvas } from '@/app/components/workflow/workflow-editor'
 import { QAView } from '@/app/components/views/qa-view';
 import { RetroView } from '@/app/components/views/retro-view';
 import { TimelineView } from '@/app/components/views/timeline-view';
-import { ExecutionCockpit } from '@/app/components/execution/execution-cockpit';
-import { ScratchView } from '@/app/components/views/scratch-view';
 import { EsqueletoDoCockpit } from '@/app/components/layout/esqueleto-do-cockpit';
+import { RedirecionaParaCockpit } from '@/app/components/layout/redireciona-para-cockpit';
 import { TimeView } from '@/app/views/TimeView';
 import { ProjectTimeView } from '@/app/views/ProjectTimeView';
 import { supabase } from '@/lib/supabaseClient';
@@ -186,8 +185,10 @@ export default function App() {
                             </ProtectedRoute>
                         }
                     >
-                        <Route path="/project/:projectId/execution/:executionId" element={<ExecutionCockpit />} />
-                        <Route path="/project/:projectId/execution/:executionId/scratch" element={<ScratchView />} />
+                        {/* Rotas do Cockpit antigo: link salvo continua abrindo o nó
+                            certo no Cockpit novo (decisão do PO de 20/10; TP-4). */}
+                        <Route path="/project/:projectId/execution/:executionId" element={<RedirecionaParaCockpit />} />
+                        <Route path="/project/:projectId/execution/:executionId/scratch" element={<RedirecionaParaCockpit aba="scratch" />} />
                         <Route
                             path="/cockpit/:rootId?"
                             element={
