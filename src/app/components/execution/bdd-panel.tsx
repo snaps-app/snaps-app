@@ -3,8 +3,9 @@ import type { Card } from '@/services/types';
 
 interface BDDPanelProps {
     cards: Card[];
-    onApproveBDD: (card: Card) => Promise<void>;
-    onToggleScenario: (card: Card, idx: number, scenario: any) => Promise<void>;
+    /** Sem as duas ações (viewer ou nó concluído), o painel só mostra o estado. */
+    onApproveBDD?: (card: Card) => Promise<void>;
+    onToggleScenario?: (card: Card, idx: number, scenario: any) => Promise<void>;
 }
 
 export const BDDPanel: React.FC<BDDPanelProps> = ({
@@ -21,14 +22,14 @@ export const BDDPanel: React.FC<BDDPanelProps> = ({
                     <div key={card.id} className="space-y-4">
                         <div className="flex items-center justify-between px-2">
                             <h2 className="text-xs font-bold text-white/30 uppercase tracking-widest">{card.title}</h2>
-                            {!card.bdd_validated ? (
+                            {!card.bdd_validated ? (onApproveBDD && (
                                 <button
                                     onClick={() => onApproveBDD(card)}
                                     className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 shadow-lg shadow-purple-900/20"
                                 >
                                     <ShieldCheck className="w-3 h-3" />
                                     Approve BDD
-                                </button>
+                                </button>)
                             ) : (
                                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-green-500/10 border border-green-500/20">
                                     <ShieldCheck className="w-3 h-3 text-green-400" />
@@ -46,7 +47,8 @@ export const BDDPanel: React.FC<BDDPanelProps> = ({
                                         {scenario.title}
                                     </h3>
                                     <button
-                                        onClick={() => onToggleScenario(card, idx, scenario)}
+                                        onClick={() => onToggleScenario?.(card, idx, scenario)}
+                                        disabled={!onToggleScenario}
                                         className={`px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all border ${scenario.validated
                                             ? 'bg-green-500/20 border-green-500/30 text-green-400'
                                             : 'bg-white/5 border-white/10 text-white/30 hover:text-white/60'

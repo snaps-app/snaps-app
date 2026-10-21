@@ -47,6 +47,8 @@ const Origem: React.FC<{ origem: OrigemDeContexto }> = ({ origem }) => (
 interface Props {
     execution: AgentTaskExecution;
     onExecutionUpdated: (execution: AgentTaskExecution) => void;
+    /** Esconde a remocao (viewer ou no concluido no Cockpit novo). */
+    somenteLeitura?: boolean;
 }
 
 /**
@@ -56,7 +58,7 @@ interface Props {
  * item. Acrescentar continua pelo modal de Docs. O mission_context NAO mora
  * aqui: tem campo proprio, vazio por default ("ausencia e o estado normal").
  */
-export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecutionUpdated }) => {
+export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecutionUpdated, somenteLeitura = false }) => {
     const [selecao, setSelecao] = useState<SelecaoDeContexto | null>(null);
     const [removendo, setRemovendo] = useState<string | null>(null);
     const [erro, setErro] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecution
                                 {item.titulo || item.id}
                             </span>
                             <Origem origem={item.origem} />
-                            {selecao.revisavel && (
+                            {selecao.revisavel && !somenteLeitura && (
                                 <button
                                     type="button"
                                     onClick={() => remover(item)}

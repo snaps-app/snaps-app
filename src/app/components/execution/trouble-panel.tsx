@@ -10,7 +10,8 @@ interface TroublePanelProps {
     handleCopy: (id: string, text: string) => void;
     selectedTestPlanIds: string[];
     isSavingTestPlanContext: boolean;
-    onSaveTestPlanContext: (ids: string[]) => Promise<void>;
+    /** Sem ela (viewer ou nó concluído no Cockpit novo), a seleção não é gravável. */
+    onSaveTestPlanContext?: (ids: string[]) => Promise<void>;
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -115,7 +116,7 @@ export const TroublePanel: React.FC<TroublePanelProps> = ({
                                         ? 'Selecione test plans para injetar no próximo planning'
                                         : `${localSelected.length} selecionado${localSelected.length > 1 ? 's' : ''} para contexto`}
                                 </p>
-                                {isDirty && (
+                                {isDirty && onSaveTestPlanContext && (
                                     <button
                                         onClick={() => onSaveTestPlanContext(localSelected)}
                                         disabled={isSavingTestPlanContext}

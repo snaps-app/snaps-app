@@ -40,11 +40,7 @@ export const AgentInstructionsModal: React.FC<AgentInstructionsModalProps> = ({
                     </button>
                 </div>
                 <div className="p-8 max-h-[70vh] overflow-y-auto">
-                    <div className="prose prose-invert max-w-none">
-                        <pre className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-sans">
-                            {agentInstructions || "No specific instructions found for this agent in the database."}
-                        </pre>
-                    </div>
+                    <InstrucoesDoAgente agentInstructions={agentInstructions} />
                 </div>
                 <div className="p-6 border-t border-white/5 bg-white/[0.01] flex justify-end">
                     <button
@@ -58,3 +54,12 @@ export const AgentInstructionsModal: React.FC<AgentInstructionsModalProps> = ({
         </div>
     );
 };
+
+/** Instruções do agente da fase: o modal do Cockpit atual e a aba Nó usam este corpo. */
+export const InstrucoesDoAgente: React.FC<{ agentInstructions: string | null }> = ({ agentInstructions }) => (
+    <div className="prose prose-invert max-w-none">
+        <pre className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-sans">
+            {agentInstructions || "No specific instructions found for this agent in the database."}
+        </pre>
+    </div>
+);

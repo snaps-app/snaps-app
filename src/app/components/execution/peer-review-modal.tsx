@@ -43,33 +43,43 @@ export const PeerReviewModal: React.FC<PeerReviewModalProps> = ({
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 bg-black/20">
-                    {isLoadingPeerReview ? (
-                        <div className="h-full flex items-center justify-center">
-                            <Loader2 className="w-8 h-8 text-violet-500 animate-spin opacity-50" />
-                        </div>
-                    ) : peerReviewSnap ? (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-lg font-bold text-white">{peerReviewSnap.name}</h3>
-                                <span className="text-[10px] text-white/30 font-mono">ID: {peerReviewSnap.id}</span>
-                            </div>
-                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-8 overflow-y-auto max-h-[55vh]">
-                                <div className="prose prose-invert prose-sm max-w-none prose-headings:text-violet-400 prose-a:text-violet-400 prose-strong:text-white/90 prose-code:text-violet-300 prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/5">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {peerReviewSnap.content || '_No content available._'}
-                                    </ReactMarkdown>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center opacity-30">
-                            <FileText className="w-16 h-16 mb-4" />
-                            <p className="text-sm font-medium">No Peer Review Report found</p>
-                            <p className="text-xs mt-1 text-white/50">The agent will create a "Peer Review Report" artifact during plan review.</p>
-                        </div>
-                    )}
+                    <RelatorioDePeerReview isLoadingPeerReview={isLoadingPeerReview} peerReviewSnap={peerReviewSnap} />
                 </div>
             </div>
         </div>
     );
 };
+
+/** Corpo do relatório: o modal do Cockpit atual e a aba Revisões do Cockpit novo usam este. */
+export const RelatorioDePeerReview: React.FC<Pick<PeerReviewModalProps, 'isLoadingPeerReview' | 'peerReviewSnap'>> = ({
+    isLoadingPeerReview,
+    peerReviewSnap,
+}) => (
+    <>
+        {isLoadingPeerReview ? (
+            <div className="h-full flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-violet-500 animate-spin opacity-50" />
+            </div>
+        ) : peerReviewSnap ? (
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-lg font-bold text-white">{peerReviewSnap.name}</h3>
+                    <span className="text-[10px] text-white/30 font-mono">ID: {peerReviewSnap.id}</span>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-8 overflow-y-auto max-h-[55vh]">
+                    <div className="prose prose-invert prose-sm max-w-none prose-headings:text-violet-400 prose-a:text-violet-400 prose-strong:text-white/90 prose-code:text-violet-300 prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/5">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {peerReviewSnap.content || '_No content available._'}
+                        </ReactMarkdown>
+                    </div>
+                </div>
+            </div>
+        ) : (
+            <div className="h-full flex flex-col items-center justify-center opacity-30">
+                <FileText className="w-16 h-16 mb-4" />
+                <p className="text-sm font-medium">No Peer Review Report found</p>
+                <p className="text-xs mt-1 text-white/50">The agent will create a "Peer Review Report" artifact during plan review.</p>
+            </div>
+        )}
+    </>
+);
