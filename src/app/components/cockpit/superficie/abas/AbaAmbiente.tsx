@@ -77,9 +77,11 @@ export default function AbaAmbiente(props: PropsDaAba) {
 
                     <Secao titulo="Exigidas pela fase">
                         <p className="text-[11px] text-[var(--snaps-text-secondary)]">
-                            {ambiente.required_env.exigidas.length === 0
-                                ? 'A fase não declara required_env.'
-                                : `${ambiente.required_env.exigidas.length - ambiente.required_env.faltando.length} de ${ambiente.required_env.exigidas.length} presentes`}
+                            {ambiente.required_env === null
+                                ? 'Os nomes exigidos pela fase aparecem só para member.'
+                                : ambiente.required_env.exigidas.length === 0
+                                    ? 'A fase não declara required_env.'
+                                    : `${ambiente.required_env.exigidas.length - ambiente.required_env.faltando.length} de ${ambiente.required_env.exigidas.length} presentes`}
                         </p>
                     </Secao>
 

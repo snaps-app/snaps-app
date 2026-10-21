@@ -44,6 +44,28 @@ describe('aba Ambiente', () => {
         expect(futuros.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
     });
 
+    const doViewer = (required_env: { exigidas: string[]; faltando: string[] } | null) => ({
+        ambiente: { id: 'e', nome: 'default (preview)', stage: 'preview' }, motivo_vazio: null,
+        fotografado_em: '2026-10-20T12:00:00Z', foto_cifrada: false, repos: [],
+        variaveis: { total: 2, mudaram_no_projeto_depois: null, itens: [] },
+        required_env, credenciais: { disponivel: false, motivo: 'broker' },
+    });
+
+    it('viewer: required_env nulo vira estado vazio coerente, sem alerta de variável faltando', async () => {
+        vi.mocked(getAmbienteDoNo).mockResolvedValue(doViewer(null));
+        renderComConsulta(<AbaAmbiente {...props} />);
+        expect(await screen.findByText('Os nomes exigidos pela fase aparecem só para member.')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(document.body.textContent).not.toContain('Exigidas pela fase e ausentes');
+    });
+
+    it('member: required_env com a lista mostra quantas estão presentes e o alerta do que falta', async () => {
+        vi.mocked(getAmbienteDoNo).mockResolvedValue(doViewer({ exigidas: ['A', 'B'], faltando: ['B'] }));
+        renderComConsulta(<AbaAmbiente {...props} />);
+        expect(await screen.findByText('1 de 2 presentes')).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toHaveTextContent('Exigidas pela fase e ausentes: B');
+    });
+
     it('fase que não roda código fica vazia e explica', async () => {
         vi.mocked(getAmbienteDoNo).mockResolvedValue({
             ambiente: null, motivo_vazio: 'só execution, ci_gate e assurance recebem ambiente',

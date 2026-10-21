@@ -32,7 +32,8 @@ export interface AmbienteDoNo {
     foto_cifrada: boolean;
     repos: RepoDoAmbiente[];
     variaveis: { total: number; mudaram_no_projeto_depois: number | null; itens: VariavelDoAmbiente[] };
-    required_env: { exigidas: string[]; faltando: string[] };
+    /** Nulo para viewer: são nomes de variável, como `variaveis.itens`. */
+    required_env: { exigidas: string[]; faltando: string[] } | null;
     credenciais: { disponivel: boolean; motivo: string };
 }
 
@@ -61,10 +62,11 @@ export function alertasDoAmbiente(ambiente: AmbienteDoNo): AlertaDeAmbiente[] {
             texto: `${mudaram} variável(is) mudou(aram) no projeto depois da foto`,
         });
     }
-    if (ambiente.required_env.faltando.length > 0) {
+    const faltando = ambiente.required_env?.faltando ?? [];
+    if (faltando.length > 0) {
         alertas.push({
             tipo: 'env_faltando',
-            texto: `Exigidas pela fase e ausentes: ${ambiente.required_env.faltando.join(', ')}`,
+            texto: `Exigidas pela fase e ausentes: ${faltando.join(', ')}`,
         });
     }
     return alertas;
