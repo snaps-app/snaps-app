@@ -62,8 +62,10 @@ export interface NoDoHistory {
     planoTitulo: string | null;
     /** 1 na primeira vez que a fase roda no ramo; 2 em diante após rollback ou retry. */
     tentativa: number;
-    /** Recuo: quantos ancestrais o nó tem na árvore. */
+    /** Recuo: quantos pontos de ramificação (pai com mais de um filho) há acima do nó. */
     nivel: number;
+    /** O nó abre um ramo: o pai dele tem mais de um filho (fan-out, por exemplo). */
+    abreRamo: boolean;
 }
 
 /** Fase que ainda não existe: projeção do workflow do nó, desabilitada. */
@@ -84,8 +86,10 @@ const porCriacao = (a: NoDaArvore, b: NoDaArvore) =>
 /**
  * A árvore da raiz, na ordem em que o History a desenha.
  *
- * - Cada nó vem logo abaixo do nó que o criou (`parent_id`), um nível mais
- *   recuado; os planos do fan-out são ramos irmãos.
+ * - Cada nó vem logo abaixo do nó que o criou (`parent_id`). Uma cadeia sem
+ *   ramificação fica no mesmo recuo, como no canvas (coluna Workflow); quando o
+ *   pai tem mais de um filho — os planos do fan-out —, cada filho abre um
+ *   ramo, um nível mais recuado.
  * - `tentativa` conta quantas vezes a mesma fase do mesmo plano já rodou entre
  *   os ancestrais do nó: a nova tentativa de um rollback é a "tentativa 2".
  * - Depois de cada ponta não descartada vêm as fases seguintes do workflow
@@ -105,7 +109,7 @@ export function montarHistory(arvore: ArvoreLeve, status: StatusDaApi): ItemDoHi
         fasesDoNo({ workflow_snapshot: hash ? arvore.workflows[hash] : null });
 
     const itens: ItemDoHistory[] = [];
-    const visitar = (no: NoDaArvore, nivel: number, ancestrais: NoDaArvore[]) => {
+    const visitar = (no: NoDaArvore, nivel: number, ancestrais: NoDaArvore[], abreRamo: boolean) => {
         const fases = fasesDoHash(no.workflow_snapshot_hash);
         const classe = classificarNo(no, status);
         const tentativa = 1 + ancestrais.filter(
@@ -124,20 +128,23 @@ export function montarHistory(arvore: ArvoreLeve, status: StatusDaApi): ItemDoHi
             planoTitulo: no.plano_titulo,
             tentativa,
             nivel,
+            abreRamo,
         });
 
         const proximos = filhos.get(no.id) ?? [];
-        for (const filho of proximos) visitar(filho, nivel + 1, [...ancestrais, no]);
+        const ramifica = proximos.length > 1;
+        for (const filho of proximos) visitar(filho, ramifica ? nivel + 1 : nivel, [...ancestrais, no], ramifica);
 
         if (proximos.length === 0 && classe !== 'descartado') {
             const indice = fases.findIndex((f) => f.key === no.phase);
             if (indice >= 0) {
-                fases.slice(indice + 1).forEach((fase, i) => {
-                    itens.push({ tipo: 'futura', aposId: no.id, key: fase.key, label: fase.label, nivel: nivel + 1 + i });
-                });
+                for (const fase of fases.slice(indice + 1)) {
+                    itens.push({ tipo: 'futura', aposId: no.id, key: fase.key, label: fase.label, nivel });
+                }
             }
         }
     };
-    for (const raiz of filhos.get(null) ?? []) visitar(raiz, 0, []);
+    const raizes = filhos.get(null) ?? [];
+    for (const raiz of raizes) visitar(raiz, 0, [], raizes.length > 1);
     return itens;
 }

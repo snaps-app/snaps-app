@@ -99,7 +99,9 @@ describe('montarHistory a partir da árvore leve', () => {
 
         const itens = montarHistory(arvore([macro, micro]), STATUS);
 
-        expect(nos(itens).map((n) => [n.id, n.classe, n.nivel])).toEqual([['a', 'concluido', 0], ['b', 'atual', 1]]);
+        // Cadeia sem ramificação fica no mesmo recuo, como no canvas.
+        expect(nos(itens).map((n) => [n.id, n.classe, n.nivel])).toEqual([['a', 'concluido', 0], ['b', 'atual', 0]]);
+        expect(futuras(itens).every((f) => f.nivel === 0)).toBe(true);
         expect(futuras(itens).map((f) => f.key)).toEqual(['execution', 'assurance', 'retro']);
         expect(futuras(itens).every((f) => f.aposId === 'b')).toBe(true);
         expect(nos(itens)[1].label).toBe('Micro');
@@ -118,8 +120,9 @@ describe('montarHistory a partir da árvore leve', () => {
             'e1', '○assurance@e1', '○retro@e1',
             'e2', 'a2', '○retro@a2',
         ]);
-        const [, e1, e2] = nos(itens);
-        expect([e1.nivel, e2.nivel]).toEqual([1, 1]);
+        const [m, e1, e2, assurance] = nos(itens);
+        expect([m.nivel, e1.nivel, e2.nivel, assurance.nivel]).toEqual([0, 1, 1, 1]);
+        expect([e1.abreRamo, e2.abreRamo, assurance.abreRamo]).toEqual([true, true, false]);
         expect(e1.planoTitulo).toBe('TP-1');
     });
 
@@ -133,6 +136,8 @@ describe('montarHistory a partir da árvore leve', () => {
 
         expect(desfeito.classe).toBe('descartado');
         expect([desfeito.tentativa, nova.tentativa]).toEqual([1, 2]);
+        // A nova tentativa fica na mesma coluna da desfeita.
+        expect(nova.nivel).toBe(desfeito.nivel);
         expect(nova.branchType).toBe('hotfix');
         expect(futuras(itens).every((f) => f.aposId === 'x2')).toBe(true);
     });
