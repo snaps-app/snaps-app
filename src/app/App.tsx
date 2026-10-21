@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Home } from '@/app/components/layout/home';
 import { ProjectWorkspace } from '@/app/components/project/project-workspace';
 import { ActiveChat } from '@/app/components/chat/active-chat';
@@ -36,6 +37,17 @@ import { ScratchView } from '@/app/components/views/scratch-view';
 import { TimeView } from '@/app/views/TimeView';
 import { ProjectTimeView } from '@/app/views/ProjectTimeView';
 import { supabase } from '@/lib/supabaseClient';
+import { consultaCliente, vincularCacheASessao } from '@/services/consultaCliente';
+import { onAuthStateChange } from '@/services/auth.service';
+
+// Devtools do cache só em desenvolvimento, e por import dinâmico: no build de
+// produção `import.meta.env.DEV` é `false`, o ramo some e o pacote não entra
+// em chunk nenhum (ADR-0071, item 2).
+const DevtoolsDeConsulta = import.meta.env.DEV
+    ? lazy(() =>
+          import('@tanstack/react-query-devtools').then((m) => ({ default: m.ReactQueryDevtools })),
+      )
+    : null;
 
 /**
  * Rota antiga -> aba do Hub de Settings (B3).
@@ -87,7 +99,12 @@ function AuthRedirector() {
 }
 
 export default function App() {
+    // Sair ou trocar de conta apaga o cache: dado de projeto não passa de um
+    // usuário para o outro no mesmo navegador (ADR-0071, item 9).
+    useEffect(() => vincularCacheASessao(consultaCliente, onAuthStateChange), []);
+
     return (
+        <QueryClientProvider client={consultaCliente}>
         <BrowserRouter>
             {/* A fila de importacao envolve as rotas de proposito: dentro delas,
                 navegar para revisar um material desmontaria o provider e mataria
@@ -171,5 +188,11 @@ export default function App() {
             </div>
             </IngestQueueProvider>
         </BrowserRouter>
+        {DevtoolsDeConsulta && (
+            <Suspense fallback={null}>
+                <DevtoolsDeConsulta initialIsOpen={false} />
+            </Suspense>
+        )}
+        </QueryClientProvider>
     );
 }
