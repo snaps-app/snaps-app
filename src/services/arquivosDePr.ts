@@ -32,9 +32,9 @@ export interface ArquivosDaPr {
     arquivos: ArquivoDaPr[];
 }
 
-export const getArquivosDaPr = async (executionId: string, repo: string): Promise<ArquivosDaPr> => {
+export const getArquivosDaPr = async (executionId: string, repo: string, prNumber?: number): Promise<ArquivosDaPr> => {
     const response = await api.get(
-        `/api/agent-executions/${executionId}/prs/${encodeURIComponent(repo)}/files`,
+        `/api/agent-executions/${executionId}/prs/${encodeURIComponent(repo)}/files${prNumber ? `?pr_number=${prNumber}` : ''}`,
     );
     return response.data;
 };
@@ -53,19 +53,19 @@ const SEM_SHA = '';
  * sem SHA, que é justamente o que esta lista não pode ter.
  */
 const ultimoSha = new WeakMap<QueryClient, Map<string, string>>();
-const chaveDoPonteiro = (executionId: string, repo: string) => `${executionId}|${repo}`;
+const chaveDoPonteiro = (executionId: string, repo: string, prNumber?: number) => `${executionId}|${repo}|${prNumber ?? "legado"}`;
 
-interface PrDoSnapshot { repo?: string; head_sha?: string | null }
+interface PrDoSnapshot { pr_number?: number; repo?: string; head_sha?: string | null }
 
 /**
  * O SHA que o app já tem, sem chamada nova:
  *  1. o `head_sha` do `pr_heads_captured` no snapshot do nó, se ele já está em cache;
  *  2. o SHA mais recente que a API devolveu para este repositório.
  */
-export function shaConhecido(cliente: QueryClient, executionId: string, repo: string): string | null {
+export function shaConhecido(cliente: QueryClient, executionId: string, repo: string, prNumber?: number): string | null {
     const snapshot = cliente.getQueryData<{ prs?: PrDoSnapshot[] }>(chaves.snapshot(executionId));
-    const capturado = snapshot?.prs?.find((p) => p.repo === repo)?.head_sha;
-    return capturado || ultimoSha.get(cliente)?.get(chaveDoPonteiro(executionId, repo)) || null;
+    const capturado = snapshot?.prs?.find((p) => p.repo === repo && (prNumber === undefined || p.pr_number === prNumber))?.head_sha;
+    return capturado || ultimoSha.get(cliente)?.get(chaveDoPonteiro(executionId, repo, prNumber)) || null;
 }
 
 /**
@@ -81,23 +81,23 @@ export function shaConhecido(cliente: QueryClient, executionId: string, repo: st
  *   e a chave antiga continua com a lista do commit antigo (cada chave guarda
  *   sempre a lista do SHA que ela nomeia).
  */
-export function useArquivosDaPr(executionId: string, repo: string, habilitada: boolean) {
+export function useArquivosDaPr(executionId: string, repo: string, habilitada: boolean, prNumber?: number) {
     const cliente = useQueryClient();
-    const [sha, setSha] = useState<string | null>(() => shaConhecido(cliente, executionId, repo));
-    const chaveAtual = chaves.prs(executionId, repo, sha ?? SEM_SHA);
+    const [sha, setSha] = useState<string | null>(() => shaConhecido(cliente, executionId, repo, prNumber));
+    const chaveAtual = chaves.prs(executionId, repo, sha ?? SEM_SHA, prNumber);
 
     return useQuery({
         queryKey: chaveAtual,
         queryFn: async () => {
-            const resposta = await getArquivosDaPr(executionId, repo);
+            const resposta = await getArquivosDaPr(executionId, repo, prNumber);
             const novo = resposta.head_sha;
             if (!novo) return resposta;
             const ponteiros = ultimoSha.get(cliente) ?? new Map<string, string>();
-            ponteiros.set(chaveDoPonteiro(executionId, repo), novo);
+            ponteiros.set(chaveDoPonteiro(executionId, repo, prNumber), novo);
             ultimoSha.set(cliente, ponteiros);
             if (novo === sha) return resposta;
 
-            cliente.setQueryData(chaves.prs(executionId, repo, novo), resposta);
+            cliente.setQueryData(chaves.prs(executionId, repo, novo, prNumber), resposta);
             setSha(novo);
             // A chave antiga não recebe a lista do commit novo: sem SHA anterior
             // (primeiro pedido) a resposta é tudo o que há; com SHA, fica a dela.

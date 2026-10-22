@@ -114,9 +114,22 @@ describe('paridade com o Cockpit antigo', () => {
         renderComConsulta(<AbaScratch {...props()} />);
 
         fireEvent.click(await screen.findByRole('button', { name: 'Ideias' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
         fireEvent.click(screen.getByRole('button', { name: 'Excluir nota' }));
 
         expect(confirmar).toHaveBeenCalled();
         await waitFor(() => expect(deleteSnap).toHaveBeenCalledWith('n1', 'p'));
     });
+});
+
+it('Scratch abre formatado e a janela usa a raiz; viewer não edita', async () => {
+    vi.mocked(getSnaps).mockResolvedValue([{id:'n1',name:'Nota',content:'# Título',snadds:{type:'scratch'}} as never]);
+    const abrir = vi.spyOn(window,'open').mockReturnValue(null);
+    const acoes = {...acoesFalsas(),podeAgir:false};
+    renderComConsulta(<AbaScratch {...props(acoes)} />);
+    fireEvent.click(await screen.findByRole('button',{name:'Nota'}));
+    expect(screen.getByRole('heading',{name:'Título'})).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Editar'})).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'Abrir em nova janela'}));
+    expect(abrir).toHaveBeenCalledWith('/project/p/execution/raiz/scratch','_blank','noopener');
 });

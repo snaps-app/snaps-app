@@ -1,3 +1,4 @@
+import { Link, useInRouterContext } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import type { AgentTaskExecution } from '@/services/types';
@@ -59,6 +60,7 @@ interface Props {
  * aqui: tem campo proprio, vazio por default ("ausencia e o estado normal").
  */
 export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecutionUpdated, somenteLeitura = false }) => {
+    const emRouter = useInRouterContext();
     const [selecao, setSelecao] = useState<SelecaoDeContexto | null>(null);
     const [removendo, setRemovendo] = useState<string | null>(null);
     const [erro, setErro] = useState<string | null>(null);
@@ -118,9 +120,16 @@ export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecution
                         <li key={`${item.tipo}:${item.id}`}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
                             <span className="text-[9px] text-white/30 w-14 shrink-0">{ROTULO_TIPO[item.tipo]}</span>
-                            <span className="flex-1 min-w-0 truncate text-[11px] text-white/70" title={item.id}>
-                                {item.titulo || item.id}
-                            </span>
+                            {(() => {
+                                const parametro = ({governance_doc:'doc',decision:'adr',snap:'snap'} as Record<string,string>)[item.tipo];
+                                if (!parametro) return <span className="flex-1 min-w-0 truncate text-[11px] text-white/70">{item.titulo || item.id}</span>;
+                                const params = new URLSearchParams(window.location.search);
+                                for (const p of ['doc','adr','snap']) params.delete(p);
+                                params.set(parametro,item.id); params.set('project',execution.project_id);
+                                const href = `${window.location.pathname}?${params}`;
+                                const estilo = "flex-1 min-w-0 truncate text-left text-[11px] text-white/70 underline";
+                                return emRouter ? <Link to={href} className={estilo}>{item.titulo || item.id}</Link> : <a href={href} className={estilo}>{item.titulo || item.id}</a>;
+                            })()}
                             <Origem origem={item.origem} />
                             {selecao.revisavel && !somenteLeitura && (
                                 <button

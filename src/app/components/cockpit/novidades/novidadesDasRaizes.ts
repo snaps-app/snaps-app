@@ -32,7 +32,7 @@ export interface VistosDaRaiz {
  * sessões de tempo: serve para o timer ficar em dia, e abrir o Cockpit já
  * abre uma sessão; marcar o nó por isso acenderia novidade a cada visita.
  */
-const FORA_DA_NOVIDADE: ReadonlySet<string> = new Set(['sessoes']);
+const FORA_DA_NOVIDADE: ReadonlySet<string> = new Set(['sessoes', 'cards']);
 
 /** O que a árvore leve diz de um nó, em ordem fixa: qualquer campo que mude é novidade. */
 export function assinaturaDoNo(no: NoDaArvore): string {

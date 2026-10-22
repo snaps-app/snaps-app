@@ -26,7 +26,7 @@ export const JANELA_DO_REPLAY_MS = 750;
 
 /** O evento do stream no formato de `abaDoEvento`/`invalidarPorEvento`. */
 export function comoEventoDoNo(evento: EventoDeExecucao, noId: string): EventoDoNo {
-    return { name: evento.nome, execution_id: evento.dados?.execution_id ?? noId, payload: evento.dados?.payload ?? {} };
+    return { seq: evento.id, name: evento.nome, execution_id: evento.dados?.execution_id ?? noId, payload: evento.dados?.payload ?? {} };
 }
 
 export interface OpcoesDosEventos {

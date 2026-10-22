@@ -607,6 +607,8 @@ export interface WorkflowSnapshot {
 /** Item de `GET /api/agent-executions/{id}/arvore`: sem prompt nem contexto. */
 export interface NoDaArvore {
     id: string;
+    cards?: string | null;
+    artefatos?: string | null;
     parent_id: string | null;
     phase: string;
     status: string;

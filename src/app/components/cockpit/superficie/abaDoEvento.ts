@@ -1,3 +1,4 @@
+import { abaDoArtefato } from './tiposDeArtefato';
 /**
  * Evento do stream → aba que ganha novidade (ponto azul). Função única (P6):
  * o ponto da Superfície, o contador do trilho e `invalidarPorEvento` leem daqui.
@@ -9,9 +10,7 @@
  * na PR (commit, abrir ou fundir a PR): é o evento de commit novo, e a lista de
  * arquivos da aba depende dele. Recibo de outro provedor não gera ponto.
  *
- * `artifact_submitted` não diz o tipo do artefato no payload (só os hashes);
- * o que o agente submete no nó é o walkthrough, então ele vai para
- * Walkthroughs.
+ * Artefatos são classificados pelo tipo canônico do produtor/replay autorizado.
  */
 import type { ChaveDeAba } from './catalogo';
 import type { Novidades } from './ordenarAbas';
@@ -19,12 +18,12 @@ import type { Novidades } from './ordenarAbas';
 /** O mínimo de um evento de `execution_events`, como o SSE entrega em `dados`. */
 export interface EventoDoNo {
     name: string;
+    seq?: number;
     execution_id?: string | null;
     payload?: Record<string, unknown>;
 }
 
 const POR_NOME: Readonly<Record<string, ChaveDeAba>> = {
-    artifact_submitted: 'walkthroughs',
     gate_evaluated: 'no',
     command_failed: 'atividade',
     pr_heads_captured: 'prs',
@@ -49,6 +48,7 @@ const OPERACOES_DA_PR = new Set(['commit', 'create_pr', 'merge_pr']);
 export function abaDoEvento(evento: EventoDoNo | null | undefined): ChaveDeAba | null {
     const nome = evento?.name;
     if (!nome) return null;
+    if (nome === 'artifact_submitted') return abaDoArtefato(evento?.payload?.artifact_type);
     if (nome === 'side_effect_receipt') {
         const { provider, operation } = evento?.payload ?? {};
         return provider === 'github' && typeof operation === 'string' && OPERACOES_DA_PR.has(operation) ? 'prs' : null;

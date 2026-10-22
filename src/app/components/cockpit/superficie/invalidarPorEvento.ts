@@ -53,6 +53,9 @@ export function chavesDoEvento(evento: EventoDoNo, contexto: ContextoDoEvento): 
     // que a árvore leve carrega e as ações enviam: sem isso, avançar depois de
     // um sync do agente daria 409 por revisão velha (TP-4).
     if (evento.name === 'execution_updated') lista.push(chaves.arvore(contexto.rootId), chaves.snapshot(id));
+    if (evento.name === 'execution_updated' && Array.isArray(evento.payload?.fields)
+        && evento.payload.fields.some(f => f === 'card_ids' || f === 'sprint_ids'))
+        lista.push(chaves.aba(id,'cards'), chaves.cardsDaRaiz(contexto.rootId,[]).slice(0,3));
     if (!aba) return lista;
 
     lista.push(chaves.aba(id, aba));

@@ -1,3 +1,5 @@
+import { TIPOS_DE_REVISAO } from '../tiposDeArtefato';
+export { TIPOS_DE_REVISAO } from '../tiposDeArtefato';
 /**
  * Abas de artefatos do nó: Revisões (peer review deixa de ser modal),
  * Walkthroughs (deixa de ser modal; continua editável em nó concluído) e Retro.
@@ -15,7 +17,7 @@ import { collectWalkthroughs } from '@/app/components/execution/useCockpitWalkth
 import { EstadoDaConsulta, Vazio, useConteudoDaAba, type PropsDaAba } from './comum';
 
 /** Tipos de snap que a aba Revisões mostra. Os mesmos que `/resumo` conta. */
-export const TIPOS_DE_REVISAO = ['peer_review', 'code_review', 'ci_review', 'release_review'];
+
 
 export function AbaRevisoes(props: PropsDaAba) {
     const { execucao } = props;

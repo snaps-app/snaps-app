@@ -20,6 +20,8 @@ import type { ArvoreLeve, NoDaArvore, WorkflowSnapshot } from './types';
 export interface FaseDoNo {
     key: string;
     label: string;
+    convergence?: string;
+    branching_strategy?: string;
 }
 
 export type ClasseDoNo = 'concluido' | 'atual' | 'descartado';
@@ -36,7 +38,7 @@ export function fasesDoNo(execucao: { workflow_snapshot?: WorkflowSnapshot | nul
     const fases = execucao.workflow_snapshot?.phases ?? [];
     return fases
         .filter((fase): fase is typeof fase & { key: string } => typeof fase?.key === 'string' && fase.key !== '')
-        .map((fase) => ({ key: fase.key, label: fase.label || fase.key }));
+        .map((fase) => ({ key: fase.key, label: fase.label || fase.key, ...(fase.convergence ? { convergence: String(fase.convergence) } : {}), ...(fase.branching_strategy ? { branching_strategy: String(fase.branching_strategy) } : {}) }));
 }
 
 /**
@@ -51,6 +53,8 @@ export function classificarNo(execucao: { status: string }, status: StatusDaApi)
 
 export interface NoDoHistory {
     tipo: 'no';
+    origemId?: string;
+    origemRotulo?: string;
     id: string;
     parentId: string | null;
     phase: string;
@@ -109,14 +113,27 @@ export function montarHistory(arvore: ArvoreLeve, status: StatusDaApi): ItemDoHi
         fasesDoNo({ workflow_snapshot: hash ? arvore.workflows[hash] : null });
 
     const itens: ItemDoHistory[] = [];
-    const visitar = (no: NoDaArvore, nivel: number, ancestrais: NoDaArvore[], abreRamo: boolean) => {
+    const retomadas: Array<{no: NoDaArvore; ancestrais: NoDaArvore[]}> = [];
+    const convergentes = new Map<string, FaseFutura>();
+    const visitados = new Set<string>();
+    const visitar = (no: NoDaArvore, nivel: number, ancestrais: NoDaArvore[], abreRamo: boolean, retomada = false) => {
+        if (visitados.has(no.id)) return;
         const fases = fasesDoHash(no.workflow_snapshot_hash);
+        const pai = ancestrais[ancestrais.length - 1];
+        const fanOut = fases.findIndex(f => !!f.branching_strategy);
+        const faseAtual = fases.findIndex(f => f.key === no.phase);
+        const saiDoRamo = nivel > 0 && !retomada && pai && (
+            fases.find(f => f.key === pai.phase)?.convergence === 'sprint'
+            || (fanOut >= 0 && faseAtual >= 0 && faseAtual < fanOut));
+        if (saiDoRamo) { retomadas.push({no, ancestrais}); return; }
+        visitados.add(no.id);
         const classe = classificarNo(no, status);
         const tentativa = 1 + ancestrais.filter(
             (a) => a.phase === no.phase && (a.plan_id ?? null) === (no.plan_id ?? null),
         ).length;
         itens.push({
             tipo: 'no',
+            ...(retomada && pai ? {origemId:pai.id, origemRotulo:`${pai.phase} · ${pai.plano_titulo ?? pai.plan_id ?? ''}`} : {}),
             id: no.id,
             parentId: no.parent_id,
             phase: no.phase,
@@ -139,12 +156,17 @@ export function montarHistory(arvore: ArvoreLeve, status: StatusDaApi): ItemDoHi
             const indice = fases.findIndex((f) => f.key === no.phase);
             if (indice >= 0) {
                 for (const fase of fases.slice(indice + 1)) {
-                    itens.push({ tipo: 'futura', aposId: no.id, key: fase.key, label: fase.label, nivel });
+                    if (fase.convergence === 'sprint') {
+                        if (!arvore.nos.some(n => n.phase === fase.key && classificarNo(n,status) !== 'descartado'))
+                            convergentes.set(`${no.workflow_snapshot_hash}:${fase.key}`, {tipo:'futura',aposId:no.id,key:fase.key,label:fase.label,nivel:0});
+                    } else itens.push({ tipo: 'futura', aposId: no.id, key: fase.key, label: fase.label, nivel });
                 }
             }
         }
     };
     const raizes = filhos.get(null) ?? [];
     for (const raiz of raizes) visitar(raiz, 0, [], raizes.length > 1);
+    for (let i=0; i<retomadas.length; i++) visitar(retomadas[i].no, 0, retomadas[i].ancestrais, false, true);
+    itens.push(...convergentes.values());
     return itens;
 }

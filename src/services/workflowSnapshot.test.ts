@@ -216,3 +216,19 @@ describe('trava: o Cockpit novo não lê o catálogo de workflows', () => {
         expect(fonte).not.toMatch(/getWorkflowTemplates|templates\.find\(/);
     });
 });
+
+
+describe('hotfix History', () => {
+    it('projeta convergência uma vez e fora dos ramos', () => {
+        const wf: WorkflowSnapshot = { phases: SDLC.phases.map(f => ({ ...f, ...(f.key === 'execution' ? { branching_strategy: 'per_selected_plan' } : {}), ...(['assurance','retro'].includes(f.key ?? '') ? { convergence: 'sprint' } : {}) })) };
+        const tree = arvore([no('m','micro_planning','completed'), no('e1','execution','in_progress',{parent_id:'m',plan_id:'p1'}), no('e2','execution','in_progress',{parent_id:'m',plan_id:'p2'})], {h1:wf});
+        const fs = futuras(montarHistory(tree, STATUS));
+        expect(fs.filter(f => f.key === 'assurance')).toHaveLength(1);
+        expect(fs.find(f => f.key === 'assurance')?.nivel).toBe(0);
+    });
+    it('fixture E21: rollback para micro_planning sai do ramo do TP-2', () => {
+        const wf: WorkflowSnapshot = { phases: SDLC.phases.map(f => ({ ...f, ...(f.key === 'execution' ? { branching_strategy: 'per_selected_plan' } : {}), ...(f.key === 'retro' ? { convergence:'sprint' } : {}) })) };
+        const tree = arvore([no('m','micro_planning','completed'),no('e1','execution','completed',{parent_id:'m',plan_id:'p1'}),no('e2','execution','completed',{parent_id:'m',plan_id:'p2'}),no('a2','assurance','rolled_back',{parent_id:'e2',plan_id:'p2'}),no('h','micro_planning','pending',{parent_id:'a2',branch_type:'hotfix'})],{h1:wf});
+        expect(nos(montarHistory(tree,STATUS)).find(n => n.id === 'h')).toMatchObject({nivel:0,origemId:'a2'});
+    });
+});
