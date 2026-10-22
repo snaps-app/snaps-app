@@ -619,6 +619,11 @@ export interface NoDaArvore {
     updated_at: string;
     lock_version: number;
     workflow_snapshot_hash: string | null;
+    /**
+     * Carimbo leve das sessões de tempo do nó; muda quando uma abre ou fecha.
+     * Não é novidade do nó: deixa em dia o tempo da árvore no timer.
+     */
+    sessoes?: string | null;
 }
 
 /** `GET /api/agent-executions/{id}/arvore` (ADR-0071): cada workflow uma vez por hash. */

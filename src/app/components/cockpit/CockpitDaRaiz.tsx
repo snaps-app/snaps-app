@@ -16,9 +16,9 @@
  * O nó e a aba vêm da URL; trocar é navegar com `rotaDoNo`. Sem aba na URL,
  * abre a aba com ação pendente, ou a da fase (regra 7, `abaAoAbrirNo`).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
 import { rotaDoNo } from '@/services/cockpitRota';
 import { cardsDoEscopo } from '@/services/executionScope';
@@ -110,6 +110,7 @@ export function CockpitDaRaiz({
 }: CockpitDaRaizProps) {
     const rootId = raiz.rootId;
     const navigate = useNavigate();
+    const cliente = useQueryClient();
     const { estado: estadoDaAba, atualizar } = useEstadoDaAba();
     const arvore = useArvore(rootId);
     const status = useStatusDaApi();
@@ -141,6 +142,19 @@ export function CockpitDaRaiz({
         ...(terminal ? { staleTime: Infinity } : {}),
     });
     const snapshot = useNodeSnapshot(status.data ? noId : null, terminal);
+
+    // Sessão aberta ou fechada em OUTRO nó da árvore chega pela checagem de
+    // novidades (carimbo `sessoes`). O tempo da árvore mora no resumo do nó
+    // selecionado: só ele é revalidado, e só quando um carimbo muda.
+    const carimboDasSessoes = nos.map((n) => n.sessoes ?? '').join('|');
+    const carimboVisto = useRef<string | null>(null);
+    useEffect(() => {
+        const anterior = carimboVisto.current;
+        carimboVisto.current = carimboDasSessoes;
+        if (anterior !== null && anterior !== carimboDasSessoes && noId && !terminal) {
+            void cliente.invalidateQueries({ queryKey: chaves.resumo(noId) });
+        }
+    }, [carimboDasSessoes, noId, terminal, cliente]);
 
     // A raiz: os cards de todos os nós, uma vez. Cada nó filtra o seu escopo daqui.
     const idsDaRaiz = useMemo(() => [...new Set(nos.flatMap((n) => n.card_ids ?? []))].sort(), [nos]);

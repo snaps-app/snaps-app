@@ -17,9 +17,10 @@
  *   abre com as condições recusadas marcadas, inclusive as estruturais. Recusa
  *   que não é gate (revisão em conflito, origem já avançou) não vira override:
  *   a tela mostra a mensagem e oferece recarregar.
- * - Tempo e sessões do Cockpit antigo (timer, "Registrar horas", "Sessões"),
- *   reusados sem cópia, só no nó atual. Quem escreve opera; o viewer vê o
- *   tempo e a lista, só para leitura (`TimerDasSessoes`).
+ * - Tempo e sessões, só no nó atual: o timer mostra o tempo da árvore inteira
+ *   (`TimerDasSessoes`, fonte única `resumo.sessoes`), com Play/Pausa da
+ *   sessão de quem trabalha, "Registrar horas" e "Sessões". O viewer não tem
+ *   timer; vê só a lista "Sessões", para leitura, com o total.
  * - "Última chamada ao Snaps" (P25), do `/resumo`, sem chamada própria.
  */
 import { useState, type ReactNode } from 'react';
@@ -27,7 +28,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
 import type { NodeSnapshot, AgentTaskExecution, Card, WorkflowSnapshot } from '@/services/types';
-import type { ResumoDoNo } from '@/services/resumoDoNo';
+import { comSessaoAberta, comSessaoFechada, type ResumoDoNo } from '@/services/resumoDoNo';
 import { idCurto, rotuloDaRaiz, type ResumoDaRaiz } from '@/services/raizesDoCockpit';
 import { parseOverridableConditions } from '@/app/components/execution/dispatch-scope';
 import { ExecutionTimer } from '@/app/components/execution/execution-timer';
@@ -238,18 +239,28 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
         );
     };
 
-    // Nó concluído: nada disto, para ninguém. Viewer: o tempo e a lista, só leitura.
+    // A sessão de quem olha entra e sai do total em cache na hora, sem buscar:
+    // o evento do stream e a checagem de novidades trazem a conta do servidor.
+    const chaveDoResumo = chaves.resumo(execucao.id);
+    const sessaoAbriu = (inicio: string) =>
+        cliente.setQueryData<ResumoDoNo>(chaveDoResumo, (r) => comSessaoAberta(r, inicio));
+    const sessaoFechou = (inicio: string, fim: string) =>
+        cliente.setQueryData<ResumoDoNo>(chaveDoResumo, (r) => comSessaoFechada(r, inicio, fim));
+
+    // Nó concluído: nada disto, para ninguém. Member e admin: o tempo da árvore
+    // inteira, com Play/Pausa da própria sessão. Viewer: sem timer (não está
+    // trabalhando na execução), só a lista "Sessões", para leitura, com o total.
     const tempoESessoes = atual && (acoes.podeAgir ? (
         <div className="flex items-center gap-1.5">
-            <ExecutionTimer key={execucao.id} executionId={execucao.id} projectId={execucao.project_id} embutido />
+            <TimerDasSessoes sessoes={resumo?.sessoes}>
+                <ExecutionTimer key={execucao.id} executionId={execucao.id} projectId={execucao.project_id}
+                    embutido apenasControles onSessaoIniciada={sessaoAbriu} onSessaoEncerrada={sessaoFechou} />
+            </TimerDasSessoes>
             <button type="button" className={BOTAO_FANTASMA} onClick={() => setModal('horas')}>Registrar horas</button>
             <button type="button" className={BOTAO_FANTASMA} onClick={() => setModal('sessoes')}>Sessões</button>
         </div>
     ) : (
-        <div className="flex items-center gap-1.5">
-            <TimerDasSessoes sessoes={resumo?.sessoes} />
-            <button type="button" className={BOTAO_FANTASMA} onClick={() => setModal('sessoes')}>Sessões</button>
-        </div>
+        <button type="button" className={BOTAO_FANTASMA} onClick={() => setModal('sessoes')}>Sessões</button>
     ));
 
     const modais = (
@@ -274,6 +285,8 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
                     onClose={() => setModal(null)}
                     onLogHours={acoes.podeAgir ? () => setModal('horas') : undefined}
                     somenteLeitura={!acoes.podeAgir}
+                    tempo={resumo?.sessoes}
+                    onChanged={() => cliente.invalidateQueries({ queryKey: chaveDoResumo })}
                 />
             )}
             {acoes.podeAgir && (modal === 'horas' || modal === 'horas-finais') && (

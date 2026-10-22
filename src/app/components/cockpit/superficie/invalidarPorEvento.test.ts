@@ -20,6 +20,9 @@ describe('invalidarPorEvento', () => {
         ['execution_status_changed', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
         ['evento_desconhecido', [['execucao', 'no', 'resumo']]],
         ['execution_updated', [['execucao', 'no', 'resumo'], ['raiz', 'raiz', 'arvore'], ['execucao', 'no', 'snapshot']]],
+        // Sessão de tempo: só a fonte do total da árvore (decisão do PO no ci_gate do TP-4).
+        ['session_started', [['execucao', 'no', 'resumo']]],
+        ['session_closed', [['execucao', 'no', 'resumo']]],
     ])('%s invalida exatamente as chaves esperadas', (nome, esperadas) => {
         expect(chavesDoEvento(ev(nome), ctx)).toEqual(esperadas);
     });

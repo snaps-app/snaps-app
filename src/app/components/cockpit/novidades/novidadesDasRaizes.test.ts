@@ -87,6 +87,13 @@ describe('verNo e abrirAbaDeRaiz', () => {
     });
 });
 
+describe('carimbo de sessões', () => {
+    it('sessão aberta ou fechada não é novidade do nó (só deixa o timer em dia)', () => {
+        const base = atualizarVistos(null, [A, { ...B, sessoes: null }], visivel());
+        expect(atualizarVistos(base, [A, { ...B, sessoes: '1:1:1761048000:0' }], visivel())).toBe(base);
+    });
+});
+
 describe('assinaturaDoNo', () => {
     it('não depende da ordem dos campos', () => {
         const invertido = Object.fromEntries(Object.entries(B).reverse()) as unknown as NoDaArvore;

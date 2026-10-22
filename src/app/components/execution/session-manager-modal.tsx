@@ -7,6 +7,7 @@ import {
     deleteExecutionSession,
 } from '@/services/timeLogs';
 import { getProjectMembers, type ProjectMember } from '@/services/members';
+import { formatarTempoDeSessoes, useSegundosEmSessoes, type TempoEmSessoes } from '@/services/resumoDoNo';
 import { supabase } from '@/lib/supabaseClient';
 import type { ExecutionSession } from '@/types/timeLogs';
 interface SessionManagerModalProps {
@@ -20,6 +21,9 @@ interface SessionManagerModalProps {
     // Só leitura (viewer no Cockpit novo, TP-4 da 24.0): a lista, sem criar,
     // editar, reatribuir, excluir nem apontar horas.
     somenteLeitura?: boolean;
+    // O tempo da árvore (`resumo.sessoes`, Cockpit novo): o "Total" vem daqui, a
+    // mesma fonte e a mesma conta do timer do cabeçalho. Sem ele, a soma local.
+    tempo?: TempoEmSessoes | null;
 }
 
 function pad(n: number): string {
@@ -47,7 +51,8 @@ function fmtDuration(hours: number): string {
 const inputCls =
     'bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50 [color-scheme:dark]';
 
-export function SessionManagerModal({ executionId, projectId, onClose, onChanged, onLogHours, somenteLeitura = false }: SessionManagerModalProps) {
+export function SessionManagerModal({ executionId, projectId, onClose, onChanged, onLogHours, somenteLeitura = false, tempo }: SessionManagerModalProps) {
+    const totalDaArvore = useSegundosEmSessoes(tempo);
     const [sessions, setSessions] = useState<ExecutionSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -177,7 +182,9 @@ export function SessionManagerModal({ executionId, projectId, onClose, onChanged
                     <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-purple-400" />
                         <h3 className="text-white font-semibold text-sm">{somenteLeitura ? 'Sessões' : 'Gerenciar sessões'}</h3>
-                        <span className="text-white/30 text-xs">Total: {fmtDuration(totalHours)}</span>
+                        <span data-testid="total-das-sessoes" className="text-white/30 text-xs">
+                            Total: {totalDaArvore !== null ? formatarTempoDeSessoes(totalDaArvore) : fmtDuration(totalHours)}
+                        </span>
                     </div>
                     <button onClick={onClose} className="text-white/30 hover:text-white/60 transition-colors">
                         <X className="w-4 h-4" />

@@ -343,7 +343,7 @@ describe('Cockpit montado', () => {
         expect(aplicar).toBeEnabled();
     });
 
-    it('viewer vê o timer e a lista de sessões só para leitura, sem "Registrar horas", controles do timer nem override de sessão', async () => {
+    it('viewer não tem timer: sem tempo correndo, controles, "Registrar horas" nem override de sessão; a lista "Sessões" é só leitura, com o total', async () => {
         papel.role = 'viewer';
         estadoDaApi.sessoes = [{
             id: 's-9', agent_execution_id: EXEC_TP1, user_id: 'outra', user_display_name: 'Maria Souza',
@@ -351,27 +351,59 @@ describe('Cockpit montado', () => {
         }];
         abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
         const topo = await cabecalho();
-        const timer = await within(topo).findByTestId('timer-da-execucao');
-        expect(timer).toHaveAttribute('data-somente-leitura', 'true');
-        await waitFor(() => expect(timer).toHaveTextContent('01:00:00'));
+        const sessoes = await within(topo).findByRole('button', { name: 'Sessões' });
+        expect(within(topo).queryByTestId('timer-da-execucao')).not.toBeInTheDocument();
         expect(within(topo).queryByRole('button', { name: 'Registrar horas' })).not.toBeInTheDocument();
         expect(within(topo).queryByRole('button', { name: /Pausar sessão|Retomar sessão/ })).not.toBeInTheDocument();
         expect(apiFalsa.post).not.toHaveBeenCalledWith(expect.stringMatching(/\/sessions\/start$/));
 
-        fireEvent.click(within(topo).getByRole('button', { name: 'Sessões' }));
+        fireEvent.click(sessoes);
         expect(await screen.findByText('Maria Souza')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Sessões' })).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByTestId('total-das-sessoes')).toHaveTextContent('Total: 01:00:00'));
         expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Apontar horas/ })).not.toBeInTheDocument();
         expect(screen.queryByTitle('Excluir sessão')).not.toBeInTheDocument();
         expect(screen.queryByTitle('Atribuir a outro membro')).not.toBeInTheDocument();
         for (const campo of document.querySelectorAll('input[type="datetime-local"]')) expect(campo).toBeDisabled();
 
+        fireEvent.click(screen.getByRole('button', { name: 'Concluído' }));
         fireEvent.click(screen.getByRole('button', { name: /^Execution, concluído/ }));
         await waitFor(() => expect(screen.getByTestId('destino')).toHaveTextContent(`?no=${EXEC_TP2}`));
         const outro = await cabecalho();
-        await waitFor(() => expect(within(outro).queryByTestId('timer-da-execucao')).not.toBeInTheDocument());
-        expect(within(outro).queryByRole('button', { name: 'Sessões' })).not.toBeInTheDocument();
+        await waitFor(() => expect(within(outro).queryByRole('button', { name: 'Sessões' })).not.toBeInTheDocument());
+    });
+
+    it('member e admin: o timer mostra o tempo da árvore inteira, o mesmo número do "Total" da lista "Sessões"', async () => {
+        // Duas fechadas em nós diferentes (1 h + 30 min, já somadas pela API) e uma aberta por outra pessoa há 1 min.
+        estadoDaApi.resumos[EXEC_TP1] = resumoPadrao({
+            sessoes: { encerradas_segundos: 5_400, ativas_desde: [new Date(Date.now() - 60_000).toISOString()] },
+        });
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        const timer = await within(topo).findByTestId('timer-da-execucao');
+        // A sessão de quem abriu o nó entra no total na hora (Play automático), sem buscar de novo.
+        await waitFor(() => expect(within(topo).getByRole('button', { name: 'Pausar sessão' })).toBeInTheDocument());
+        await waitFor(() => expect(timer.textContent).toMatch(/^01:31:0\d/));
+        const resumosAntes = apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${EXEC_TP1}/resumo`).length;
+
+        fireEvent.click(within(topo).getByRole('button', { name: 'Sessões' }));
+        const total = await screen.findByTestId('total-das-sessoes');
+        await waitFor(() => expect(total.textContent?.replace('Total: ', '')).toBe(timer.textContent));
+        expect(apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${EXEC_TP1}/resumo`).length).toBe(resumosAntes);
+    });
+
+    it('session_started do nó selecionado: o tempo da árvore é relido na hora, pelo evento', async () => {
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        await waitFor(() => expect(streamFalso.abertas()).toHaveLength(1));
+        await fimDoReplay();
+        estadoDaApi.resumos[EXEC_TP1] = resumoPadrao({ sessoes: { encerradas_segundos: 7_200, ativas_desde: [] } });
+
+        act(() => streamFalso.abertas()[0].emitir(evento('session_closed', EXEC_TP1, { session_id: 's-outra' })));
+
+        await waitFor(() => expect(within(topo).getByTestId('timer-da-execucao').textContent).toMatch(/^02:00:/));
+        expect(within(conversa()).getByText('Sessão de tempo fechada')).toBeInTheDocument();
     });
 
     it('timer, "Registrar horas" e "Sessões" no nó atual; nada disso no nó concluído', async () => {

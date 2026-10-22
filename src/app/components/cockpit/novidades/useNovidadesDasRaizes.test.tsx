@@ -39,7 +39,7 @@ import { abrirAba, gravarAbas, ABAS_VAZIAS } from '@/services/cockpitAbas';
 import { chavesDeConsulta } from '@/services/chavesDeConsulta';
 import { renderComConsulta } from '@/test/comConsulta';
 import {
-    EXEC_TP1, EXEC_TP2, OUTRA_RAIZ, RAIZ, apiFalsa, estadoDaApi, getsFeitos, reiniciarCockpitFalso, respostasDaArvore,
+    EXEC_TP1, EXEC_TP2, OUTRA_RAIZ, RAIZ, apiFalsa, estadoDaApi, getsFeitos, reiniciarCockpitFalso, respostasDaArvore, resumoPadrao,
 } from '@/test/cockpitFalso';
 import { PaginaDoCockpit } from '../PaginaDoCockpit';
 import { INTERVALO_DA_ABA_VISIVEL_MS, INTERVALO_DAS_ABAS_INATIVAS_MS } from './useNovidadesDasRaizes';
@@ -159,6 +159,28 @@ describe('checagem de novidades (ADR-0071, 5b)', () => {
         expect(botaoDoNo(/^Execution, atual, awaiting_advance/)).toHaveTextContent('1 novo');
         expect(botaoDoNo(/^Execution, atual, in_progress/)).not.toHaveTextContent('novo');
         expect(getsFeitos().slice(getsAntes).filter((u) => /\/arvore$/.test(u))).toEqual([arvoreDe(RAIZ)]);
+    });
+
+    it('sessão aberta por outra pessoa em outro nó: em até 60 s o timer relê o tempo da árvore, sem marca de novidade', async () => {
+        await abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const resumoDoTp1 = () => getsFeitos().filter((u) => u === `/api/agent-executions/${EXEC_TP1}/resumo`).length;
+        const antes = resumoDoTp1();
+        estadoDaApi.resumos[EXEC_TP1] = resumoPadrao({
+            sessoes: { encerradas_segundos: 3_600, ativas_desde: [new Date(Date.now()).toISOString()] },
+        });
+        const arvore = estadoDaApi.arvores[RAIZ];
+        estadoDaApi.arvores[RAIZ] = {
+            ...arvore,
+            nos: arvore.nos.map((n) => (n.id === EXEC_TP2 ? { ...n, sessoes: '1:1:1761048000:0' } : n)),
+        };
+
+        await intervalo(INTERVALO_DA_ABA_VISIVEL_MS);
+
+        expect(resumoDoTp1()).toBe(antes + 1);
+        expect(screen.queryByText(/\d novos?$/)).not.toBeInTheDocument();
+        // A sessão da outra pessoa (aberta há 60 s, quando a checagem rodou) já anda no relógio do navegador.
+        await passar(5_000);
+        expect(screen.getByTestId('timer-da-execucao').textContent).toMatch(/^01:01:0[5-9]/);
     });
 
     it('nó que ganha um filho mostra a marca, e o filho novo também', async () => {

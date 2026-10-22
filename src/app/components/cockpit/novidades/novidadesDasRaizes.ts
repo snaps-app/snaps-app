@@ -27,10 +27,19 @@ export interface VistosDaRaiz {
     aba: boolean;
 }
 
-/** Tudo o que a árvore leve diz de um nó, em ordem fixa: qualquer campo que mude é novidade. */
+/**
+ * Campos da árvore que NÃO são novidade do nó. `sessoes` é o carimbo das
+ * sessões de tempo: serve para o timer ficar em dia, e abrir o Cockpit já
+ * abre uma sessão; marcar o nó por isso acenderia novidade a cada visita.
+ */
+const FORA_DA_NOVIDADE: ReadonlySet<string> = new Set(['sessoes']);
+
+/** O que a árvore leve diz de um nó, em ordem fixa: qualquer campo que mude é novidade. */
 export function assinaturaDoNo(no: NoDaArvore): string {
     const campos = no as unknown as Record<string, unknown>;
-    return JSON.stringify(Object.keys(campos).sort().map((chave) => [chave, campos[chave]]));
+    return JSON.stringify(
+        Object.keys(campos).filter((chave) => !FORA_DA_NOVIDADE.has(chave)).sort().map((chave) => [chave, campos[chave]]),
+    );
 }
 
 export interface ContextoDaComparacao {

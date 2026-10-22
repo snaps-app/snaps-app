@@ -108,6 +108,9 @@ const DESCRITORES: Record<string, Descritor> = {
     pr_heads_captured: (p) => ({ texto: com('SHA do head registrado', heads(p)), tom: 'info' }),
     dispatch_scope_set: (p) => ({ texto: `Escopo de despacho definido: ${lista(p, 'plan_ids').length} plano(s)`, tom: 'atencao' }),
     dispatch_scope_cleared: () => ({ texto: 'Escopo de despacho removido', tom: 'neutro' }),
+    // Sessões de tempo (timer do cabeçalho): o payload só traz o id da sessão.
+    session_started: () => ({ texto: 'Sessão de tempo aberta', tom: 'neutro' }),
+    session_closed: () => ({ texto: 'Sessão de tempo fechada', tom: 'neutro' }),
     // E7: pedidos do Neuron, pausa, perguntas e modo de supervisão.
     request_pending: (p) => ({ texto: com('Pedido do Neuron esperando você', campo(p, 'operation')), tom: 'atencao' }),
     request_executed: (p) => ({ texto: com('Pedido do Neuron executado', campo(p, 'operation')), tom: 'sucesso' }),

@@ -13,6 +13,15 @@ interface ExecutionTimerProps {
      * canto. "Registrar horas" e "Sessões" ficam como botões do cabeçalho.
      */
     embutido?: boolean;
+    /**
+     * Com `embutido`: só Play/Pausa, sem relógio próprio. O tempo mostrado é o
+     * da árvore inteira, de outra fonte (decisão do PO no ci_gate do TP-4).
+     */
+    apenasControles?: boolean;
+    /** A sessão deste usuário abriu (Play ou ao montar), com o início dado pela API. */
+    onSessaoIniciada?: (startedAt: string) => void;
+    /** A sessão deste usuário fechou (Pausa, fechar ou desmontar). */
+    onSessaoEncerrada?: (startedAt: string, endedAt: string) => void;
 }
 
 function formatElapsed(seconds: number): string {
@@ -22,7 +31,9 @@ function formatElapsed(seconds: number): string {
     return `${h}:${m}:${s}`;
 }
 
-export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onManageSessions, onLogHours, embutido = false }) => {
+export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({
+    executionId, onManageSessions, onLogHours, embutido = false, apenasControles = false, onSessaoIniciada, onSessaoEncerrada,
+}) => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [startedAt, setStartedAt] = useState<Date | null>(null);
     const [elapsed, setElapsed] = useState(0);
@@ -36,6 +47,13 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onM
     const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const initializedRef = useRef<boolean>(false);
+    const inicioRef = useRef<string | null>(null);
+    const avisos = useRef({ onSessaoIniciada, onSessaoEncerrada });
+    avisos.current = { onSessaoIniciada, onSessaoEncerrada };
+    const avisarFim = () => {
+        if (inicioRef.current) avisos.current.onSessaoEncerrada?.(inicioRef.current, new Date().toISOString());
+        inicioRef.current = null;
+    };
 
     // Play: só permitido quando não há sessão ativa (sessionId null) e nenhum start em andamento.
     // Isto evita double-start (duas execution_sessions concorrentes para o mesmo usuário+execução).
@@ -46,6 +64,8 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onM
             const data = await startExecutionSession(executionId);
             setSessionId(data.session_id);
             sessionIdRef.current = data.session_id;
+            inicioRef.current = data.started_at;
+            avisos.current.onSessaoIniciada?.(data.started_at);
             const start = new Date(data.started_at);
             setStartedAt(start);
             setElapsed(Math.floor((Date.now() - start.getTime()) / 1000));
@@ -77,6 +97,7 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onM
         const activeSessionId = sessionIdRef.current;
         sessionIdRef.current = null;
         setSessionId(null);
+        avisarFim();
 
         if (activeSessionId) {
             setAccumulatedSeconds((prev) => prev + elapsed);
@@ -101,6 +122,7 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onM
             if (sessionIdRef.current) {
                 endExecutionSession(executionId, sessionIdRef.current).catch(() => {});
                 sessionIdRef.current = null;
+                avisarFim();
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -123,6 +145,20 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({ executionId, onM
 
     const totalDisplaySeconds = accumulatedSeconds + elapsed;
     const isRunning = Boolean(sessionId);
+
+    const controle = isRunning ? (
+        <button type="button" onClick={stopSession} aria-label="Pausar sessão"
+            className="rounded p-0.5 text-[var(--snaps-error)] hover:bg-white/10">
+            <Square className="h-3 w-3" />
+        </button>
+    ) : (
+        <button type="button" onClick={startSession} disabled={isStarting} aria-label="Retomar sessão"
+            className="rounded p-0.5 text-[var(--snaps-accent-purple)] hover:bg-white/10 disabled:opacity-50">
+            <Play className="h-3 w-3" />
+        </button>
+    );
+
+    if (embutido && apenasControles) return controle;
 
     if (embutido) {
         return (

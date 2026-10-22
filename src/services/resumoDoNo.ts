@@ -6,6 +6,7 @@
  * as abas fechadas nunca são consultadas para saber se estão vazias.
  * A pendência vem do banco; viewer recebe `pendencias: []` (P6, ADR-0020).
  */
+import { useEffect, useState } from 'react';
 import { api } from './client';
 
 export type TipoDePendencia =
@@ -41,17 +42,76 @@ export interface ResumoDeAtividade {
     diagnostico_expirado: boolean;
 }
 
-/** Sessões de tempo do nó: o timer só de leitura do viewer conta a partir daqui. */
+/**
+ * Sessões de tempo da ÁRVORE inteira da raiz (todos os nós, todas as pessoas),
+ * calculadas pela API. É a fonte única do timer do cabeçalho e do "Total" da
+ * lista "Sessões" (decisão do PO no ci_gate do TP-4, 22/10/2026).
+ */
 export interface TempoEmSessoes {
     encerradas_segundos: number;
     ativas_desde: string[];
+}
+
+/** A única conta: as encerradas mais o tempo corrido das abertas, até `agora`. */
+export function segundosEmSessoes(sessoes: TempoEmSessoes, agora: number): number {
+    const abertas = sessoes.ativas_desde.reduce((s, inicio) => {
+        const t = Date.parse(inicio);
+        return Number.isNaN(t) ? s : s + Math.max(0, (agora - t) / 1000);
+    }, 0);
+    return Math.floor(sessoes.encerradas_segundos + abertas);
+}
+
+/** "01:02:03". */
+export function formatarTempoDeSessoes(total: number): string {
+    const h = String(Math.floor(total / 3600)).padStart(2, '0');
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+    const s = String(total % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+}
+
+/**
+ * O total em segundos, andando de segundo em segundo no navegador enquanto há
+ * sessão aberta. Relógio local: nenhuma consulta (ADR-0071).
+ */
+export function useSegundosEmSessoes(sessoes: TempoEmSessoes | null | undefined): number | null {
+    const [agora, setAgora] = useState(() => Date.now());
+    const emAndamento = (sessoes?.ativas_desde.length ?? 0) > 0;
+    useEffect(() => {
+        if (!emAndamento) return undefined;
+        setAgora(Date.now());
+        const relogio = setInterval(() => setAgora(Date.now()), 1_000);
+        return () => clearInterval(relogio);
+    }, [emAndamento]);
+    return sessoes ? segundosEmSessoes(sessoes, emAndamento ? agora : Date.now()) : null;
+}
+
+/** A sessão deste usuário abriu: entra no total em cache, sem buscar de novo. */
+export function comSessaoAberta(resumo: ResumoDoNo | undefined, inicio: string): ResumoDoNo | undefined {
+    if (!resumo?.sessoes) return resumo;
+    const ja = resumo.sessoes.ativas_desde.some((a) => Date.parse(a) === Date.parse(inicio));
+    return ja ? resumo : { ...resumo, sessoes: { ...resumo.sessoes, ativas_desde: [...resumo.sessoes.ativas_desde, inicio] } };
+}
+
+/** A sessão deste usuário fechou: sai das abertas e soma nas encerradas. */
+export function comSessaoFechada(resumo: ResumoDoNo | undefined, inicio: string, fim: string): ResumoDoNo | undefined {
+    if (!resumo?.sessoes) return resumo;
+    const t = Date.parse(inicio);
+    const abertas = resumo.sessoes.ativas_desde.filter((a) => Date.parse(a) !== t);
+    if (abertas.length === resumo.sessoes.ativas_desde.length) return resumo;
+    return {
+        ...resumo,
+        sessoes: {
+            ativas_desde: abertas,
+            encerradas_segundos: resumo.sessoes.encerradas_segundos + Math.max(0, (Date.parse(fim) - t) / 1000),
+        },
+    };
 }
 
 export interface ResumoDoNo {
     pendencias: PendenciaDoNo[];
     abas: Record<string, AbaDoResumo>;
     atividade: ResumoDeAtividade;
-    /** Ausente em API anterior à rodada do PO de 21/10: o timer do viewer mostra "—". */
+    /** Ausente em API anterior à rodada do PO de 21/10: o timer mostra "—". */
     sessoes?: TempoEmSessoes;
     /**
      * Quem pede pode fazer override neste nó: o dono da árvore ou admin
