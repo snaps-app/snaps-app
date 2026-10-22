@@ -8,6 +8,7 @@ import { Target, X, Zap, ChevronDown, Layout as LayoutIcon, Calendar, CheckCircl
 import { motion, AnimatePresence } from 'motion/react';
 import { WorkflowFlowPreview } from '@/app/components/workflow/workflow-flow-preview';
 import { rotaDoNo } from '@/services/cockpitRota';
+import { detalheDoErro } from '@/services/system-settings';
 
 interface StrategyConfiguratorModalProps {
     isOpen: boolean;
@@ -33,6 +34,9 @@ export function StrategyConfiguratorModal({
     const navigate = useNavigate();
 
     const [isCreating, setIsCreating] = useState(false);
+    // A recusa da API diz o que falta (perfil do agente, skill, fase de entrada);
+    // um alerta genérico escondia isso de quem criava a execução.
+    const [erroAoCriar, setErroAoCriar] = useState<string | null>(null);
     const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
     const [availableSprints, setAvailableSprints] = useState<Sprint[]>([]);
     
@@ -48,6 +52,7 @@ export function StrategyConfiguratorModal({
         setSelectedSprintId(initialSprintId);
         setSelectedCardIds(initialCardIds);
         setCustomContext('');
+        setErroAoCriar(null);
 
         const fetchData = async () => {
             try {
@@ -77,6 +82,7 @@ export function StrategyConfiguratorModal({
         const firstPhaseKey = selectedTemplate?.phases?.[0]?.key || 'macro_planning';
 
         setIsCreating(true);
+        setErroAoCriar(null);
         try {
             const execution = await createAgentExecution({
                 project_id: projectId,
@@ -91,9 +97,9 @@ export function StrategyConfiguratorModal({
             });
             onClose();
             navigate(rotaDoNo(execution));
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Failed to start execution:', err);
-            alert('Failed to start agent session');
+            setErroAoCriar(detalheDoErro(err, 'Não foi possível criar a execução. Tente de novo.'));
         } finally {
             setIsCreating(false);
         }
@@ -237,6 +243,14 @@ export function StrategyConfiguratorModal({
                         </div>
 
                         {/* Modal Footer */}
+                        {erroAoCriar && (
+                            <div
+                                role="alert"
+                                className="mx-6 mt-4 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-200 text-sm whitespace-pre-wrap break-words"
+                            >
+                                {erroAoCriar}
+                            </div>
+                        )}
                         <div className="p-6 border-t border-white/5 bg-white/[0.02] flex items-center justify-end gap-3">
                             <button
                                 onClick={onClose}
