@@ -115,6 +115,13 @@ export function BoardView() {
   const [epicColorInput, setEpicColorInput] = useState(BOARD_COLORS[0]);
 
   const selectedSprintIds=searchParams.getAll('sprint');
+  // SNA-SUP-95: o Planner recebe o board, a sprint filtrada (se for uma só) e o card aberto.
+  const sprintDaTela=selectedSprintIds.length===1?sprints.find(s=>s.id===selectedSprintIds[0]):undefined;
+  const telaDoPlanner={
+    boardId:board?.id,boardNome:board?.name,colunas:board?.columns?.map(c=>c.id),
+    sprintId:sprintDaTela?.id,sprintNome:sprintDaTela?.name,
+    cardId:isCardModalOpen?selectedCard?.id:undefined,
+  };
   const setSelectedSprintIds=(next:string[]|((prev:string[])=>string[]))=>{
     const ids=typeof next==='function'?next(selectedSprintIds):next;
     const params=new URLSearchParams(searchParams);
@@ -262,7 +269,7 @@ export function BoardView() {
         <SprintModal isOpen={isSprintModalOpen} onClose={() => setIsSprintModalOpen(false)} {...{ sprints, editingSprintId, sprintNameInput, sprintTagInput, sprintObjectiveInput, isSprintFormOpen, isSprintSaving, setSprintNameInput, setSprintTagInput, setSprintObjectiveInput, setIsSprintFormOpen, setEditingSprintId, handleCreateSprint: onCreateSprint, handleUpdateSprint: onUpdateSprint, handleDeleteSprint, startEditingSprint: (s: any) => { setEditingSprintId(s.id); setSprintNameInput(s.name); setSprintTagInput(s.tag); setSprintObjectiveInput(s.objective || ''); } }} />
         <BulkApplyModal isOpen={isBulkApplyOpen} onClose={() => setIsBulkApplyOpen(false)} {...{ isLoadingBoards, allBoards, selectedBoardIds, toggleBoardSelection: (id) => { const n = new Set(selectedBoardIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedBoardIds(n); }, handleBulkApplyConfirm: async () => { if (!board?.columns) return; setIsBulkSaving(true); try { if (isDirty) await handleSaveBoard(); await Promise.all(Array.from(selectedBoardIds).map(id => updateBoard(id, { columns: board.columns }))); setIsBulkApplyOpen(false); setSelectedBoardIds(new Set()); } finally { setIsBulkSaving(false); } }, isBulkSaving }} />
         <VaccinationModal isOpen={isVaccinationModalOpen} onClose={() => setIsVaccinationModalOpen(false)} {...{ vaccinationCard, vaccinationContent, setVaccinationContent, handleVaccinate: async () => { if (!vaccinationCard || !projectId) return; setIsVaccinating(true); try { await createSnap({ project_id: projectId, name: `[VACINA] ${vaccinationCard.title}`, description: `Resolução do bug ${vaccinationCard.code || ''}`, content: vaccinationContent, snadds: { labels: ['bug-vaccination'], status: 'vacinado' } }); setIsVaccinationModalOpen(false); } finally { setIsVaccinating(false); } }, isVaccinating }} />
-        <PlannerPanel isOpen={isPlannerOpen} onClose={() => setIsPlannerOpen(false)} projectId={projectId} onBoardChanged={() => { if (localBoardId) void fetchBoard(localBoardId); if(projectId) void getSprints(projectId).then(setSprints); }} />
+        <PlannerPanel isOpen={isPlannerOpen} onClose={() => setIsPlannerOpen(false)} projectId={projectId} tela={telaDoPlanner} onBoardChanged={() => { if (localBoardId) void fetchBoard(localBoardId); if(projectId) void getSprints(projectId).then(setSprints); }} />
         {isCardModalOpen && (
           <CardModal 
             readOnly={!can('write')}

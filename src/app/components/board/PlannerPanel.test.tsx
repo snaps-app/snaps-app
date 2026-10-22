@@ -61,6 +61,17 @@ describe('Planner no board', () => {
     expect(createMessage).toHaveBeenLastCalledWith('chat-planner', 'Criei o card "Login".', 'assistant', expect.objectContaining({v:1,perfil:'board_planner',snaps_referenciados:[]}));
   });
 
+  it('envia ao Neuron o board e a sprint abertos na tela (SNA-SUP-95)', async () => {
+    papel('member');
+    vi.mocked(streamChat).mockResolvedValue(undefined);
+    const tela = { boardId: 'b1', boardNome: 'Suporte e QA', colunas: ['new-issues'], sprintId: 's1', sprintNome: 'QA-1' };
+    render(<PlannerPanel isOpen onClose={() => {}} projectId={PROJETO} onBoardChanged={vi.fn()} tela={tela} />);
+    await waitFor(() => expect(listChats).toHaveBeenCalledWith(PROJETO));
+    pedir('Crie um card aqui');
+    await waitFor(() => expect(streamChat).toHaveBeenCalled());
+    expect(vi.mocked(streamChat).mock.calls[0][0].tela).toEqual(tela);
+  });
+
   it('reabre o chat próprio pelo título e mostra a conversa, sem resposta fixa', async () => {
     papel('member');
     vi.mocked(listChats).mockResolvedValue([
