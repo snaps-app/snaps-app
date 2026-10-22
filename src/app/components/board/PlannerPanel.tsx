@@ -1,13 +1,13 @@
 import {useEffect,useRef,useState} from 'react';
-import {createChat,getChatHistory,listChats} from '@/services/chats';
+import {createChat,getChatHistory,listChats,type TelaDoNeuron} from '@/services/chats';
 import {usePapelNoProjeto} from '../chat/usePapelNoProjeto';
 import {podeEscrever} from '../chat/perfis';
 import {useConversa} from '../chat/comum/useConversa';
 import {Composer,MensagemComum} from '../chat/comum/Conversa';
 
 export const TITULO_CHAT_PLANNER='Planner · board';
-interface Props {isOpen:boolean;onClose:()=>void;projectId?:string;onBoardChanged:()=>void}
-export function PlannerPanel({isOpen,onClose,projectId,onBoardChanged}:Props) {
+interface Props {isOpen:boolean;onClose:()=>void;projectId?:string;onBoardChanged:()=>void;tela?:TelaDoNeuron}
+export function PlannerPanel({isOpen,onClose,projectId,onBoardChanged,tela}:Props) {
   const {papel,carregando:carregandoPapel}=usePapelNoProjeto(projectId);
   const pode=podeEscrever(papel);
   const [entrada,setEntrada]=useState('');
@@ -15,7 +15,7 @@ export function PlannerPanel({isOpen,onClose,projectId,onBoardChanged}:Props) {
   const [erroHistorico,setErroHistorico]=useState<string|null>(null);
   const geracaoDoChat=useRef(0);
   const chatId=useRef<string|null>(null);
-  const conversa=useConversa({projectId,chave:`${projectId}:${isOpen}:${pode}`,perfil:'board_planner',superficie:'board_planner',
+  const conversa=useConversa({projectId,chave:`${projectId}:${isOpen}:${pode}`,perfil:'board_planner',superficie:'board_planner',tela,
     obterChat:async()=>{
       if(chatId.current) return chatId.current;
       const geracao=geracaoDoChat.current;
