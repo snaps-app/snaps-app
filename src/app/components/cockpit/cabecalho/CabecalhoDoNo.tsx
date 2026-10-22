@@ -28,7 +28,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
 import type { NodeSnapshot, AgentTaskExecution, Card, WorkflowSnapshot } from '@/services/types';
-import { comSessaoAberta, comSessaoFechada, type ResumoDoNo } from '@/services/resumoDoNo';
+import { aplicarSessaoAberta, aplicarSessaoFechada, type ResumoDoNo } from '@/services/resumoDoNo';
 import { idCurto, rotuloDaRaiz, type ResumoDaRaiz } from '@/services/raizesDoCockpit';
 import { parseOverridableConditions } from '@/app/components/execution/dispatch-scope';
 import { ExecutionTimer } from '@/app/components/execution/execution-timer';
@@ -239,13 +239,12 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
         );
     };
 
-    // A sessão de quem olha entra e sai do total em cache na hora, sem buscar:
-    // o evento do stream e a checagem de novidades trazem a conta do servidor.
+    // A sessão de quem olha entra e sai do total em cache na hora, sem buscar.
+    // Ao fechar, sai do resumo de todo nó em cache (o total é da árvore), e o
+    // evento dela, que já está no total, não relê o `/resumo`.
     const chaveDoResumo = chaves.resumo(execucao.id);
-    const sessaoAbriu = (inicio: string) =>
-        cliente.setQueryData<ResumoDoNo>(chaveDoResumo, (r) => comSessaoAberta(r, inicio));
-    const sessaoFechou = (inicio: string, fim: string) =>
-        cliente.setQueryData<ResumoDoNo>(chaveDoResumo, (r) => comSessaoFechada(r, inicio, fim));
+    const sessaoAbriu = (inicio: string, id: string) => aplicarSessaoAberta(cliente, execucao.id, { id, inicio });
+    const sessaoFechou = (inicio: string, fim: string, id: string) => aplicarSessaoFechada(cliente, { id, inicio, fim });
 
     // Nó concluído: nada disto, para ninguém. Member e admin: o tempo da árvore
     // inteira, com Play/Pausa da própria sessão. Viewer: sem timer (não está

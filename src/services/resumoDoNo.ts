@@ -7,7 +7,9 @@
  * A pendência vem do banco; viewer recebe `pendencias: []` (P6, ADR-0020).
  */
 import { useEffect, useState } from 'react';
+import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { api } from './client';
+import { chavesDeConsulta } from './chavesDeConsulta';
 
 export type TipoDePendencia =
     | 'plano_aguardando_aprovacao'
@@ -120,9 +122,69 @@ export interface ResumoDoNo {
     pode_override?: boolean;
 }
 
+/** A sessão deste usuário, como a API devolveu ao abrir. */
+export interface SessaoPropria {
+    id: string;
+    inicio: string;
+}
+
+/**
+ * Sessões abertas e fechadas por este navegador, para o total em cache nunca
+ * ficar atrás do que o próprio usuário fez (ci_gate do TP-4):
+ *   - toda resposta do `/resumo` passa por `comSessoesProprias`: a sessão
+ *     aberta do nó entra, e a fechada sai das abertas. Vale mesmo quando a
+ *     resposta saiu do servidor antes do `start` ou do `end` ser gravado;
+ *   - por isso o `session_started`/`session_closed` delas, quando chega pelo
+ *     stream, não relê o `/resumo` (`eventoDeSessaoJaNoTotal`): ao abrir o nó
+ *     seria uma 4ª chamada (meta de 3, ADR-0071).
+ */
+const sessoesProprias = new Map<string, { executionId: string; inicio: string; fim?: string }>();
+
+export function eventoDeSessaoJaNoTotal(evento: { name: string; payload?: Record<string, unknown> }): boolean {
+    const id = evento.payload?.session_id;
+    const propria = typeof id === 'string' ? sessoesProprias.get(id) : undefined;
+    if (!propria) return false;
+    return evento.name === 'session_started' || (evento.name === 'session_closed' && propria.fim !== undefined);
+}
+
+/** O resumo de `executionId` com as sessões deste navegador já postas no total. */
+export function comSessoesProprias(resumo: ResumoDoNo, executionId: string): ResumoDoNo {
+    let corrigido = resumo;
+    for (const { executionId: doNo, inicio, fim } of sessoesProprias.values()) {
+        if (fim !== undefined) corrigido = comSessaoFechada(corrigido, inicio, fim) ?? corrigido;
+        else if (doNo === executionId) corrigido = comSessaoAberta(corrigido, inicio) ?? corrigido;
+    }
+    return corrigido;
+}
+
+const MODELO_DA_CHAVE = chavesDeConsulta.resumo('');
+const ehChaveDeResumo = (chave: QueryKey) =>
+    chave.length === MODELO_DA_CHAVE.length && chave[0] === MODELO_DA_CHAVE[0] && chave[2] === MODELO_DA_CHAVE[2];
+
+/** A sessão deste usuário abriu no nó: entra no total em cache dele, sem buscar. */
+export function aplicarSessaoAberta(cliente: QueryClient, executionId: string, sessao: SessaoPropria): void {
+    sessoesProprias.set(sessao.id, { executionId, inicio: sessao.inicio });
+    cliente.setQueryData<ResumoDoNo>(chavesDeConsulta.resumo(executionId), (r) => comSessaoAberta(r, sessao.inicio));
+}
+
+/**
+ * A sessão deste usuário fechou: sai de TODOS os resumos em cache. O total é
+ * da árvore, mas o cache é por nó; ao trocar de nó, o seguinte ainda teria a
+ * sessão como aberta e o relógio contaria em dobro até a checagem de
+ * novidades. `comSessaoFechada` só mexe no resumo que tem aquele início.
+ */
+export function aplicarSessaoFechada(cliente: QueryClient, sessao: SessaoPropria & { fim: string }): void {
+    const propria = sessoesProprias.get(sessao.id);
+    sessoesProprias.set(sessao.id, { executionId: propria?.executionId ?? '', inicio: sessao.inicio, fim: sessao.fim });
+    for (const [chave, resumo] of cliente.getQueriesData<ResumoDoNo>({ predicate: (q) => ehChaveDeResumo(q.queryKey) })) {
+        const depois = comSessaoFechada(resumo, sessao.inicio, sessao.fim);
+        if (depois !== resumo) cliente.setQueryData(chave, depois);
+    }
+}
+
 export const getResumoDoNo = async (executionId: string): Promise<ResumoDoNo> => {
     const response = await api.get(`/api/agent-executions/${executionId}/resumo`);
-    return response.data;
+    return comSessoesProprias(response.data, executionId);
 };
 
 /** Abas que o resumo diz estarem vazias, com o motivo. Nunca o conteúdo da aba. */

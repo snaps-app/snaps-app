@@ -10,7 +10,9 @@
  *    rótulo das abas de raiz (`staleTime: Infinity`, só muda por evento).
  *  - `session_started` e `session_closed` (sessão de tempo aberta ou fechada no
  *    nó) invalidam só `resumo(id)`: é ele que traz o tempo da árvore inteira, a
- *    fonte única do timer do cabeçalho e do "Total" da lista "Sessões".
+ *    fonte única do timer do cabeçalho e do "Total" da lista "Sessões". O da
+ *    sessão deste navegador, já posta no total em cache, não invalida nada
+ *    (`eventoDeSessaoJaNoTotal`): ao abrir o nó seria uma 4ª chamada.
  *  - Evento desconhecido invalida só `resumo(id)`.
  *  - Nunca invalida tudo: não existe chamada sem chave aqui.
  *
@@ -20,6 +22,7 @@
  */
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
+import { eventoDeSessaoJaNoTotal } from '@/services/resumoDoNo';
 import { abaDoEvento, type EventoDoNo } from './abaDoEvento';
 
 const MUDAM_A_ARVORE = new Set([
@@ -66,6 +69,7 @@ export function invalidarPorEvento(
     evento: EventoDoNo,
     contexto: ContextoDoEvento,
 ): Promise<void> {
+    if (eventoDeSessaoJaNoTotal(evento)) return Promise.resolve();
     return Promise.all(
         chavesDoEvento(evento, contexto).map((queryKey) => cliente.invalidateQueries({ queryKey })),
     ).then(() => undefined);

@@ -393,7 +393,7 @@ describe('Cockpit montado', () => {
         expect(apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${EXEC_TP1}/resumo`).length).toBe(resumosAntes);
     });
 
-    it('session_started do nó selecionado: o tempo da árvore é relido na hora, pelo evento', async () => {
+    it('sessão de outra pessoa fechada no nó selecionado: o tempo da árvore é relido na hora, pelo evento', async () => {
         abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
         const topo = await cabecalho();
         await waitFor(() => expect(streamFalso.abertas()).toHaveLength(1));
@@ -404,6 +404,23 @@ describe('Cockpit montado', () => {
 
         await waitFor(() => expect(within(topo).getByTestId('timer-da-execucao').textContent).toMatch(/^02:00:/));
         expect(within(conversa()).getByText('Sessão de tempo fechada')).toBeInTheDocument();
+    });
+
+    it('a sessão de quem abriu o nó: o session_started dela, que já está no total, não relê o /resumo (meta de 3)', async () => {
+        abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
+        const topo = await cabecalho();
+        await waitFor(() => expect(within(topo).getByRole('button', { name: 'Pausar sessão' })).toBeInTheDocument());
+        await waitFor(() => expect(streamFalso.abertas()).toHaveLength(1));
+        await fimDoReplay();
+        const resumos = () => apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${EXEC_TP1}/resumo`).length;
+        const antes = resumos();
+
+        // A API falsa abre a sessão com o id `s-1`.
+        act(() => streamFalso.abertas()[0].emitir(evento('session_started', EXEC_TP1, { session_id: 's-1' })));
+
+        expect(await within(conversa()).findByText('Sessão de tempo aberta')).toBeInTheDocument();
+        await act(() => new Promise((r) => setTimeout(r, 100)));
+        expect(resumos()).toBe(antes);
     });
 
     it('timer, "Registrar horas" e "Sessões" no nó atual; nada disso no nó concluído', async () => {

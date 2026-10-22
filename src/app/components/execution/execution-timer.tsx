@@ -19,9 +19,9 @@ interface ExecutionTimerProps {
      */
     apenasControles?: boolean;
     /** A sessão deste usuário abriu (Play ou ao montar), com o início dado pela API. */
-    onSessaoIniciada?: (startedAt: string) => void;
+    onSessaoIniciada?: (startedAt: string, sessionId: string) => void;
     /** A sessão deste usuário fechou (Pausa, fechar ou desmontar). */
-    onSessaoEncerrada?: (startedAt: string, endedAt: string) => void;
+    onSessaoEncerrada?: (startedAt: string, endedAt: string, sessionId: string) => void;
 }
 
 function formatElapsed(seconds: number): string {
@@ -47,12 +47,13 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({
     const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const initializedRef = useRef<boolean>(false);
-    const inicioRef = useRef<string | null>(null);
+    const avisadaRef = useRef<{ id: string; inicio: string } | null>(null);
     const avisos = useRef({ onSessaoIniciada, onSessaoEncerrada });
     avisos.current = { onSessaoIniciada, onSessaoEncerrada };
     const avisarFim = () => {
-        if (inicioRef.current) avisos.current.onSessaoEncerrada?.(inicioRef.current, new Date().toISOString());
-        inicioRef.current = null;
+        const avisada = avisadaRef.current;
+        avisadaRef.current = null;
+        if (avisada) avisos.current.onSessaoEncerrada?.(avisada.inicio, new Date().toISOString(), avisada.id);
     };
 
     // Play: só permitido quando não há sessão ativa (sessionId null) e nenhum start em andamento.
@@ -64,8 +65,8 @@ export const ExecutionTimer: React.FC<ExecutionTimerProps> = ({
             const data = await startExecutionSession(executionId);
             setSessionId(data.session_id);
             sessionIdRef.current = data.session_id;
-            inicioRef.current = data.started_at;
-            avisos.current.onSessaoIniciada?.(data.started_at);
+            avisadaRef.current = { id: data.session_id, inicio: data.started_at };
+            avisos.current.onSessaoIniciada?.(data.started_at, data.session_id);
             const start = new Date(data.started_at);
             setStartedAt(start);
             setElapsed(Math.floor((Date.now() - start.getTime()) / 1000));

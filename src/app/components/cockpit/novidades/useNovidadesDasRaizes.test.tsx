@@ -37,6 +37,7 @@ vi.mock('@/services/members', () => ({ getProjectMembers: async () => [{ user_id
 import { invalidateCachedData } from '@/services/client';
 import { abrirAba, gravarAbas, ABAS_VAZIAS } from '@/services/cockpitAbas';
 import { chavesDeConsulta } from '@/services/chavesDeConsulta';
+import { segundosEmSessoes } from '@/services/resumoDoNo';
 import { renderComConsulta } from '@/test/comConsulta';
 import {
     EXEC_TP1, EXEC_TP2, OUTRA_RAIZ, RAIZ, apiFalsa, estadoDaApi, getsFeitos, reiniciarCockpitFalso, respostasDaArvore, resumoPadrao,
@@ -179,8 +180,16 @@ describe('checagem de novidades (ADR-0071, 5b)', () => {
         expect(resumoDoTp1()).toBe(antes + 1);
         expect(screen.queryByText(/\d novos?$/)).not.toBeInTheDocument();
         // A sessão da outra pessoa (aberta há 60 s, quando a checagem rodou) já anda no relógio do navegador.
+        // A de quem abriu o nó (Play automático) continua no total, embora a resposta da API falsa não a traga.
         await passar(5_000);
-        expect(screen.getByTestId('timer-da-execucao').textContent).toMatch(/^01:01:0[5-9]/);
+        const inicio = apiFalsa.post.mock.calls.findIndex(([url]) => url.endsWith('/sessions/start'));
+        const { data: propria } = await apiFalsa.post.mock.results[inicio].value;
+        const esperado = segundosEmSessoes(
+            { encerradas_segundos: 3_600, ativas_desde: [propria.started_at, new Date(Date.now() - 65_000).toISOString()] },
+            Date.now(),
+        );
+        const [h, m, s] = screen.getByTestId('timer-da-execucao').textContent!.split(':').map(Number);
+        expect(Math.abs(h * 3600 + m * 60 + s - esperado)).toBeLessThanOrEqual(1);
     });
 
     it('nó que ganha um filho mostra a marca, e o filho novo também', async () => {
