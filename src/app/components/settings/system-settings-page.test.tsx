@@ -157,7 +157,8 @@ describe('modelos e categorias', () => {
     expect(editarTarifasModelo).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Recarregar tarifas de modelo-a' }));
     await waitFor(() => expect(salvar).toBeEnabled());
-    expect(screen.getByLabelText('Entrada US$/MTok de modelo-a')).toHaveValue('9');
+    // O formulário recebe o valor recarregado depois de o botão habilitar (flaky sob carga).
+    await waitFor(() => expect(screen.getByLabelText('Entrada US$/MTok de modelo-a')).toHaveValue('9'));
     vi.mocked(editarTarifasModelo).mockResolvedValue(atualizada.modelos[0]);
     fireEvent.click(salvar);
     await waitFor(() => expect(editarTarifasModelo).toHaveBeenLastCalledWith('m1', expect.objectContaining({ price_input_usd_mtok: '9' }), 8));

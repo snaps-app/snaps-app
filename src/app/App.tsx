@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Home } from '@/app/components/layout/home';
 import { ProjectWorkspace } from '@/app/components/project/project-workspace';
 import { ActiveChat } from '@/app/components/chat/active-chat';
@@ -31,11 +32,29 @@ import { WorkflowEditorCanvas } from '@/app/components/workflow/workflow-editor'
 import { QAView } from '@/app/components/views/qa-view';
 import { RetroView } from '@/app/components/views/retro-view';
 import { TimelineView } from '@/app/components/views/timeline-view';
-import { ExecutionCockpit } from '@/app/components/execution/execution-cockpit';
-import { ScratchView } from '@/app/components/views/scratch-view';
+import { EsqueletoDoCockpit } from '@/app/components/layout/esqueleto-do-cockpit';
+import { RedirecionaParaCockpit } from '@/app/components/layout/redireciona-para-cockpit';
 import { TimeView } from '@/app/views/TimeView';
 import { ProjectTimeView } from '@/app/views/ProjectTimeView';
 import { supabase } from '@/lib/supabaseClient';
+import { consultaCliente, vincularCacheASessao } from '@/services/consultaCliente';
+import { onAuthStateChange } from '@/services/auth.service';
+
+// Devtools do cache só em desenvolvimento, e por import dinâmico: no build de
+// produção `import.meta.env.DEV` é `false`, o ramo some e o pacote não entra
+// em chunk nenhum (ADR-0071, item 2).
+const DevtoolsDeConsulta = import.meta.env.DEV
+    ? lazy(() =>
+          import('@tanstack/react-query-devtools').then((m) => ({ default: m.ReactQueryDevtools })),
+      )
+    : null;
+
+// O Cockpit sai num chunk próprio: quem não abre o Cockpit não baixa o Cockpit.
+// Nada de `components/cockpit/` pode ser importado estaticamente aqui — a trava
+// está em `App.consulta.test.ts`.
+const PaginaDoCockpit = lazy(() =>
+    import('@/app/components/cockpit/PaginaDoCockpit').then((m) => ({ default: m.PaginaDoCockpit })),
+);
 
 /**
  * Rota antiga -> aba do Hub de Settings (B3).
@@ -87,7 +106,12 @@ function AuthRedirector() {
 }
 
 export default function App() {
+    // Sair ou trocar de conta apaga o cache: dado de projeto não passa de um
+    // usuário para o outro no mesmo navegador (ADR-0071, item 9).
+    useEffect(() => vincularCacheASessao(consultaCliente, onAuthStateChange), []);
+
     return (
+        <QueryClientProvider client={consultaCliente}>
         <BrowserRouter>
             {/* A fila de importacao envolve as rotas de proposito: dentro delas,
                 navegar para revisar um material desmontaria o provider e mataria
@@ -161,8 +185,18 @@ export default function App() {
                             </ProtectedRoute>
                         }
                     >
-                        <Route path="/project/:projectId/execution/:executionId" element={<ExecutionCockpit />} />
-                        <Route path="/project/:projectId/execution/:executionId/scratch" element={<ScratchView />} />
+                        {/* Rotas do Cockpit antigo: link salvo continua abrindo o nó
+                            certo no Cockpit novo (decisão do PO de 20/10; TP-4). */}
+                        <Route path="/project/:projectId/execution/:executionId" element={<RedirecionaParaCockpit />} />
+                        <Route path="/project/:projectId/execution/:executionId/scratch" element={<RedirecionaParaCockpit aba="scratch" />} />
+                        <Route
+                            path="/cockpit/:rootId?"
+                            element={
+                                <Suspense fallback={<EsqueletoDoCockpit />}>
+                                    <PaginaDoCockpit />
+                                </Suspense>
+                            }
+                        />
                     </Route>
 
                     {/* Fallback */}
@@ -171,5 +205,11 @@ export default function App() {
             </div>
             </IngestQueueProvider>
         </BrowserRouter>
+        {DevtoolsDeConsulta && (
+            <Suspense fallback={null}>
+                <DevtoolsDeConsulta initialIsOpen={false} />
+            </Suspense>
+        )}
+        </QueryClientProvider>
     );
 }

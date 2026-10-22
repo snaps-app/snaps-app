@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Session, User } from '@supabase/supabase-js';
+import { consultaCliente } from '@/services/consultaCliente';
 
 export async function signIn(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -8,8 +9,14 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    // Limpa antes de olhar o erro: quem pediu para sair não deve continuar vendo
+    // dado de projeto em cache só porque o servidor recusou o signOut (ADR-0071).
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+    } finally {
+        consultaCliente.clear();
+    }
 }
 
 export async function getSession(): Promise<Session | null> {

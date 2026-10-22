@@ -24,6 +24,7 @@ import { Pagination } from '@/app/components/ui/pagination';
 import { EXECUCOES_POR_PAGINA, useAiExecutions } from '@/app/components/views/useAiExecutions';
 import { CloseDeliveredModal, DiscardExecutionModal } from '@/app/components/modals/execution-close-modals';
 import { estaEmVoo } from '@/services/executionStatus';
+import { rotaDoNo } from '@/services/cockpitRota';
 
 export const AIExecutions = () => {
     const {
@@ -387,7 +388,7 @@ export const AIExecutions = () => {
                                                             return (
                                                                 <div
                                                                     key={exec.id}
-                                                                    onClick={() => navigate(`/project/${exec.project_id}/execution/${exec.id}`)}
+                                                                    onClick={() => navigate(rotaDoNo(exec))}
                                                                     className="group flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 cursor-pointer transition-all"
                                                                 >
                                                                     <div className="flex items-center gap-2 shrink-0">

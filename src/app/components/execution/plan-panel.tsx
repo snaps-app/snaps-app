@@ -40,6 +40,8 @@ interface PlanPanelProps {
     updatePlanStatus: (planId: string, status: string) => Promise<void>;
     reapprovePlan?: (planId: string) => Promise<void>;
     deletePlanFn: (planId: string) => Promise<void>;
+    /** Nó concluído (Cockpit novo): mostra os planos e esconde toda escrita. */
+    somenteLeitura?: boolean;
 }
 
 export const PlanPanel: React.FC<PlanPanelProps> = ({
@@ -64,7 +66,8 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     handleOpenPeerReview,
     updatePlanStatus,
     reapprovePlan,
-    deletePlanFn
+    deletePlanFn,
+    somenteLeitura = false,
 }) => {
     const rawPlans = execution.context_data?.plans || [];
     const sortedPlans = [...rawPlans].sort((a, b) => {
@@ -186,7 +189,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                                             <ShieldAlert className="w-3 h-3 text-amber-400" />
                                                             Reaprovação pendente · rev {plan.content_revision}
                                                         </span>
-                                                        {reapprovePlan && (
+                                                        {reapprovePlan && !somenteLeitura && (
                                                             <button
                                                                 onClick={() => reapprovePlan(plan.id)}
                                                                 className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-amber-900/20"
@@ -200,43 +203,43 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                                 {plan.status === 'draft' && (
                                                     <>
                                                         <Tag variant="orange" className="px-2 py-0.5 text-[9px] uppercase font-bold tracking-wider">Draft</Tag>
-                                                        <button
+                                                        {!somenteLeitura && (<button
                                                             onClick={() => updatePlanStatus(plan.id, 'approved')}
                                                             className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-green-900/20 group/btn"
                                                         >
                                                             <Check className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
                                                             Approve Plan
-                                                        </button>
+                                                        </button>)}
                                                     </>
                                                 )}
                                                 {plan.status === 'approved' && (
                                                     <>
                                                         <Tag variant="green" className="px-2 py-0.5 text-[9px] uppercase font-bold tracking-wider">Approved</Tag>
-                                                        <button
+                                                        {!somenteLeitura && (<button
                                                             onClick={() => updatePlanStatus(plan.id, 'selected')}
                                                             className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-purple-900/20 group/btn"
                                                         >
                                                             <Zap className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
                                                             Select for Execution
-                                                        </button>
+                                                        </button>)}
                                                     </>
                                                 )}
                                                 {plan.status === 'selected' && (
                                                     <>
                                                         <Tag variant="purple" className="px-2 py-0.5 text-[9px] uppercase font-bold tracking-wider">Selected</Tag>
-                                                        <button
+                                                        {!somenteLeitura && (<button
                                                             onClick={() => updatePlanStatus(plan.id, 'approved')}
                                                             className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 border border-white/10 group/btn"
                                                         >
                                                             <RefreshCcw className="w-3.5 h-3.5 group-hover/btn:rotate-180 transition-transform duration-500" />
                                                             Deselect
-                                                        </button>
+                                                        </button>)}
                                                     </>
                                                 )}
                                                 {plan.status === 'in_execution' && (
                                                     <>
                                                         <Tag variant="blue" className="px-2 py-0.5 text-[9px] uppercase font-bold tracking-wider">In Execution</Tag>
-                                                        {(execution.phase === 'macro_planning' || execution.phase === 'micro_planning') && (
+                                                        {!somenteLeitura && (execution.phase === 'macro_planning' || execution.phase === 'micro_planning') && (
                                                             <button
                                                                 onClick={() => updatePlanStatus(plan.id, 'selected')}
                                                                 className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5 border border-white/10"
@@ -251,14 +254,14 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
 
                                             {/* Management Icons */}
                                             <div className="flex items-center gap-1 pl-4 border-l border-white/10">
-                                                <button
+                                                {!somenteLeitura && (<button
                                                     onClick={() => handleEditPlan(plan)}
                                                     className="p-2 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-lg transition-all border border-white/5 hover:border-white/20"
                                                     title="Edit Plan"
                                                 >
                                                     <Pencil className="w-3.5 h-3.5" />
-                                                </button>
-                                                {plan.status !== 'in_execution' && plan.status !== 'executed' && (
+                                                </button>)}
+                                                {!somenteLeitura && plan.status !== 'in_execution' && plan.status !== 'executed' && (
                                                     <button
                                                         onClick={() => deletePlanFn(plan.id)}
                                                         className="p-2 bg-red-500/5 hover:bg-red-500/10 text-red-400/60 hover:text-red-400 rounded-lg transition-all border border-red-500/10 hover:border-red-500/20"
