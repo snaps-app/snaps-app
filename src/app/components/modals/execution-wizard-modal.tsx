@@ -1,4 +1,5 @@
 import { createAgentExecution } from '@/services/agentExecutions';
+import { detalheDoErro } from '@/services/system-settings';
 import { getCardExecutionPrompt } from '@/services/cards';
 import { getSprintExecutionPrompt } from '@/services/sprints';
 import { useState, useEffect } from 'react';
@@ -338,7 +339,7 @@ export function ExecutionWizardModal({
                                                     onClose();
                                                     window.location.href = rotaDoNo(exec);
                                                 } catch (err) {
-                                                    setError('Failed to start execution.');
+                                                    setError(detalheDoErro(err, 'Não foi possível criar a execução. Tente de novo.'));
                                                 } finally {
                                                     setIsLoading(false);
                                                 }
