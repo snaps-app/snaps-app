@@ -28,7 +28,7 @@ import {
 import { approvePlan, updatePlan } from '@/services/plans';
 import { updateCard } from '@/services/cards';
 import { updateTestPlan } from '@/services/testPlans';
-import { acoesPermitidas, useAcoesDoNo } from './useAcoesDoNo';
+import { acoesPermitidas, textoDaRecusa, useAcoesDoNo } from './useAcoesDoNo';
 
 const NO = { id: 'no', lock_version: 3, root_id: 'raiz' };
 
@@ -156,6 +156,25 @@ describe('useAcoesDoNo — as mesmas funções de serviço do Cockpit atual', ()
         ]);
     });
 
+    it('gravação que falha também relê o nó e a árvore: a próxima tentativa não sai com a revisão velha', async () => {
+        // Aceite DEV da 24.0: o primeiro "Acrescentar docs" gravou no servidor
+        // (um /sync sobe a revisão duas vezes), a tela não releu, e o segundo
+        // saiu com a revisão 2 contra 4 no banco.
+        const conflito = Object.assign(new Error('Request failed with status code 409'), {
+            response: { status: 409, data: { detail: 'execution revision mismatch: expected 2, current 4' } },
+        });
+        vi.mocked(syncAgentExecution).mockRejectedValueOnce(conflito);
+        const { result, chavesInvalidadas } = montar();
+
+        await expect(result.current.acoes.salvarContexto({ docIds: ['doc'] })).rejects.toBe(conflito);
+
+        expect(chavesInvalidadas()).toEqual([
+            ['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'contexto'], ['execucao', 'no', 'aba', 'prompt'],
+            ['raiz', 'raiz'], ['execucao', 'no', 'snapshot'],
+        ]);
+        expect(result.current.emAndamento).toBeNull();
+    });
+
     it('override num ponto só: decisão com motivo e avanço com ela; motivo vazio é recusado', async () => {
         papel.role = 'admin';
         const { result } = montar();
@@ -164,5 +183,27 @@ describe('useAcoesDoNo — as mesmas funções de serviço do Cockpit atual', ()
         await act(() => result.current.acoes.override(['ci_passed'], 'CI fora do ar'));
         expect(createExecutionOverrideDecision).toHaveBeenCalledWith('no', 'CI fora do ar', ['ci_passed']);
         expect(advanceAgentExecution).toHaveBeenLastCalledWith('no', undefined, undefined, undefined, true, 4, 'd', ['ci_passed']);
+    });
+});
+
+describe('textoDaRecusa', () => {
+    const recusa = (status: number, detail: unknown) =>
+        Object.assign(new Error(`Request failed with status code ${status}`), { response: { status, data: { detail } } });
+
+    it('revisão em conflito vira frase de produto, sem "HTTP 409" nem o texto do servidor', () => {
+        const texto = textoDaRecusa(recusa(409, 'execution revision mismatch: expected 2, current 4'));
+        expect(texto).toMatch(/A execução mudou desde a última leitura/);
+        expect(texto).toMatch(/repita a ação/);
+        expect(texto).not.toMatch(/HTTP|mismatch/);
+    });
+
+    it('outra recusa mostra o motivo da API como veio', () => {
+        expect(textoDaRecusa(recusa(409, 'origem já avançou'))).toBe('origem já avançou');
+        expect(textoDaRecusa(recusa(400, 'execucao nao criada: falta o perfil'))).toBe('execucao nao criada: falta o perfil');
+    });
+
+    it('sem detalhe, a mensagem do erro; sem nada, uma frase de produto', () => {
+        expect(textoDaRecusa(new Error('o override exige um motivo'))).toBe('o override exige um motivo');
+        expect(textoDaRecusa({})).toBe('Não foi possível concluir a ação. Tente de novo.');
     });
 });

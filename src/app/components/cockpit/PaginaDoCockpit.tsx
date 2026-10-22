@@ -21,6 +21,7 @@ import { useIdDoUsuario } from './navegacao/useIdDoUsuario';
 import { ControlesDePaineis } from './layout/ControlesDePaineis';
 import { useNovidadesDasRaizes, type NovidadesDasRaizes } from './novidades/useNovidadesDasRaizes';
 import { CockpitDaRaiz } from './CockpitDaRaiz';
+import { LimiteDeErroDoCockpit } from './LimiteDeErroDoCockpit';
 
 export const AVISO_SEM_ACESSO = 'Raiz sem acesso ou inexistente.';
 
@@ -78,7 +79,16 @@ function useAbasDoUsuario(userId: string | null | undefined) {
  * aberta é conferida pela checagem de novidades (exceção 5b), num hook só,
  * montado aqui.
  */
+/** Última rede: erro fora do conteúdo da raiz (barra de abas, estado) também aparece escrito. */
 export function PaginaDoCockpit() {
+    return (
+        <LimiteDeErroDoCockpit onde="o Cockpit">
+            <PaginaDoCockpitSemLimite />
+        </LimiteDeErroDoCockpit>
+    );
+}
+
+function PaginaDoCockpitSemLimite() {
     const { rootId: raizDaRota } = useParams<{ rootId?: string }>();
     const [busca] = useSearchParams();
     const { no, aba } = lerRotaDoCockpit(busca);
@@ -194,18 +204,19 @@ export function PaginaDoCockpit() {
                 {raizDaRota && !raizValida ? (
                     <SemAcesso />
                 ) : raizValida ? (
-                    <EstadoDaAbaProvider value={contexto}>
-                        <ConteudoDaRaiz
-                            key={raizValida}
-                            rootId={raizValida}
-                            no={no}
-                            aba={aba}
-                            layout={layout}
-                            onMudarLayout={mudarLayout}
-                            onRaizDiferente={raizDiferente}
-                            novidades={novidades}
-                        />
-                    </EstadoDaAbaProvider>
+                    <LimiteDeErroDoCockpit key={raizValida} onde="esta raiz">
+                        <EstadoDaAbaProvider value={contexto}>
+                            <ConteudoDaRaiz
+                                rootId={raizValida}
+                                no={no}
+                                aba={aba}
+                                layout={layout}
+                                onMudarLayout={mudarLayout}
+                                onRaizDiferente={raizDiferente}
+                                novidades={novidades}
+                            />
+                        </EstadoDaAbaProvider>
+                    </LimiteDeErroDoCockpit>
                 ) : (
                     <SemRaizAberta />
                 )}
