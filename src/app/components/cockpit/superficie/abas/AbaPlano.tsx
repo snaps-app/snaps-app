@@ -11,6 +11,7 @@ import { PlanPanel } from '@/app/components/execution/plan-panel';
 import { DispatchScopePanel } from '@/app/components/execution/dispatch-scope-panel';
 import { useCockpitPlans } from '@/app/components/execution/useCockpitPlans';
 import { EstadoDaConsulta, Secao, podeEscrever, useConteudoDaAba, type PropsDaAba } from './comum';
+import { textoDaRecusa } from '../useAcoesDoNo';
 
 export default function AbaPlano(props: PropsDaAba) {
     const { execucao, acoes, onSelecionarAba } = props;
@@ -34,8 +35,8 @@ export default function AbaPlano(props: PropsDaAba) {
         setErro(null);
         try {
             await acao();
-        } catch (e: any) {
-            setErro(e?.response?.data?.detail ?? e?.message ?? String(e));
+        } catch (e: unknown) {
+            setErro(textoDaRecusa(e));
         }
     };
     const plano = (id: string) => planos.find((p) => p.id === id) ?? { id };

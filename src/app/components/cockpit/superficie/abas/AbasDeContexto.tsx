@@ -22,6 +22,7 @@ import { ExecutionPromptSnapshot } from '@/app/components/execution/execution-pr
 import { DocsModal } from '@/app/components/execution/docs-modal';
 import { DocumentViewModal } from '@/app/components/modals/document-view-modal';
 import { EstadoDaConsulta, Secao, podeEscrever, useConteudoDaAba, type PropsDaAba } from './comum';
+import { textoDaRecusa } from '../useAcoesDoNo';
 
 interface CatalogoDeContexto {
     docs: GovernanceDoc[];
@@ -96,8 +97,8 @@ function AcrescentarDocs({ no, onSalvar }: {
                 handleRefresh={async () => {
                     try {
                         await onSalvar(docIds, decisionIds);
-                    } catch (e: any) {
-                        setErro(textoDoErro(e));
+                    } catch (e: unknown) {
+                        setErro(textoDaRecusa(e));
                     }
                 }}
             />
@@ -135,8 +136,8 @@ export function AbaContexto(props: PropsDaAba) {
         setErro(null);
         try {
             await acoes.acoes.salvarContexto({ missionContext: rascunho });
-        } catch (e: any) {
-            setErro(e?.response?.data?.detail ?? e?.message ?? String(e));
+        } catch (e: unknown) {
+            setErro(textoDaRecusa(e));
         }
     };
 
@@ -176,6 +177,9 @@ export function AbaContexto(props: PropsDaAba) {
                             cliente.setQueryData(chaves.aba(execucao.id, 'contexto'), atualizada);
                             cliente.invalidateQueries({ queryKey: chaves.resumo(execucao.id) });
                             cliente.invalidateQueries({ queryKey: chaves.aba(execucao.id, 'prompt') });
+                            // O sync sobe a revisão, e as ações a leem da árvore.
+                            cliente.invalidateQueries({ queryKey: chaves.raiz(execucao.root_id || execucao.id) });
+                            cliente.invalidateQueries({ queryKey: chaves.snapshot(execucao.id) });
                         }}
                     />
                     {escreve && (

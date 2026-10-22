@@ -160,11 +160,25 @@ describe('PaginaDoCockpit', () => {
         abrir(`/cockpit/${A}`);
         await screen.findByRole('heading', { name: 'Snaps · Sprint 24.0' });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Fechar aba Snaps · Sprint 24.0' }));
+        // O rótulo da aba vem de outra consulta e pode chegar depois do título:
+        // `getByRole` aqui falhava 1 vez em ~19 (aceite DEV da 24.0).
+        fireEvent.click(await screen.findByRole('button', { name: 'Fechar aba Snaps · Sprint 24.0' }));
 
         await waitFor(() => expect(screen.getByTestId('destino')).toHaveTextContent(`/cockpit/${B}?no=${B}`));
         expect(lerAbas('eu').abas.map((a) => a.rootId)).toEqual([B]);
         expect(updateAgentExecutionStatus).not.toHaveBeenCalled();
+    });
+
+    it('fechar a única aba aberta deixa o Cockpit vazio, com o +, e não uma tela preta', async () => {
+        abrir(`/cockpit/${A}?no=${A}&aba=contexto`);
+        await screen.findByRole('heading', { name: 'Snaps · Sprint 24.0' });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Fechar aba Snaps · Sprint 24.0' }));
+
+        await waitFor(() => expect(screen.getByTestId('destino')).toHaveTextContent(/^\/cockpit$/));
+        expect(await screen.findByText('Nenhuma raiz aberta. Use o + para abrir uma.')).toBeInTheDocument();
+        expect(barra()).toBeInTheDocument();
+        expect(lerAbas('eu').abas).toEqual([]);
     });
 
     it('rota com o id de um filho abre a aba da raiz dele, com o filho selecionado', async () => {

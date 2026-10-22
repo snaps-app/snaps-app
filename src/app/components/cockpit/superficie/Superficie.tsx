@@ -156,7 +156,7 @@ export function Superficie({
                             Mais <ChevronDown className="h-3 w-3" />
                         </button>
                         {maisAberto && (
-                            <div role="menu" className="absolute right-0 z-20 mt-1 w-64 space-y-0.5 rounded-xl border border-white/10 bg-[var(--snaps-surface)] p-1 shadow-xl">
+                            <div role="menu" className="absolute right-0 z-30 mt-1 w-64 space-y-0.5 rounded-xl border border-white/20 bg-[var(--snaps-bg)] p-1 shadow-2xl">
                                 {ordem.mais.map((aba) => (
                                     <button key={aba.chave} type="button" role="menuitem" data-aba={aba.chave}
                                         onClick={() => selecionar(aba.chave)}

@@ -104,6 +104,11 @@ describe('Superficie', () => {
         const noMais = screen.getAllByRole('menuitem');
         expect(visiveis + noMais.length).toBe(15);
         expect(screen.getByText('O roteiro do PO nasce na assurance')).toBeInTheDocument();
+        // O menu flutua sobre a aba aberta: fundo opaco, não o realce
+        // translúcido `--snaps-surface` (aceite DEV da 24.0: o Scratch vazava).
+        const menu = screen.getByRole('menu');
+        expect(menu.className).toContain('bg-[var(--snaps-bg)]');
+        expect(menu.className).not.toContain('--snaps-surface');
     });
 
     it('a luz vem do /resumo: plano aguardando aprovação acende a aba Plano', async () => {

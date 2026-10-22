@@ -67,6 +67,20 @@ export function acoesPermitidas(role: string | null, podeEscrever: boolean, pode
     }));
 }
 
+/**
+ * O texto de uma ação recusada, para a pessoa. Revisão em conflito não é erro
+ * dela: a tela já foi relida por `executar`, e basta repetir.
+ */
+export function textoDaRecusa(erro: unknown): string {
+    const resposta = (erro as { response?: { status?: number; data?: { detail?: unknown } } })?.response;
+    const detalhe = resposta?.data?.detail;
+    if (resposta?.status === 409 && typeof detalhe === 'string' && /revision mismatch/i.test(detalhe)) {
+        return 'A execução mudou desde a última leitura (outra gravação ou outra pessoa). A tela foi atualizada: confira e repita a ação.';
+    }
+    if (typeof detalhe === 'string' && detalhe) return detalhe;
+    return (erro as Error)?.message || 'Não foi possível concluir a ação. Tente de novo.';
+}
+
 /** Plano como o Cockpit lê de `context_data.plans`. */
 export interface PlanoDoNo {
     id: string;
@@ -107,12 +121,22 @@ export function useAcoesDoNo(execution: NoDoHook | null, { podeOverride }: Opcoe
         if (!execution) throw new Error('nenhum nó selecionado');
         if (!permitidas.has(nome)) throw new Error(`ação não permitida para o papel: ${nome}`);
         setEmAndamento(nome);
+        const reler = (comArvore: boolean) => {
+            const alvo: QueryKey[] = [chaves.resumo(execution.id), ...abas.map((a) => chaves.aba(execution.id, a))];
+            if (comArvore && rootId) alvo.push(chaves.raiz(rootId), chaves.snapshot(execution.id));
+            return Promise.all(alvo.map((queryKey) => cliente.invalidateQueries({ queryKey })));
+        };
         try {
             const resultado = await acao(execution);
-            const alvo: QueryKey[] = [chaves.resumo(execution.id), ...abas.map((a) => chaves.aba(execution.id, a))];
-            if (mudaArvore && rootId) alvo.push(chaves.raiz(rootId), chaves.snapshot(execution.id));
-            await Promise.all(alvo.map((queryKey) => cliente.invalidateQueries({ queryKey })));
+            await reler(mudaArvore);
             return resultado;
+        } catch (erro) {
+            // A falha pode ter vindo depois de o servidor gravar (a resposta se
+            // perdeu), ou de uma revisão que a árvore em cache não tinha: um
+            // `/sync` sobe a revisão duas vezes. Sem reler, a próxima tentativa
+            // sai com a revisão velha e toma 409 (aceite DEV da 24.0).
+            await reler(true).catch(() => undefined);
+            throw erro;
         } finally {
             setEmAndamento(null);
         }
