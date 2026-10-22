@@ -288,9 +288,14 @@ export function PaineisDoCockpit({ layout, onMudarLayout, workflow, superficie, 
 
     const trilho = (p: PainelDoCockpit) => <Trilho key={`trilho-${p}`} painel={p} info={trilhos[p]} onAbrir={() => abrir(p)} />;
 
+    // Um grupo vivo não ganha nem perde painel: recolher ou abrir monta outro
+    // grupo, já com as larguras do layout em px. No navegador, o grupo antigo
+    // ficava com o layout de 3 painéis e 2 registrados, e o próximo evento
+    // estourava "Panel data not found for index 2" (aceite DEV da 24.0).
     return (
         <div ref={ref} className="flex min-h-0 min-w-0 flex-1">
-            <PanelGroup ref={grupo} direction="horizontal" onLayout={aoMudarNoGrupo} keyboardResizeBy={null} className="min-w-0">
+            <PanelGroup key={abertos.join('|')} ref={grupo} direction="horizontal" onLayout={aoMudarNoGrupo}
+                keyboardResizeBy={null} className="min-w-0">
                 {aberto('workflow') ? painel('workflow') : trilho('workflow')}
                 {divisorDoWorkflow && divisor('workflow')}
                 {aberto('superficie') ? painel('superficie') : trilho('superficie')}

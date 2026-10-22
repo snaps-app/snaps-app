@@ -92,4 +92,27 @@ describe('PaineisDoCockpit', () => {
         expect(screen.getByRole('region', { name: 'Workflow' })).toBeInTheDocument();
         expect(lido().recolhidos.workflow).toBe(false);
     });
+
+    it.each(['Workflow', 'Superfície', 'Conversa'])(
+        'recolher e reabrir %s monta outro grupo de painéis: um grupo vivo não ganha nem perde painel',
+        async (nome) => {
+            // Aceite DEV da 24.0: "‹" do Workflow e depois "Workflow" deram
+            // "Panel data not found for index 2" no navegador.
+            render(<Montado inicial={PADRAO} />);
+            const idDoGrupo = () => document.querySelector('[data-panel-group-id]')?.getAttribute('data-panel-group-id');
+            const inicial = idDoGrupo();
+
+            fireEvent.click(screen.getByRole('button', { name: `Recolher ${nome}` }));
+            await act(() => new Promise((r) => setTimeout(r, 0)));
+            const recolhido = idDoGrupo();
+            expect(recolhido).not.toBe(inicial);
+            expect(document.querySelectorAll('[data-panel-id]')).toHaveLength(2);
+
+            fireEvent.click(screen.getByRole('button', { name: `Expandir ${nome}` }));
+            await act(() => new Promise((r) => setTimeout(r, 0)));
+            expect(idDoGrupo()).not.toBe(recolhido);
+            expect(document.querySelectorAll('[data-panel-id]')).toHaveLength(3);
+            expect(screen.getByRole('region', { name: nome })).toBeInTheDocument();
+        },
+    );
 });
