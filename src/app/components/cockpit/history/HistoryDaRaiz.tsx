@@ -22,6 +22,11 @@ export interface HistoryDaRaizProps {
     /** Contador de novidade por nó (eventos ainda não vistos). */
     novidades?: Record<string, number>;
     onSelecionarNo: (id: string) => void;
+    /**
+     * Filtro por card da faixa do cabeçalho (TP-4): os nós de fora ficam
+     * esmaecidos, sem sair da árvore, para o recuo e a ordem continuarem certos.
+     */
+    destacados?: ReadonlySet<string> | null;
 }
 
 type Marca = ClasseDoNo | 'futura';
@@ -50,7 +55,7 @@ function subtitulo(item: Extract<ItemDoHistory, { tipo: 'no' }>): string {
     return partes.join(' · ');
 }
 
-export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSelecionarNo }: HistoryDaRaizProps) {
+export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSelecionarNo, destacados = null }: HistoryDaRaizProps) {
     const status = useStatusDaApi();
     const itens = useMemo(
         () => (status.data ? montarHistory(tree, status.data) : []),
@@ -91,8 +96,9 @@ export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSeleciona
                     const selecionado = item.id === selecionadoId;
                     const novos = selecionado ? 0 : novidades[item.id] ?? 0;
                     const sub = subtitulo(item);
+                    const foraDoFiltro = destacados !== null && !destacados.has(item.id);
                     return (
-                        <li key={item.id}>
+                        <li key={item.id} data-fora-do-filtro={foraDoFiltro || undefined} className={foraDoFiltro ? 'opacity-40' : undefined}>
                             {item.abreRamo && item.planoTitulo && (
                                 <div
                                     style={recuo}

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
+import { aplicarSessaoAberta } from '@/services/resumoDoNo';
 import { chavesDoEvento, invalidarPorEvento } from './invalidarPorEvento';
 
 const ctx = { rootId: 'raiz' };
@@ -19,8 +20,25 @@ describe('invalidarPorEvento', () => {
         ['phase_rolled_back', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
         ['execution_status_changed', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no'], ['raiz', 'raiz'], ['execucao', 'no', 'snapshot']]],
         ['evento_desconhecido', [['execucao', 'no', 'resumo']]],
+        ['execution_updated', [['execucao', 'no', 'resumo'], ['raiz', 'raiz', 'arvore'], ['execucao', 'no', 'snapshot']]],
+        // Sessão de tempo: só a fonte do total da árvore (decisão do PO no ci_gate do TP-4).
+        ['session_started', [['execucao', 'no', 'resumo']]],
+        ['session_closed', [['execucao', 'no', 'resumo']]],
     ])('%s invalida exatamente as chaves esperadas', (nome, esperadas) => {
         expect(chavesDoEvento(ev(nome), ctx)).toEqual(esperadas);
+    });
+
+    it('evento da sessão deste navegador, já no total em cache, não invalida nada; o de outra pessoa invalida o resumo', async () => {
+        const cliente = new QueryClient();
+        aplicarSessaoAberta(cliente, 'no', { id: 's-propria', inicio: '2026-10-21T12:00:00Z' });
+        const espiao = vi.spyOn(cliente, 'invalidateQueries');
+        const sessao = (id: string) => ({ name: 'session_started', execution_id: 'no', payload: { session_id: id } });
+
+        await invalidarPorEvento(cliente, sessao('s-propria'), ctx);
+        expect(espiao).not.toHaveBeenCalled();
+
+        await invalidarPorEvento(cliente, sessao('s-de-outra-pessoa'), ctx);
+        expect(espiao.mock.calls.map(([filtro]) => filtro?.queryKey)).toEqual([['execucao', 'no', 'resumo']]);
     });
 
     it('chama o cliente uma vez por chave e nunca sem chave', async () => {

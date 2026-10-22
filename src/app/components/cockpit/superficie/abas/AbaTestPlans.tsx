@@ -4,6 +4,7 @@
  * contexto do próximo planejamento.
  */
 import { useState } from 'react';
+import { getAgentExecution } from '@/services/agentExecutions';
 import { getExecutionTroubleReport, getTestPlans } from '@/services/testPlans';
 import { TroublePanel } from '@/app/components/execution/trouble-panel';
 import { EstadoDaConsulta, Secao, Vazio, podeEscrever, useConteudoDaAba, type PropsDaAba } from './comum';
@@ -12,12 +13,16 @@ const ROTULO: Record<string, string> = { draft: 'Rascunho', active: 'Ativo', pas
 
 export default function AbaTestPlans(props: PropsDaAba) {
     const { execucao, acoes } = props;
+    // A seleção salva mora em `context_data`, que o nó montado da árvore leve
+    // não traz (TP-4): vem junto com o conteúdo da aba, para salvar a seleção
+    // a partir do que está gravado e não de uma lista vazia.
     const consulta = useConteudoDaAba(props, 'testplans', async () => {
-        const [testPlans, relatorio] = await Promise.all([
+        const [testPlans, relatorio, no] = await Promise.all([
             getTestPlans(execucao.project_id, execucao.sprint_ids?.[0], execucao.id),
             getExecutionTroubleReport(execucao.id),
+            execucao.context_data ? Promise.resolve(execucao) : getAgentExecution(execucao.id),
         ]);
-        return { testPlans, relatorio };
+        return { testPlans, relatorio, selecionados: (no?.context_data?.selected_test_plan_ids ?? []) as string[] };
     });
     const [copiado, setCopiado] = useState<string | null>(null);
     const escreve = podeEscrever(props);
@@ -63,7 +68,7 @@ export default function AbaTestPlans(props: PropsDaAba) {
                         navigator.clipboard?.writeText(texto);
                         setCopiado(id);
                     }}
-                    selectedTestPlanIds={execucao.context_data?.selected_test_plan_ids ?? []}
+                    selectedTestPlanIds={consulta.data?.selecionados ?? []}
                     isSavingTestPlanContext={salvando}
                     onSaveTestPlanContext={escreve
                         ? (ids) => acoes.acoes.salvarSelecaoDeTestPlans(ids).then(() => undefined)

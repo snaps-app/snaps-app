@@ -38,6 +38,15 @@ describe('resumirBranches', () => {
         expect(tomDaRaiz(r)).toBe('ativa');
     });
 
+    it('as sprints vêm da linha da raiz (TP-4: escopo de cards sem card_ids e gate sprint_linked)', () => {
+        const [r] = resumirBranches([
+            linha({ id: F, phase: 'execution', sprint_ids: ['outra'] }),
+            linha({ sprint_ids: ['s-24'] }),
+        ]);
+        expect(r.sprintIds).toEqual(['s-24']);
+        expect(resumirBranches([linha({ sprint_ids: undefined })])[0].sprintIds).toEqual([]);
+    });
+
     it('rótulo "projeto · sprint", com o ID curto quando não há sprint', () => {
         expect(rotuloDaRaiz({ rootId: R, projectName: 'Snaps', sprintName: 'Sprint 24.0' })).toBe('Snaps · Sprint 24.0');
         expect(rotuloDaRaiz({ rootId: R, projectName: 'Snaps', sprintName: null })).toBe('Snaps · acc98642');

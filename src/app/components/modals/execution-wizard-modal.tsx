@@ -3,6 +3,7 @@ import { getCardExecutionPrompt } from '@/services/cards';
 import { getSprintExecutionPrompt } from '@/services/sprints';
 import { useState, useEffect } from 'react';
 import { X, Copy, Check, Bot, Loader2, Lock, Unlock, CheckCircle2 } from 'lucide-react';
+import { rotaDoNo } from '@/services/cockpitRota';
 import { motion, AnimatePresence } from 'motion/react';
 
 type DualPrompt = { entry: string; exit?: string };
@@ -335,7 +336,7 @@ export function ExecutionWizardModal({
                                                     });
                                                     
                                                     onClose();
-                                                    window.location.href = `/project/${pId}/execution/${exec.id}`;
+                                                    window.location.href = rotaDoNo(exec);
                                                 } catch (err) {
                                                     setError('Failed to start execution.');
                                                 } finally {

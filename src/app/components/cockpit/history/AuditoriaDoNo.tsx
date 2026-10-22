@@ -18,6 +18,12 @@ export interface AuditoriaDoNoProps {
 
 const curto = (hash: string | null | undefined) => (hash ? hash.slice(0, 12) : '—');
 
+/** A base de quem fez o override (ADR-0072), como a API grava no evento. */
+const BASE_DO_OVERRIDE: Record<string, string> = {
+    dono: 'dono da execução',
+    admin: 'admin do projeto',
+};
+
 const quando = (iso: string | null | undefined) =>
     iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
@@ -110,14 +116,22 @@ export function AuditoriaDoNo({ snapshot }: AuditoriaDoNoProps) {
                 {gates.overrides.length === 0 ? (
                     <Vazio>Nenhum override neste nó.</Vazio>
                 ) : (
-                    <ul className="flex flex-col gap-1">
+                    <ul aria-label="Overrides do nó" className="flex flex-col gap-1">
                         {gates.overrides.map((override, i) => {
-                            const payload = override.payload as { reason?: string; conditions?: string[]; decision_id?: string };
+                            const payload = override.payload as {
+                                reason?: string; conditions?: string[] | Record<string, unknown>; decision_id?: string;
+                            };
+                            // O `advance` grava a lista; o `manual-requirement`, um mapa condição → true.
+                            const condicoes = Array.isArray(payload.conditions)
+                                ? payload.conditions : Object.keys(payload.conditions ?? {});
+                            const motivo = override.motivo ?? payload.reason;
                             return (
-                                <li key={`${override.at}-${i}`}>
-                                    {quando(override.at)} · {(payload.conditions ?? []).join(', ') || 'override'}
+                                <li key={`${override.at}-${i}`} data-testid="override-do-no">
+                                    {quando(override.at)} · {condicoes.join(', ') || 'override'}
                                     <span className="text-[var(--snaps-text-secondary)]">
-                                        {' '}· motivo: {payload.reason ?? `decisão ${payload.decision_id ?? 'não registrada'}`}
+                                        {' '}· por {override.ator ?? 'autor não registrado'}
+                                        {override.base && ` (${BASE_DO_OVERRIDE[override.base] ?? override.base})`}
+                                        {' '}· motivo: {motivo ?? `decisão ${payload.decision_id ?? 'não registrada'}`}
                                     </span>
                                 </li>
                             );

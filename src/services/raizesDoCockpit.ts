@@ -15,6 +15,8 @@ export interface ResumoDaRaiz {
     projectId: string;
     projectName: string | null;
     sprintName: string | null;
+    /** Sprints da raiz: o escopo de cards quando o nó não tem `card_ids` (P8) e o gate `sprint_linked`. */
+    sprintIds: string[];
     workflowName: string | null;
     /** Códigos dos cards da raiz: o alvo. */
     alvo: string[];
@@ -58,6 +60,7 @@ export function resumirBranches(items: ExecutionListItem[]): ResumoDaRaiz[] {
             projectId: raiz.project_id,
             projectName: raiz.project_name ?? null,
             sprintName: raiz.sprint_name ?? null,
+            sprintIds: raiz.sprint_ids ?? [],
             workflowName: raiz.workflow_name ?? null,
             alvo: raiz.card_codes ?? [],
             atualId: atual.id,

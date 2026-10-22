@@ -13,9 +13,9 @@ const COR_DO_TOM: Record<TomDaRaiz, string> = {
 };
 
 /**
- * O rótulo de uma raiz aberta. É a ÚNICA consulta de uma aba inativa: nada da
- * árvore, do nó ou do stream roda enquanto ela não for a ativa. Voltar a ela
- * usa o cache (`gcTime` de 10 min).
+ * O rótulo de uma raiz aberta. Numa aba inativa, só ele e a checagem de
+ * novidades da árvore (ADR-0071, 5b) rodam: nada do nó nem do stream enquanto
+ * ela não for a ativa. Voltar a ela usa o cache (`gcTime` de 10 min).
  *
  * Busca uma vez e não refaz sozinha: com o `staleTime` padrão (30 s), cada
  * reconexão da rede e cada remontagem buscariam de novo o rótulo de todas as
@@ -33,12 +33,15 @@ export function useRaizDaAba(rootId: string) {
 function AbaDaBarra({
     rootId,
     ativa,
+    novidade,
     onFocar,
     onFechar,
     onInexistente,
 }: {
     rootId: string;
     ativa: boolean;
+    /** Chegou novidade nesta raiz enquanto a aba estava inativa. Abrir a aba apaga. */
+    novidade: boolean;
     onFocar: (rootId: string) => void;
     onFechar: (rootId: string) => void;
     onInexistente: (rootId: string) => void;
@@ -76,6 +79,15 @@ function AbaDaBarra({
                     style={{ background: raiz ? COR_DO_TOM[tomDaRaiz(raiz)] : 'var(--snaps-placeholder)' }}
                 />
                 <span>{rotulo}</span>
+                {novidade && !ativa && (
+                    <span
+                        data-testid="novidade-da-aba"
+                        aria-label="novidade nesta raiz"
+                        title="Algo mudou nesta raiz desde a última vez que você a viu"
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ background: 'var(--snaps-accent-blue)' }}
+                    />
+                )}
             </button>
             <button
                 type="button"
@@ -108,6 +120,7 @@ export function BarraDeRaizes({
     onFocar,
     onFechar,
     onInexistente,
+    comNovidade,
     seletor,
     direita,
 }: {
@@ -116,6 +129,8 @@ export function BarraDeRaizes({
     onFocar: (rootId: string) => void;
     onFechar: (rootId: string) => void;
     onInexistente: (rootId: string) => void;
+    /** Raízes com marca de novidade na aba (`useNovidadesDasRaizes`). */
+    comNovidade?: ReadonlySet<string>;
     seletor: ReactNode;
     direita?: ReactNode;
 }) {
@@ -132,6 +147,7 @@ export function BarraDeRaizes({
                         key={rootId}
                         rootId={rootId}
                         ativa={rootId === ativa}
+                        novidade={comNovidade?.has(rootId) ?? false}
                         onFocar={onFocar}
                         onFechar={onFechar}
                         onInexistente={onInexistente}

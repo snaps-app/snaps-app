@@ -1,5 +1,6 @@
 import {api} from './client';
 import {supabase} from '@/lib/supabaseClient';
+import {rotaDoNo} from './cockpitRota';
 
 export type TipoEntidade='card'|'execution'|'plan'|'sprint'|'snap'|'board'|'decision'|'governance_doc'|'project';
 export interface Candidato {tipo:TipoEntidade;id:string;project_id:string|null;rotulo:string;codigo:string|null;board_id:string|null}
@@ -58,7 +59,8 @@ export function rotaDaEntidade(c:Candidato,contexto:string):string {
   const id=encodeURIComponent(c.id);
   switch(c.tipo) {
     case 'card':return `${base}/board${c.board_id?'/'+encodeURIComponent(c.board_id):''}?card=${id}`;
-    case 'execution':return `${base}/execution/${id}`;
+    // O Cockpit acha a raiz de um filho sozinho (`PaginaDoCockpit`): basta o id.
+    case 'execution':return rotaDoNo({id:c.id});
     case 'plan':return `${base}/plans?plan=${id}`;
     case 'sprint':return `${base}/board?sprint=${id}`;
     case 'decision':return `${base}/decisions?adr=${id}`;

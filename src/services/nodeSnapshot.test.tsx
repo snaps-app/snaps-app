@@ -10,7 +10,8 @@ vi.mock('@/services/client', () => ({ api: { get: vi.fn() } }));
 import { api } from '@/services/client';
 import { chavesDeConsulta } from '@/services/chavesDeConsulta';
 import { renderComConsulta, novoClienteDeTeste } from '@/test/comConsulta';
-import { useArvore, useNodeSnapshot, useStatusDaApi } from './nodeSnapshot';
+import { getArvore, useArvore, useNodeSnapshot, useStatusDaApi } from './nodeSnapshot';
+import type { ArvoreLeve } from './types';
 
 function Snapshot({ id, terminal }: { id: string; terminal: boolean }) {
     const { data } = useNodeSnapshot(id, terminal);
@@ -89,10 +90,50 @@ describe('useArvore', () => {
         expect(cliente.getQueryData(chavesDeConsulta.arvore('r'))).toBeTruthy();
     });
 
+    it('frescor por evento, não por idade: remontar não busca de novo (staleTime Infinity)', async () => {
+        vi.mocked(api.get).mockResolvedValue({ data: { root_id: 'r', nos: [{}], workflows: {} } });
+        const cliente = novoClienteDeTeste();
+        const primeira = renderComConsulta(<Arvore rootId="r" />, { cliente });
+        await screen.findByText('1 nós');
+        primeira.unmount();
+        renderComConsulta(<Arvore rootId="r" />, { cliente });
+        await screen.findByText('1 nós');
+        expect(api.get).toHaveBeenCalledOnce();
+        expect(cliente.getQueryCache().find({ queryKey: chavesDeConsulta.arvore('r') })?.isStale()).toBe(false);
+    });
+
     it('sem raiz não busca nada', () => {
         renderComConsulta(<Arvore rootId={null} />);
         expect(screen.getByText('idle')).toBeInTheDocument();
         expect(api.get).not.toHaveBeenCalled();
+    });
+});
+
+describe('getArvore: If-None-Match e 304 (ADR-0071, 5b)', () => {
+    const ANTERIOR: ArvoreLeve = { root_id: 'r', nos: [], workflows: {}, etag: '"e1"' };
+
+    it('sem árvore anterior, pede sem cabeçalho e guarda o ETag da resposta com a árvore', async () => {
+        vi.mocked(api.get).mockResolvedValue({ status: 200, data: { root_id: 'r', nos: [], workflows: {} }, headers: { etag: '"e1"' } });
+        expect(await getArvore('r')).toEqual(ANTERIOR);
+        expect(api.get).toHaveBeenCalledWith('/api/agent-executions/r/arvore');
+    });
+
+    it('com a anterior, manda If-None-Match; o 304 devolve a MESMA árvore (nada redesenha)', async () => {
+        vi.mocked(api.get).mockResolvedValue({ status: 304, data: '', headers: { etag: '"e1"' } });
+        expect(await getArvore('r', ANTERIOR)).toBe(ANTERIOR);
+        expect(api.get).toHaveBeenCalledWith('/api/agent-executions/r/arvore', expect.objectContaining({
+            headers: { 'If-None-Match': '"e1"' },
+        }));
+        const { validateStatus } = vi.mocked(api.get).mock.calls[0][1] as { validateStatus: (s: number) => boolean };
+        expect([200, 304, 404].map(validateStatus)).toEqual([true, true, false]);
+    });
+
+    it('árvore mudou: 200 com a árvore e o ETag novos', async () => {
+        vi.mocked(api.get).mockResolvedValue({ status: 200, data: { root_id: 'r', nos: [{ id: 'n' }], workflows: {} }, headers: { etag: '"e2"' } });
+        const nova = await getArvore('r', ANTERIOR);
+        expect(nova).not.toBe(ANTERIOR);
+        expect(nova.etag).toBe('"e2"');
+        expect(nova.nos).toHaveLength(1);
     });
 });
 

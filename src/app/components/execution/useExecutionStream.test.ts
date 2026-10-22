@@ -79,4 +79,22 @@ describe('useExecutionStream', () => {
         expect(conectar).not.toHaveBeenCalled();
         expect(result.current.estado).toBe('parado');
     });
+
+    it('conexão única (nó terminal): recebe o replay, o servidor fecha e não reconecta', async () => {
+        const { conectar, conexoes } = transporteSimulado();
+        const recebidos: number[] = [];
+        const onEncerrado = vi.fn();
+        const { result } = renderHook(() => useExecutionStream('e', {
+            conectar, esperaInicialMs: 0, reconectar: false, onEncerrado, onEvento: (e) => recebidos.push(e.id),
+        }));
+        await waitFor(() => expect(conexoes).toHaveLength(1));
+        act(() => { conexoes[0].emitir(ev(1)); conexoes[0].emitir(ev(2)); });
+        await act(async () => conexoes[0].cair());
+
+        await waitFor(() => expect(result.current.estado).toBe('encerrado'));
+        expect(onEncerrado).toHaveBeenCalledTimes(1);
+        expect(recebidos).toEqual([1, 2]);
+        await act(() => new Promise((r) => setTimeout(r, 20)));
+        expect(conectar).toHaveBeenCalledTimes(1);
+    });
 });

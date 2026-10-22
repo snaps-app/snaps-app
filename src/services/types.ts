@@ -619,6 +619,11 @@ export interface NoDaArvore {
     updated_at: string;
     lock_version: number;
     workflow_snapshot_hash: string | null;
+    /**
+     * Carimbo leve das sessões de tempo do nó; muda quando uma abre ou fecha.
+     * Não é novidade do nó: deixa em dia o tempo da árvore no timer.
+     */
+    sessoes?: string | null;
 }
 
 /** `GET /api/agent-executions/{id}/arvore` (ADR-0071): cada workflow uma vez por hash. */
@@ -626,6 +631,11 @@ export interface ArvoreLeve {
     root_id: string;
     nos: NoDaArvore[];
     workflows: Record<string, WorkflowSnapshot>;
+    /**
+     * O `ETag` da resposta, guardado com a árvore em cache: a checagem de
+     * novidades manda `If-None-Match` com ele (ADR-0071, 5b). Não vem no corpo.
+     */
+    etag?: string;
 }
 
 /** `GET /api/agent-executions/{id}/node-snapshot` (plano f518941f §3.5). */
@@ -651,7 +661,15 @@ export interface NodeSnapshot {
     gates: {
         advance_conditions: Record<string, unknown>;
         avaliacoes: { at: string | null; gate: string | null; result: 'passed' | 'failed' | string | null }[];
-        overrides: { at: string | null; actor_id: string | null; payload: Record<string, unknown> }[];
+        overrides: {
+            at: string | null;
+            actor_id: string | null;
+            /** Nome de quem aplicou, o motivo e a base (`dono` ou `admin`, ADR-0072). */
+            ator?: string | null;
+            motivo?: string | null;
+            base?: 'dono' | 'admin' | null;
+            payload: Record<string, unknown>;
+        }[];
     };
     artefatos: {
         tipo: 'snap';

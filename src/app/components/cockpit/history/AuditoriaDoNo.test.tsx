@@ -44,6 +44,24 @@ describe('AuditoriaDoNo', () => {
         expect(screen.getByText(/TP-1 · History/)).toBeInTheDocument();
     });
 
+    it('override mostra quem fez, a base da autorização (dono ou admin) e o motivo (ADR-0072)', () => {
+        render(<AuditoriaDoNo snapshot={{
+            ...SNAPSHOT,
+            gates: {
+                ...SNAPSHOT.gates,
+                overrides: [
+                    { at: '2026-10-21T10:40:00Z', actor_id: 'u1', ator: 'Maria Souza', motivo: 'CI do provedor fora do ar', base: 'dono',
+                        payload: { conditions: ['ci_passed'], decision_id: 'd1', authorized_as: 'dono' } },
+                    { at: '2026-10-21T10:50:00Z', actor_id: 'u2', ator: 'Ana Admin', motivo: 'PO decidiu', base: 'admin',
+                        payload: { conditions: { required_env: true }, decision_id: 'd2' } },
+                ],
+            },
+        }} />);
+        const [dono, admin] = within(screen.getByRole('list', { name: 'Overrides do nó' })).getAllByTestId('override-do-no');
+        expect(dono).toHaveTextContent('ci_passed · por Maria Souza (dono da execução) · motivo: CI do provedor fora do ar');
+        expect(admin).toHaveTextContent('required_env · por Ana Admin (admin do projeto) · motivo: PO decidiu');
+    });
+
     it('skills ativadas ainda não são registradas', () => {
         render(<AuditoriaDoNo snapshot={SNAPSHOT} />);
         expect(screen.getByText('Skills ativadas: não registrado nesta versão')).toBeInTheDocument();

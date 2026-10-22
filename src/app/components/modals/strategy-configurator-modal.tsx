@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Target, X, Zap, ChevronDown, Layout as LayoutIcon, Calendar, CheckCircle2, ChevronRight, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WorkflowFlowPreview } from '@/app/components/workflow/workflow-flow-preview';
+import { rotaDoNo } from '@/services/cockpitRota';
 
 interface StrategyConfiguratorModalProps {
     isOpen: boolean;
@@ -89,7 +90,7 @@ export function StrategyConfiguratorModal({
                 }
             });
             onClose();
-            navigate(`/project/${projectId}/execution/${execution.id}`);
+            navigate(rotaDoNo(execution));
         } catch (err: any) {
             console.error('Failed to start execution:', err);
             alert('Failed to start agent session');

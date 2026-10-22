@@ -11,16 +11,38 @@ import {
     type AbasDoCockpit,
     type EstadoDaAba,
 } from '@/services/cockpitAbas';
-import { rotuloDaRaiz, type ResumoDaRaiz } from '@/services/raizesDoCockpit';
+import { type ResumoDaRaiz } from '@/services/raizesDoCockpit';
+import { gravarLayout, layoutPadrao, lerLayout, type LayoutDoCockpit } from '@/services/cockpitLayout';
 import { AbaDeRaiz } from './navegacao/AbaDeRaiz';
 import { BarraDeRaizes, useRaizDaAba } from './navegacao/BarraDeRaizes';
 import { EstadoDaAbaProvider } from './navegacao/EstadoDaAbaContexto';
 import { SeletorDeRaiz } from './navegacao/SeletorDeRaiz';
 import { useIdDoUsuario } from './navegacao/useIdDoUsuario';
+import { ControlesDePaineis } from './layout/ControlesDePaineis';
+import { useNovidadesDasRaizes, type NovidadesDasRaizes } from './novidades/useNovidadesDasRaizes';
+import { CockpitDaRaiz } from './CockpitDaRaiz';
 
 export const AVISO_SEM_ACESSO = 'Raiz sem acesso ou inexistente.';
 
 const rotaDaAba = (aba: EstadoDaAba) => rotaDoNo({ id: aba.no ?? aba.rootId, root_id: aba.rootId }, aba.aba);
+
+const larguraDaJanela = () => (typeof window === 'undefined' ? undefined : window.innerWidth);
+
+/**
+ * O layout dos painéis do usuário (P14): por usuário, e não por aba de raiz.
+ * Abaixo de `lg` abre com os laterais recolhidos (`lerLayout`).
+ */
+function useLayoutDoUsuario(userId: string | null | undefined) {
+    const [layout, setLayout] = useState<LayoutDoCockpit>(() => layoutPadrao(larguraDaJanela()));
+    useEffect(() => {
+        if (userId) setLayout(lerLayout(userId, larguraDaJanela()));
+    }, [userId]);
+    const mudar = useCallback((novo: LayoutDoCockpit) => {
+        setLayout(novo);
+        if (userId) gravarLayout(userId, novo);
+    }, [userId]);
+    return { layout, mudar };
+}
 
 /** As abas do usuário, carregadas do storage só depois de saber quem ele é. */
 function useAbasDoUsuario(userId: string | null | undefined) {
@@ -51,8 +73,10 @@ function useAbasDoUsuario(userId: string | null | undefined) {
  * da Superfície dela. As abas salvas só lembram o que estava aberto. Trocar de
  * aba é navegar, para que voltar no navegador volte de aba também.
  *
- * Só a aba ativa monta conteúdo. As inativas existem na barra com o rótulo, e
- * nada mais: sem árvore, sem nó, sem stream (ADR-0071).
+ * Só a aba ativa monta conteúdo. As inativas existem na barra com o rótulo e
+ * a marca de novidade: sem nó e sem stream (ADR-0071). A árvore de cada aba
+ * aberta é conferida pela checagem de novidades (exceção 5b), num hook só,
+ * montado aqui.
  */
 export function PaginaDoCockpit() {
     const { rootId: raizDaRota } = useParams<{ rootId?: string }>();
@@ -61,6 +85,7 @@ export function PaginaDoCockpit() {
     const navigate = useNavigate();
     const userId = useIdDoUsuario();
     const { estado, mudar } = useAbasDoUsuario(userId);
+    const { layout, mudar: mudarLayout } = useLayoutDoUsuario(userId);
     const [aviso, setAviso] = useState<string | null>(null);
     const raizValida = eIdDeExecucao(raizDaRota) ? raizDaRota : null;
 
@@ -121,7 +146,13 @@ export function PaginaDoCockpit() {
 
     const escolher = useCallback((raiz: ResumoDaRaiz) => focar(raiz.rootId), [focar]);
 
-    const abertas = useMemo(() => new Set(estado?.abas.map((a) => a.rootId) ?? []), [estado]);
+    const raizesAbertas = useMemo(() => estado?.abas.map((a) => a.rootId) ?? [], [estado]);
+    const abertas = useMemo(() => new Set(raizesAbertas), [raizesAbertas]);
+    const novidades = useNovidadesDasRaizes(raizesAbertas, raizValida);
+    const comNovidade = useMemo(
+        () => new Set(Object.entries(novidades.porRaiz).filter(([, v]) => v.aba).map(([rootId]) => rootId)),
+        [novidades.porRaiz],
+    );
     const estadoDaAtiva = estado?.abas.find((a) => a.rootId === raizValida) ?? null;
     const contexto = useMemo(
         () => ({
@@ -143,7 +174,9 @@ export function PaginaDoCockpit() {
                 onFocar={focar}
                 onFechar={fechar}
                 onInexistente={inexistente}
+                comNovidade={comNovidade}
                 seletor={<SeletorDeRaiz abertas={abertas} onEscolher={escolher} />}
+                direita={raizValida ? <ControlesDePaineis layout={layout} onMudarLayout={mudarLayout} /> : null}
             />
             {aviso && (
                 <div
@@ -162,7 +195,16 @@ export function PaginaDoCockpit() {
                     <SemAcesso />
                 ) : raizValida ? (
                     <EstadoDaAbaProvider value={contexto}>
-                        <ConteudoDaRaiz key={raizValida} rootId={raizValida} no={no} aba={aba} onRaizDiferente={raizDiferente} />
+                        <ConteudoDaRaiz
+                            key={raizValida}
+                            rootId={raizValida}
+                            no={no}
+                            aba={aba}
+                            layout={layout}
+                            onMudarLayout={mudarLayout}
+                            onRaizDiferente={raizDiferente}
+                            novidades={novidades}
+                        />
                     </EstadoDaAbaProvider>
                 ) : (
                     <SemRaizAberta />
@@ -189,22 +231,30 @@ function SemRaizAberta() {
 }
 
 /**
- * Conteúdo da aba ativa. A estrutura de painéis (History, Superfície, Conversa)
- * é do TP-4; aqui ficam o papel por projeto e o tratamento de raiz inexistente,
- * que valem para tudo que for montado dentro.
+ * Conteúdo da aba ativa: o papel por projeto e o tratamento de raiz
+ * inexistente, que valem para tudo que for montado dentro, e o Cockpit da raiz
+ * (cabeçalho, History, Superfície e Conversa; TP-4).
  */
 function ConteudoDaRaiz({
     rootId,
     no,
     aba,
+    layout,
+    onMudarLayout,
     onRaizDiferente,
+    novidades,
 }: {
     rootId: string;
     no: string | null;
     aba: string | null;
+    layout: LayoutDoCockpit;
+    onMudarLayout: (layout: LayoutDoCockpit) => void;
     onRaizDiferente: (pedido: string, raiz: ResumoDaRaiz) => void;
+    novidades: NovidadesDasRaizes;
 }) {
     const { data: raiz, isPending, isError } = useRaizDaAba(rootId);
+    const { verNo } = novidades;
+    const verNoDaRaiz = useCallback((noId: string) => verNo(rootId, noId), [verNo, rootId]);
     const diferente = !!raiz && raiz.rootId !== rootId;
     useEffect(() => {
         if (raiz && diferente) onRaizDiferente(rootId, raiz);
@@ -222,16 +272,15 @@ function ConteudoDaRaiz({
 
     return (
         <AbaDeRaiz projectId={raiz.projectId}>
-            <section aria-label={`Raiz ${rotuloDaRaiz(raiz)}`} className="flex flex-col gap-1 p-6">
-                <h1 className="text-lg font-bold" style={{ color: 'var(--snaps-text-primary)' }}>
-                    {rotuloDaRaiz(raiz)}
-                </h1>
-                <p className="font-mono text-xs" style={{ color: 'var(--snaps-text-secondary)' }}>
-                    {[raiz.workflowName, raiz.fase, raiz.status, `nó ${(no ?? raiz.atualId).slice(0, 8)}`, aba]
-                        .filter(Boolean)
-                        .join(' · ')}
-                </p>
-            </section>
+            <CockpitDaRaiz
+                raiz={raiz}
+                no={no}
+                aba={aba}
+                layout={layout}
+                onMudarLayout={onMudarLayout}
+                novidadesDosNos={novidades.porRaiz[rootId]?.contagem}
+                onVerNo={verNoDaRaiz}
+            />
         </AbaDeRaiz>
     );
 }
