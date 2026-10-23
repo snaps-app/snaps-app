@@ -19,33 +19,21 @@ describe('gatesDoNo', () => {
         expect(condicoesDaFase(SNAPSHOT, 'fase_que_nao_existe')).toEqual([]);
     });
 
-    it('o que a tela sabe vira ok ou falta; o resto é do motor e não trava', () => {
-        const gates = avaliarGates({
-            condicoes: condicoesDaFase(SNAPSHOT, 'execution'), sprintIds: ['s'], cards: [card('in_progress')], pendencias: [],
-        });
-        expect(gates).toEqual([
-            { chave: 'tasks_finished', rotulo: 'Tasks concluídas (cards em assurance)', estado: 'falta' },
-            { chave: 'ci_passed', rotulo: 'CI verde', estado: 'motor' },
-        ]);
-        expect(gatesQueFaltam(gates).map((g) => g.chave)).toEqual(['tasks_finished']);
-    });
-
-    it('aprovação de plano e BDD seguem as pendências do /resumo (que já descontam override)', () => {
-        const base = { condicoes: condicoesDaFase(SNAPSHOT, 'micro_planning'), sprintIds: [], cards: [card('todo')] };
-        const comPendencia = avaliarGates({
-            ...base,
-            pendencias: [
-                { tipo: 'aprovacao_invalidada', aba: 'plano', recurso_id: 'p', desde: null, acao: 'Reaprovar plano' },
-                { tipo: 'gate_humano', aba: 'no', recurso_id: 'n', desde: null, acao: 'Confirmar proposal_approved' },
-            ],
-        });
-        expect(comPendencia.map((g) => g.estado)).toEqual(['falta', 'ok', 'falta']);
-        // Viewer (pendências em que a tela não confia): plano fica com o motor, BDD pelos cards.
-        expect(avaliarGates({ ...base, pendencias: null }).map((g) => g.estado)).toEqual(['motor', 'falta', 'motor']);
+    it('os estados e overrides vêm do motor, independentemente dos cards e pendências', () => {
+        const gates=avaliarGates({condicoes:['tasks_finished','ci_passed','plan_approved'],sprintIds:[],cards:[],pendencias:[],
+            condicoesDoMotor:[{chave:'tasks_finished',estado:'falta',motivo:'falta',override:false},{chave:'ci_passed',estado:'ok',motivo:null,override:true}]});
+        expect(gates.map(g=>g.estado)).toEqual(['falta','ok','motor']);
+        expect(gates[1].override).toBe(true);
+        expect(gatesQueFaltam(gates).map(g=>g.chave)).toEqual(['tasks_finished']);
     });
 
     it('cards ainda carregando não viram "falta"', () => {
         const [gate] = avaliarGates({ condicoes: ['cards_done'], sprintIds: [], cards: null, pendencias: [] });
         expect(gate.estado).toBe('motor');
     });
+});
+
+it('sem condicoes do resumo, nenhuma condição fica ok', () => {
+    const gates=avaliarGates({condicoes:['plan_approved','bdd_validated','sprint_linked'],sprintIds:['s'],cards:[card('done',{bdd_validated:true})],pendencias:[]});
+    expect(gates.every(g => g.estado === 'motor')).toBe(true);
 });

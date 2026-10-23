@@ -29,6 +29,7 @@ export interface LayoutDoCockpit {
     larguraConversa: number;
     recolhidos: Record<PainelDoCockpit, boolean>;
     cabecalhoRecolhido: boolean;
+    faixaDeCardsRecolhida?: boolean;
 }
 
 export const LIMITES = {
@@ -53,6 +54,7 @@ export function layoutPadrao(larguraDaJanela?: number): LayoutDoCockpit {
         larguraConversa: LIMITES.conversa.padrao,
         recolhidos: { workflow: estreita, superficie: false, conversa: estreita },
         cabecalhoRecolhido: false,
+        faixaDeCardsRecolhida: false,
     };
 }
 
@@ -170,6 +172,7 @@ function sanear(bruto: unknown, base: LayoutDoCockpit): LayoutDoCockpit {
         larguraConversa: limitarLargura('conversa', l.larguraConversa),
         recolhidos,
         cabecalhoRecolhido: l.cabecalhoRecolhido === true,
+        faixaDeCardsRecolhida: l.faixaDeCardsRecolhida === true,
     };
 }
 

@@ -1,3 +1,4 @@
+import { SessaoDoNoProvider } from './sessao/useSessaoDoNo';
 import { comoEventoDoNo } from './conversa/useEventosDoNo';
 /**
  * O Cockpit de uma raiz (TP-4 da Sprint 24.0): cabeçalho, e os três painéis
@@ -293,7 +294,7 @@ export function CockpitDaRaiz({
     );
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <SessaoDoNoProvider noId={noId} habilitada={!terminal && !descartado && acoes.podeAgir}><div className="flex min-h-0 flex-1 flex-col">
             <CabecalhoDoNo
                 raiz={raiz}
                 execucao={execucao}
@@ -306,6 +307,8 @@ export function CockpitDaRaiz({
                 cards={cardsDoNo}
                 filtroDeCard={filtro}
                 onFiltrarCard={(id) => atualizar({ filtroDeCard: id })}
+                faixaDeCardsRecolhida={layout.faixaDeCardsRecolhida}
+                onAlternarFaixaDeCards={() => onMudarLayout({...layout,faixaDeCardsRecolhida:!layout.faixaDeCardsRecolhida})}
                 recolhido={layout.cabecalhoRecolhido}
                 onAlternarRecolhido={() => onMudarLayout({ ...layout, cabecalhoRecolhido: !layout.cabecalhoRecolhido })}
                 ultimoEventoEm={ultimoEventoEm(eventos)}
@@ -347,6 +350,6 @@ export function CockpitDaRaiz({
                     ),
                 }}
             />
-        </div>
+        </div></SessaoDoNoProvider>
     );
 }

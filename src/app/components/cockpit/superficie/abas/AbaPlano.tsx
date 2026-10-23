@@ -76,9 +76,9 @@ export default function AbaPlano(props: PropsDaAba) {
                         deletePlanFn={(id) => edicao.deletePlanFn(id, getAgentExecution)}
                         somenteLeitura={!escreve}
                     />
-                    {escreve && acoes.ehAdmin && (
+                    {["micro_planning","plan_review"].includes(no.phase) && (
                         <Secao titulo="Escopo de despacho">
-                            <DispatchScopePanel
+                            <DispatchScopePanel admin={escreve && acoes.ehAdmin}
                                 execution={no}
                                 onExecutionUpdated={(atualizada) => {
                                     definirNo(atualizada);

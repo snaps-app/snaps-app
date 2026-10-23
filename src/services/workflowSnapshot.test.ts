@@ -232,3 +232,9 @@ describe('hotfix History', () => {
         expect(nos(montarHistory(tree,STATUS)).find(n => n.id === 'h')).toMatchObject({nivel:0,origemId:'a2'});
     });
 });
+
+it('rollback a partir de assurance convergente fica fora dos quatro ramos, com a origem', () => {
+    const wf: WorkflowSnapshot = {phases: SDLC.phases.map(f => ({...f, ...(f.key==='execution'?{branching_strategy:'per_selected_plan'}:{}), ...(f.key==='assurance'?{convergence:'sprint'}:{})}))};
+    const tree = arvore([no('m','micro_planning','completed'), ...[1,2,3,4].map(i=>no('e'+i,'execution','completed',{parent_id:'m',plan_id:'p'+i})), no('a','assurance','rolled_back',{parent_id:'e2'}), no('h','micro_planning','pending',{parent_id:'a',branch_type:'hotfix'})],{h1:wf});
+    expect(nos(montarHistory(tree,STATUS)).find(n=>n.id==='h')).toMatchObject({nivel:0,origemId:'a'});
+});

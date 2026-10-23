@@ -1,12 +1,14 @@
 /** SNA-SUP-81: escopo de despacho e override humano sempre disponivel. */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+
+import { renderComConsulta as render } from '@/test/comConsulta';
 
 vi.mock('@/services/agentExecutions', () => ({
-    setDispatchScope: vi.fn(),
+    setDispatchScope: vi.fn(), getAgentExecution: vi.fn(),
 }));
 
-import { setDispatchScope } from '@/services/agentExecutions';
+import { setDispatchScope, getAgentExecution } from '@/services/agentExecutions';
 import type { AgentTaskExecution } from '@/services/types';
 import { parseOverridableConditions } from './dispatch-scope';
 import { DispatchScopePanel } from './dispatch-scope-panel';
@@ -29,7 +31,7 @@ const execucao = (over: Partial<AgentTaskExecution> = {}): AgentTaskExecution =>
     id: 'exec-1', project_id: 'p1', status: 'pending', phase: 'micro_planning',
     sprint_ids: ['s1'], card_ids: [], agent_name: '@micro', advance_conditions: {},
     lock_version: 7, created_at: '', updated_at: '',
-    context_data: { plans: PLANOS }, ...over,
+    context_data: { plans: PLANOS }, despacho: { candidatos: PLANOS.filter(p => ['tp1','tp2','tp4','tp5'].includes(p.id)).map(p => ({id:p.id,title:p.title,status:p.status,approval:p.id==='tp5'?'stale':'current',content_revision:2,approved_revision:2})), padrao_ids:['tp1','tp2'], efetivo_ids:['tp1','tp2'], explicito:true, erro:null, lock_version:7 }, ...over,
 });
 
 const ESCOPO = {
@@ -51,6 +53,7 @@ const ESCOPO = {
 
 beforeEach(() => {
     vi.mocked(setDispatchScope).mockReset();
+    vi.mocked(getAgentExecution).mockResolvedValue(execucao());
 });
 
 describe('parseOverridableConditions', () => {
@@ -90,12 +93,12 @@ describe('DispatchScopePanel', () => {
     it('exige motivo e envia os planos escolhidos com a revisao', async () => {
         const atualizada = execucao({ context_data: { plans: PLANOS, dispatch_scope: ESCOPO } });
         vi.mocked(setDispatchScope).mockResolvedValue(atualizada);
+        vi.mocked(getAgentExecution).mockResolvedValue(atualizada);
         const onUpdated = vi.fn();
         render(<DispatchScopePanel execution={execucao()} onExecutionUpdated={onUpdated} />);
 
-        fireEvent.click(screen.getByLabelText('TP-1'));
-        fireEvent.click(screen.getByLabelText('TP-2'));
-        const definir = screen.getByRole('button', { name: /definir escopo/i }) as HTMLButtonElement;
+        fireEvent.click(screen.getByLabelText('TP-4'));
+        const definir = screen.getByRole('button', { name: /confirmar escopo/i }) as HTMLButtonElement;
         expect(definir.disabled).toBe(true);
 
         fireEvent.change(screen.getByLabelText('Motivo do escopo'), {
@@ -105,7 +108,7 @@ describe('DispatchScopePanel', () => {
 
         await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(atualizada));
         expect(setDispatchScope).toHaveBeenCalledWith(
-            'exec-1', ['tp1', 'tp2'], 'Executar somente TP-1 e TP-2 nesta rodada', 7,
+            'exec-1', ['tp1', 'tp2', 'tp4'], 'Executar somente TP-1 e TP-2 nesta rodada', 7,
         );
     });
 
@@ -117,7 +120,7 @@ describe('DispatchScopePanel', () => {
         render(<DispatchScopePanel execution={execucao()} onExecutionUpdated={onUpdated} />);
         fireEvent.click(screen.getByLabelText('TP-1'));
         fireEvent.change(screen.getByLabelText('Motivo do escopo'), { target: { value: 'x' } });
-        fireEvent.click(screen.getByRole('button', { name: /definir escopo/i }));
+        fireEvent.click(screen.getByRole('button', { name: /confirmar escopo/i }));
 
         expect(await screen.findByText(/human decision/)).toBeTruthy();
         expect(onUpdated).not.toHaveBeenCalled();
@@ -136,8 +139,10 @@ describe('DispatchScopePanel', () => {
         expect(banner.textContent).toMatch(/humano-1/);
         expect(banner.textContent).toMatch(/4 cards/);
 
-        fireEvent.change(screen.getByLabelText('Motivo para limpar'), { target: { value: 'voltar' } });
-        fireEvent.click(screen.getByRole('button', { name: /limpar escopo/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'Revisar escopo' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Voltar ao padrão do motor' }));
+        fireEvent.change(screen.getByLabelText('Motivo do escopo'), { target: { value: 'voltar' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirmar escopo/i }));
         await waitFor(() => expect(setDispatchScope).toHaveBeenCalledWith('exec-1', [], 'voltar', 7));
     });
 
@@ -152,7 +157,14 @@ describe('DispatchScopePanel', () => {
 
     it('micro_planning com o plano estrategico herdado continua editavel', () => {
         render(<DispatchScopePanel execution={execucao({ plan_id: 'macro' })} onExecutionUpdated={vi.fn()} />);
-        expect(screen.getByLabelText('Motivo do escopo')).toBeTruthy();
+        expect(screen.getByRole('button', {name:'Revisar escopo'})).toBeTruthy();
+        expect(screen.getByLabelText('TP-1')).toBeChecked();
+    });
+
+    it('API sem retrato não infere candidatos de context_data', () => {
+        render(<DispatchScopePanel execution={execucao({despacho:undefined})} onExecutionUpdated={vi.fn()} />);
+        expect(screen.getByRole('alert')).toHaveTextContent('Recarregue');
+        expect(screen.queryByRole('checkbox')).toBeNull();
     });
 
     it('em execucao por plano sem escopo nao renderiza nada', () => {
