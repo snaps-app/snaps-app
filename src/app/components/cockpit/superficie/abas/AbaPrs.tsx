@@ -23,7 +23,7 @@ interface PrDoNo {
 const SINAL: Record<string, string> = { added: 'A', modified: 'M', removed: 'D', renamed: 'R' };
 
 function ArquivosDoRepo({ executionId, pr, ativa }: { executionId: string; pr: PrDoNo; ativa: boolean }) {
-    const consulta = useArquivosDaPr(executionId, pr.repo, ativa && !!pr.pr_number);
+    const consulta = useArquivosDaPr(executionId, pr.repo, ativa && !!pr.pr_number, pr.pr_number ?? undefined);
     const link = linkDosArquivos(pr.pr_url ?? null);
     return (
         <EstadoDaConsulta carregando={consulta.isLoading} erro={consulta.error}>
@@ -72,7 +72,7 @@ export default function AbaPrs(props: PropsDaAba) {
             ) : (
                 <div className="space-y-8">
                     {prs.map((pr) => (
-                        <Secao key={`${pr.repo}:${pr.branch}`} titulo={pr.repo}
+                        <Secao key={`${pr.repo}:${pr.pr_number ?? pr.branch}`} titulo={pr.repo}
                             acao={pr.pr_url && (
                                 <a href={pr.pr_url} target="_blank" rel="noreferrer"
                                     className="flex items-center gap-1 text-[10px] font-bold text-[var(--snaps-text-secondary)] hover:text-[var(--snaps-text-primary)]">

@@ -1,3 +1,4 @@
+import { DetalheDaEntidade } from '../chat/comum/DetalheDaEntidade';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { eIdDeExecucao, lerRotaDoCockpit, rotaDoNo } from '@/services/cockpitRota';
@@ -283,6 +284,7 @@ function ConteudoDaRaiz({
 
     return (
         <AbaDeRaiz projectId={raiz.projectId}>
+            <DetalheDaEntidade />
             <CockpitDaRaiz
                 raiz={raiz}
                 no={no}

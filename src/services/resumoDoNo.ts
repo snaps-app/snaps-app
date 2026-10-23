@@ -31,6 +31,7 @@ export interface PendenciaDoNo {
 }
 
 export interface AbaDoResumo {
+    versao?: string | null;
     total: number | null;
     motivo_vazio: string | null;
 }

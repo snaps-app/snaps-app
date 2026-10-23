@@ -1,3 +1,4 @@
+import { limparLeituras } from './cockpitAbas';
 /** Abas de raízes no navegador (P2; TP-3 da Sprint 24.0). */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -136,4 +137,15 @@ describe('abrirAba / fecharAba', () => {
         expect(nova.abas[1]).toEqual(duas.abas[1]);
         expect(atualizarAba(duas, C, { scrollDaConversa: 1 })).toBe(duas);
     });
+});
+
+it('persiste só metadados de leitura e ramos, isola usuários e limpa no logout', () => {
+    const storage = storageEmMemoria();
+    const estado = abrirAba(ABAS_VAZIAS,A,{ramosRecolhidos:[B],leituras:{[B]:{prompt:{versao:'v1',cursor:10}}}});
+    gravarAbas(U,estado,storage);
+    expect(lerAbas(U,storage)).toEqual(estado);
+    expect(lerAbas('outro',storage).abas).toEqual([]);
+    limparLeituras(U,storage);
+    expect(lerAbas(U,storage).abas[0].leituras).toBeUndefined();
+    expect(lerAbas(U,storage).abas[0].ramosRecolhidos).toEqual([B]);
 });

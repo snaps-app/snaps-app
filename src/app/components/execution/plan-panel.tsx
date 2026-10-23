@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import type { PendenciaDoNo } from '@/services/resumoDoNo';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -42,6 +43,7 @@ interface PlanPanelProps {
     deletePlanFn: (planId: string) => Promise<void>;
     /** Nó concluído (Cockpit novo): mostra os planos e esconde toda escrita. */
     somenteLeitura?: boolean;
+    pendencias?: PendenciaDoNo[];
 }
 
 export const PlanPanel: React.FC<PlanPanelProps> = ({
@@ -68,7 +70,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     reapprovePlan,
     deletePlanFn,
     somenteLeitura = false,
+    pendencias,
 }) => {
+    const [abertos, setAbertos] = useState<Record<string,boolean>>({});
     const rawPlans = execution.context_data?.plans || [];
     const sortedPlans = [...rawPlans].sort((a, b) => {
         const aOrder = a.execution_order !== undefined && a.execution_order !== null ? a.execution_order : 999999;
@@ -97,6 +101,8 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
             )}
             {sortedPlans.length > 0 ? (
                 sortedPlans.map((plan: any, index: number) => {
+                    const pendente = pendencias?.some(p => p.recurso_id === plan.id && ['plano_aguardando_aprovacao','aprovacao_invalidada'].includes(p.tipo));
+                    const aberto = (isEditingPlan && editingPlanId === plan.id) || (abertos[plan.id] ?? (pendencias === undefined || !!pendente));
                     const isWaiting = isPlanWaiting(plan);
                     const isActive = plan.id === execution.plan_id;
                     const tooltipText = isWaiting 
@@ -131,7 +137,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                         />
                                     ) : (
                                         <h2 className="text-xl font-bold text-white leading-tight truncate flex items-center gap-2">
-                                            {plan.title}
+                                            <button type="button" aria-expanded={aberto} aria-controls={`conteudo-plano-${plan.id}`}
+                                                onClick={() => setAbertos(a => ({...a,[plan.id]:!aberto}))}>{plan.title}</button>
+                                            <span className="text-xs">{plan.status} · rev {plan.content_revision ?? 1}</span>
                                             <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30" title={`Ordem: ${index + 1} de ${sortedPlans.length}`}>
                                                 {index + 1}/{sortedPlans.length}
                                             </span>
@@ -276,7 +284,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                 </div>
                             </div>
 
-                            <div className="relative group/content z-10">
+                            {aberto && <div id={`conteudo-plano-${plan.id}`} className="relative group/content z-10">
                                 {!isEditingPlan && (
                                     <button
                                         onClick={() => handleCopy(plan.id, plan.content || '')}
@@ -308,7 +316,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                         )}
                                     </div>
                                 )}
-                            </div>
+                            </div>}
                         </div>
                     );
                 })

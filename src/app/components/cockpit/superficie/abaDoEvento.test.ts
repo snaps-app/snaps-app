@@ -5,7 +5,7 @@ describe('abaDoEvento', () => {
     it.each([
         ['plan_approved', 'plano'],
         ['plan_approval_invalidated', 'plano'],
-        ['artifact_submitted', 'walkthroughs'],
+        ['artifact_submitted', null],
         ['test_plan_verdict_recorded', 'testplans'],
         ['gate_evaluated', 'no'],
         ['override_authorized', 'no'],
@@ -42,8 +42,8 @@ describe('abaDoEvento', () => {
 
 describe('novidade por aba', () => {
     it('soma na aba do evento e não na aberta', () => {
-        let n = registrarNovidade({}, { name: 'artifact_submitted' }, 'plano');
-        n = registrarNovidade(n, { name: 'artifact_submitted' }, 'plano');
+        let n = registrarNovidade({}, { name: 'artifact_submitted', payload: {artifact_type:'walkthrough'} }, 'plano');
+        n = registrarNovidade(n, { name: 'artifact_submitted', payload: {artifact_type:'walkthrough'} }, 'plano');
         n = registrarNovidade(n, { name: 'plan_approved' }, 'plano');
         expect(n).toEqual({ walkthroughs: 2 });
         expect(totalDeNovidades(n)).toBe(2);
@@ -55,3 +55,8 @@ describe('novidade por aba', () => {
         expect(n).toEqual({ walkthroughs: 2, atividade: 1 });
     });
 });
+
+it.each(['peer_review','code_review','ci_review','release_review'])('%s pertence a Revisões', tipo => {
+    expect(abaDoEvento({name:'artifact_submitted',payload:{artifact_type:tipo}})).toBe('revisoes');
+});
+it('walkthrough explícito mantém sua aba', () => expect(abaDoEvento({name:'artifact_submitted',payload:{artifact_type:'walkthrough'}})).toBe('walkthroughs'));

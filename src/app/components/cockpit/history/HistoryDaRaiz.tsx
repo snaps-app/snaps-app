@@ -10,7 +10,7 @@
  * Classifica com a lista de terminais da API (`phase-directives`); sem ela, não
  * desenha, porque classificar com lista vazia mostraria todo nó como atual.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { ArvoreLeve } from '@/services/types';
 import { useStatusDaApi } from '@/services/nodeSnapshot';
 import { montarHistory, type ClasseDoNo, type ItemDoHistory } from '@/services/workflowSnapshot';
@@ -27,6 +27,8 @@ export interface HistoryDaRaizProps {
      * esmaecidos, sem sair da árvore, para o recuo e a ordem continuarem certos.
      */
     destacados?: ReadonlySet<string> | null;
+    ramosRecolhidos?: string[];
+    onMudarRamos?: (ids: string[]) => void;
 }
 
 type Marca = ClasseDoNo | 'futura';
@@ -55,12 +57,25 @@ function subtitulo(item: Extract<ItemDoHistory, { tipo: 'no' }>): string {
     return partes.join(' · ');
 }
 
-export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSelecionarNo, destacados = null }: HistoryDaRaizProps) {
+export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSelecionarNo, destacados = null, ramosRecolhidos = [], onMudarRamos }: HistoryDaRaizProps) {
     const status = useStatusDaApi();
     const itens = useMemo(
         () => (status.data ? montarHistory(tree, status.data) : []),
         [tree, status.data],
     );
+
+    const ramoPorItem = new Map<string, string>();
+    let ramo: string | null = null;
+    for (const item of itens) {
+        if (item.nivel === 0) ramo = null;
+        if (item.tipo === 'no' && item.abreRamo) ramo = item.planId;
+        if (ramo) ramoPorItem.set(item.tipo === 'no' ? item.id : `futura-${item.aposId}-${item.key}`, ramo);
+    }
+    const ramoSelecionado = selecionadoId ? ramoPorItem.get(selecionadoId) : null;
+    useEffect(() => {
+        if (ramoSelecionado && ramosRecolhidos.includes(ramoSelecionado))
+            onMudarRamos?.(ramosRecolhidos.filter(r => r !== ramoSelecionado));
+    }, [ramoSelecionado, ramosRecolhidos, onMudarRamos]);
 
     if (status.isError) {
         return <p className="p-4 text-sm text-[var(--snaps-error)]">Não foi possível carregar os status do workflow.</p>;
@@ -73,6 +88,9 @@ export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSeleciona
         <div className="@container flex min-h-0 flex-col">
             <ul aria-label="History da árvore" className="flex flex-col gap-0.5 px-2 py-1">
                 {itens.map((item) => {
+                    const grupo = ramoPorItem.get(item.tipo === 'no' ? item.id : `futura-${item.aposId}-${item.key}`);
+                    const fechado = !!grupo && ramosRecolhidos.includes(grupo) && grupo !== ramoSelecionado;
+                    if (fechado && !(item.tipo === 'no' && item.abreRamo)) return null;
                     const marca: Marca = item.tipo === 'futura' ? 'futura' : item.classe;
                     const recuo = { paddingLeft: `${12 + item.nivel * 16}px` };
 
@@ -104,10 +122,19 @@ export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSeleciona
                                     style={recuo}
                                     className="truncate pt-3 pb-1 text-xs uppercase tracking-wider text-[var(--snaps-text-secondary)]"
                                 >
-                                    {item.planoTitulo}
+                                    <button type="button" aria-expanded={!fechado} aria-controls={`ramo-${item.id}`}
+                                        onClick={() => grupo && onMudarRamos?.(fechado ? ramosRecolhidos.filter(r => r !== grupo) : [...ramosRecolhidos, grupo])}>
+                                        <span aria-hidden>{fechado ? '▸' : '▾'}</span> <span>{item.planoTitulo}</span>
+                                        {fechado && ` · ${[...ramoPorItem].filter(([,r]) => r === grupo).reduce((n,[id]) => n+(novidades[id] ?? 0),0)} novos`}
+                                    </button>
                                 </div>
                             )}
-                            <button
+                            {item.origemId && <div className="text-xs text-[var(--snaps-text-secondary)]">
+                                {item.branchType === 'hotfix' ? 'Hotfix' : 'Retomada'} · tentativa {item.tentativa}
+                                <button type="button" onClick={() => onSelecionarNo(item.origemId!)}>origem: {item.origemRotulo}</button>
+                            </div>}
+                            {!fechado && <button
+                                id={`ramo-${item.id}`}
                                 type="button"
                                 onClick={() => onSelecionarNo(item.id)}
                                 aria-current={selecionado ? 'true' : undefined}
@@ -136,7 +163,7 @@ export function HistoryDaRaiz({ tree, selecionadoId, novidades = {}, onSeleciona
                                         {novos === 1 ? '1 novo' : `${novos} novos`}
                                     </span>
                                 )}
-                            </button>
+                            </button>}
                         </li>
                     );
                 })}

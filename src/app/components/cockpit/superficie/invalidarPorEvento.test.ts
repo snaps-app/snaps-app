@@ -9,7 +9,7 @@ const ev = (name: string) => ({ name, execution_id: 'no' });
 describe('invalidarPorEvento', () => {
     it.each([
         ['plan_approved', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'plano']]],
-        ['artifact_submitted', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'walkthroughs']]],
+        ['artifact_submitted', [['execucao', 'no', 'resumo']]],
         ['test_plan_verdict_recorded', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'testplans']]],
         ['gate_evaluated', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no']]],
         ['override_applied', [['execucao', 'no', 'resumo'], ['execucao', 'no', 'aba', 'no']]],
@@ -100,4 +100,9 @@ describe('invalidarPorEvento', () => {
         expect(cliente.getQueryState(['execucao', 'outro', 'resumo'])?.isInvalidated).toBe(false);
         expect(cliente.getQueryState(['execucao', 'no', 'resumo'])?.isInvalidated).toBe(true);
     });
+});
+
+it('peer review invalida Revisões e cards vinculados invalidam o escopo', () => {
+    expect(chavesDoEvento({name:'artifact_submitted',execution_id:'no',payload:{artifact_type:'peer_review'}},ctx)).toContainEqual(['execucao','no','aba','revisoes']);
+    expect(chavesDoEvento({name:'execution_updated',execution_id:'no',payload:{fields:['card_ids']}},ctx)).toContainEqual(['raiz','raiz','cards']);
 });

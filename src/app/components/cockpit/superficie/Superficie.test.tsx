@@ -1,5 +1,6 @@
+import { chavesDeConsulta } from '@/services/chavesDeConsulta';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderComConsulta } from '@/test/comConsulta';
 import type { AgentTaskExecution } from '@/services/types';
 
@@ -171,4 +172,27 @@ describe('Superficie', () => {
         expect(await screen.findByText('Peer Review Report', { selector: 'h3' })).toBeInTheDocument();
         expect(document.querySelector('.fixed.inset-0')).toBeNull();
     });
+});
+
+it('Prompt reconhecido não reacende por pendência nem replay; versão posterior reacende', async () => {
+    const r = {...resumo([{tipo:'prompt_aguardando_despacho',aba:'prompt',recurso_id:'no-1',desde:'d',acao:'Despachar'}]), abas:{prompt:{total:1,motivo_vazio:null,versao:'v1'}}};
+    vi.mocked(getResumoDoNo).mockResolvedValue(r);
+    const props = {faseKey:'micro_planning',execucao:no(),somenteLeitura:false,onSelecionarAba:vi.fn()} as const;
+    const view = renderComConsulta(<Superficie {...props} abaAtiva="plano" />);
+    await waitFor(() => expect(document.querySelector('[data-aba="prompt"] [aria-label*="novidade"]')).not.toBeNull());
+    view.rerender(<Superficie {...props} abaAtiva="prompt" />);
+    await waitFor(() => expect(getAgentExecution).toHaveBeenCalled());
+    await waitFor(() => expect(document.querySelector('[data-aba="prompt"] [aria-label*="novidade"]')).toBeNull());
+    view.rerender(<Superficie {...props} abaAtiva="plano" />);
+    await waitFor(() => expect(document.querySelector('[data-aba="prompt"] [aria-label*="novidade"]')).toBeNull());
+    act(() => view.cliente.setQueryData(chavesDeConsulta.resumo('no-1'),{...r,abas:{prompt:{total:1,motivo_vazio:null,versao:'v2'}}}));
+    await waitFor(() => expect(document.querySelector('[data-aba="prompt"] [aria-label*="novidade"]')).not.toBeNull());
+});
+
+it('Revisões ganha prioridade sem substituir a aba ativa', async () => {
+    vi.mocked(getResumoDoNo).mockResolvedValue({...resumo(),abas:{revisoes:{total:1,motivo_vazio:null,versao:'r1'}}});
+    montar({eventos:[{name:'artifact_submitted',seq:10,payload:{artifact_type:'peer_review',artifact_id:'r'}}]});
+    await waitFor(() => expect(screen.getAllByRole('tab')[0]).toHaveAttribute('data-aba','plano'));
+    await waitFor(() => expect(screen.getAllByRole('tab')[1]).toHaveAttribute('data-aba','revisoes'));
+    expect(document.querySelector('[data-aba="revisoes"] [aria-label*="novidade"]')).not.toBeNull();
 });
