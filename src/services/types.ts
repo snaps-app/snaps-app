@@ -555,7 +555,13 @@ export interface WorkflowTemplateCreate {
 }
 
 // --- Agent Execution Interfaces ---
+export interface RetratoDeDespacho {
+    candidatos: Array<{id:string;title:string;status:string;approval:string;content_revision:number|null;approved_revision:number|null}>;
+    padrao_ids: string[]; efetivo_ids: string[]; explicito:boolean; erro:string|null; lock_version:number;
+}
+
 export interface AgentTaskExecution {
+    despacho?: RetratoDeDespacho | null;
     id: string;
     project_id: string;
     // `cancelled`, `rolled_back` e `superseded` FALTAVAM aqui, embora a API
@@ -607,6 +613,8 @@ export interface WorkflowSnapshot {
 /** Item de `GET /api/agent-executions/{id}/arvore`: sem prompt nem contexto. */
 export interface NoDaArvore {
     id: string;
+    cards?: string | null;
+    artefatos?: string | null;
     parent_id: string | null;
     phase: string;
     status: string;

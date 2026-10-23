@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 /**
  * Aba Scratch (P21): as notas do time na árvore inteira, editáveis em qualquer
  * nó, inclusive concluído. Abrir a aba não cria nada: a nota só nasce quando há
@@ -20,6 +22,7 @@ export default function AbaScratch(props: PropsDaAba) {
             { executionScope: 'tree', bypassCache: true });
         return snaps.filter((s) => (s.snadds as any)?.type === 'scratch');
     });
+    const [editando, setEditando] = useState(false);
     const [nota, setNota] = useState<Snap | null>(null);
     const [nome, setNome] = useState('');
     const [conteudo, setConteudo] = useState('');
@@ -28,6 +31,7 @@ export default function AbaScratch(props: PropsDaAba) {
 
     const abrir = (s: Snap | null) => {
         setNota(s);
+        setEditando(s === null);
         setNome(s?.name ?? '');
         setConteudo(s?.content ?? '');
     };
@@ -39,6 +43,7 @@ export default function AbaScratch(props: PropsDaAba) {
                 projectId: execucao.project_id, executionId: execucao.id, notaId: nota?.id, nome, conteudo,
             });
             if (salva) abrir(salva);
+            setEditando(false);
             await cliente.invalidateQueries({ queryKey: chaves.aba(execucao.id, 'scratch') });
         } finally {
             setSalvando(false);
@@ -59,7 +64,9 @@ export default function AbaScratch(props: PropsDaAba) {
 
     return (
         <EstadoDaConsulta carregando={consulta.isLoading} erro={consulta.error}>
-            <div className="flex flex-col gap-6 @[640px]:flex-row">
+            <button type="button" onClick={() => window.open(`/project/${execucao.project_id}/execution/${execucao.root_id || execucao.id}/scratch`, '_blank', 'noopener')}
+                className="text-xs text-[var(--snaps-text-secondary)]">Abrir em nova janela</button>
+            <div className="flex h-full min-h-0 flex-col gap-6 @[640px]:flex-row">
                 <Secao titulo="Notas do time"
                     acao={escreve && <button type="button" onClick={() => abrir(null)}
                         className="text-[10px] font-bold text-[var(--snaps-text-secondary)] hover:text-[var(--snaps-text-primary)]">
@@ -80,15 +87,15 @@ export default function AbaScratch(props: PropsDaAba) {
                         </ul>
                     )}
                 </Secao>
-                <div className="min-w-0 flex-1 space-y-2">
-                    {escreve ? (
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+                    {escreve && editando ? (
                         <>
                             <input aria-label="Título da nota" value={nome} onChange={(e) => setNome(e.target.value)}
                                 placeholder="Título"
                                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--snaps-text-primary)] focus:outline-none" />
                             <textarea aria-label="Texto da nota" value={conteudo} onChange={(e) => setConteudo(e.target.value)}
-                                rows={10} placeholder="Escreva uma nota para o time…"
-                                className="w-full resize-y rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-[var(--snaps-text-primary)] focus:outline-none" />
+                                placeholder="Escreva uma nota para o time…"
+                                className="min-h-40 flex-1 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-[var(--snaps-text-primary)] focus:outline-none" />
                             <div className="flex justify-end gap-2">
                                 {nota && (
                                     <button type="button" onClick={excluir} disabled={salvando}
@@ -104,9 +111,10 @@ export default function AbaScratch(props: PropsDaAba) {
                             </div>
                         </>
                     ) : (
-                        <p className="select-text whitespace-pre-wrap text-xs text-[var(--snaps-text-secondary)]">
-                            {nota?.content ?? 'Escolha uma nota.'}
-                        </p>
+                        <>
+                            {nota && escreve && <button type="button" onClick={() => setEditando(true)} className="self-end text-xs text-[var(--snaps-text-secondary)]">Editar</button>}
+                            <div className="prose prose-invert max-w-none select-text"><ReactMarkdown remarkPlugins={[remarkGfm]}>{nota?.content ?? 'Escolha uma nota.'}</ReactMarkdown></div>
+                        </>
                     )}
                 </div>
             </div>

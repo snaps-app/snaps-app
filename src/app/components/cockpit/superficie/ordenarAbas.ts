@@ -71,6 +71,7 @@ export function ordenarAbas(
     const ordem: ChaveDeAba[] = [ativa];
     const incluir = (chave: ChaveDeAba) => { if (!ordem.includes(chave)) ordem.push(chave); };
 
+    if ((novidades.revisoes ?? 0) > 0) incluir('revisoes');
     luzes.forEach(incluir);
     const porRelevancia = [
         ...relevancia,
@@ -83,8 +84,8 @@ export function ordenarAbas(
 
     const abas = ordem.map(descrever);
     // A aberta e as com luz sempre ficam visíveis; vazias sem luz vão para "Mais".
-    const fixas = abas.filter((a) => a.aberta || a.luz);
-    const livres = abas.filter((a) => !a.aberta && !a.luz && !a.vazia);
+    const fixas = abas.filter((a) => a.aberta || a.luz || (a.chave === 'revisoes' && a.novidade > 0));
+    const livres = abas.filter((a) => !a.aberta && !a.luz && !(a.chave === 'revisoes' && a.novidade > 0) && !a.vazia);
     const espaco = Math.max(0, capacidade - fixas.length);
     const visiveis = new Set([...fixas, ...livres.slice(0, espaco)].map((a) => a.chave));
 

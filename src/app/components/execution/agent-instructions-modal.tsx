@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Bot, X } from 'lucide-react';
 
 interface AgentInstructionsModalProps {
@@ -58,8 +60,8 @@ export const AgentInstructionsModal: React.FC<AgentInstructionsModalProps> = ({
 /** Instruções do agente da fase: o modal do Cockpit atual e a aba Nó usam este corpo. */
 export const InstrucoesDoAgente: React.FC<{ agentInstructions: string | null }> = ({ agentInstructions }) => (
     <div className="prose prose-invert max-w-none">
-        <pre className="text-sm text-white/70 whitespace-pre-wrap leading-relaxed font-sans">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {agentInstructions || "No specific instructions found for this agent in the database."}
-        </pre>
+        </ReactMarkdown>
     </div>
 );

@@ -22,6 +22,8 @@ export interface EstadoDaAba {
     aba: string | null;
     scrollDaConversa: number;
     filtroDeCard: string | null;
+    ramosRecolhidos?: string[];
+    leituras?: Record<string, Record<string, {versao: string; cursor: number}>>;
 }
 
 export interface AbasDoCockpit {
@@ -46,6 +48,21 @@ function storagePadrao(): Storage | null {
 
 const textoOuNulo = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 
+function sanearLeituras(bruto: unknown): EstadoDaAba['leituras'] {
+    if (!bruto || typeof bruto !== 'object') return {};
+    const saida: NonNullable<EstadoDaAba['leituras']> = {};
+    for (const [no, abas] of Object.entries(bruto)) {
+        if (!eIdDeExecucao(no) || !abas || typeof abas !== 'object') continue;
+        for (const [aba, valor] of Object.entries(abas)) {
+            if (!['prompt','testplans','revisoes'].includes(aba) || !valor || typeof valor !== 'object') continue;
+            const {versao,cursor} = valor as {versao: unknown;cursor: unknown};
+            if (typeof versao !== 'string' || versao.length > 256 || typeof cursor !== 'number' || !Number.isSafeInteger(cursor) || cursor < 0) continue;
+            (saida[no] ??= {})[aba] = {versao,cursor};
+        }
+    }
+    return saida;
+}
+
 function sanearAba(bruta: unknown): EstadoDaAba | null {
     if (!bruta || typeof bruta !== 'object') return null;
     const a = bruta as Record<string, unknown>;
@@ -57,6 +74,8 @@ function sanearAba(bruta: unknown): EstadoDaAba | null {
         aba: textoOuNulo(a.aba),
         scrollDaConversa: typeof scroll === 'number' && Number.isFinite(scroll) && scroll > 0 ? scroll : 0,
         filtroDeCard: textoOuNulo(a.filtroDeCard),
+        ...(a.leituras ? {leituras:sanearLeituras(a.leituras)} : {}),
+        ...(Array.isArray(a.ramosRecolhidos) ? {ramosRecolhidos: [...new Set(a.ramosRecolhidos.filter((id): id is string => typeof id === "string" && eIdDeExecucao(id)))]} : {}),
     };
 }
 
@@ -137,4 +156,12 @@ export function fecharAba(estado: AbasDoCockpit, rootId: string): AbasDoCockpit 
     if (estado.ativa !== rootId) return { abas, ativa: estado.ativa };
     const vizinha = abas[indice] ?? abas[indice - 1] ?? null;
     return { abas, ativa: vizinha?.rootId ?? null };
+}
+
+
+/** Read receipts are discarded on logout/account switch; layout can survive. */
+export function limparLeituras(userId: string, storage: Storage | null = storagePadrao()): void {
+    if (!storage) return;
+    const estado = lerAbas(userId,storage);
+    gravarAbas(userId,{...estado,abas:estado.abas.map(({leituras: _leituras,...aba}) => aba)},storage);
 }

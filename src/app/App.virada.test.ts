@@ -42,7 +42,7 @@ describe('virada para o Cockpit novo', () => {
     it('as rotas antigas continuam respondendo, pelo redirecionamento', () => {
         expect(APP).toContain('path="/project/:projectId/execution/:executionId" element={<RedirecionaParaCockpit />}');
         expect(APP).toContain(
-            'path="/project/:projectId/execution/:executionId/scratch" element={<RedirecionaParaCockpit aba="scratch" />}',
+            'path="/project/:projectId/execution/:executionId/scratch" element={<JanelaDoScratch />}',
         );
     });
 
@@ -58,7 +58,7 @@ describe('virada para o Cockpit novo', () => {
 
     it('nenhum código monta a URL antiga do Cockpit: toda URL de nó sai de rotaDoNo', () => {
         const antigas = fontes(SRC)
-            .filter((f) => readFileSync(f, 'utf-8').includes('/execution/${'))
+            .filter((f) => readFileSync(f, 'utf-8').includes('/execution/${') && !f.endsWith('AbaScratch.tsx'))
             .map((f) => relative(SRC, f));
         expect(antigas).toEqual([]);
     });

@@ -23,6 +23,13 @@ export function raizDoNo(no: NoDoCockpit): string {
 /** `/cockpit/<raiz>?no=<nó>`, mais `&aba=` quando houver. */
 export function rotaDoNo(no: NoDoCockpit, aba?: string | null): string {
     const params = new URLSearchParams({ no: no.id });
+    if (typeof window !== 'undefined') {
+        const atuais = new URLSearchParams(window.location.search);
+        for (const chave of ['card','plan','adr','decision','doc','sprint','snap','project']) {
+            const valor = atuais.get(chave);
+            if (valor) params.set(chave, valor);
+        }
+    }
     if (aba) params.set('aba', aba);
     return `/cockpit/${encodeURIComponent(raizDoNo(no))}?${params.toString()}`;
 }

@@ -1,3 +1,6 @@
+import { useSessaoDoNo } from '../../sessao/useSessaoDoNo';
+import { TIPOS_DE_REVISAO } from '../tiposDeArtefato';
+export { TIPOS_DE_REVISAO } from '../tiposDeArtefato';
 /**
  * Abas de artefatos do nó: Revisões (peer review deixa de ser modal),
  * Walkthroughs (deixa de ser modal; continua editável em nó concluído) e Retro.
@@ -15,7 +18,7 @@ import { collectWalkthroughs } from '@/app/components/execution/useCockpitWalkth
 import { EstadoDaConsulta, Vazio, useConteudoDaAba, type PropsDaAba } from './comum';
 
 /** Tipos de snap que a aba Revisões mostra. Os mesmos que `/resumo` conta. */
-export const TIPOS_DE_REVISAO = ['peer_review', 'code_review', 'ci_review', 'release_review'];
+
 
 export function AbaRevisoes(props: PropsDaAba) {
     const { execucao } = props;
@@ -57,6 +60,7 @@ export function AbaRevisoes(props: PropsDaAba) {
 
 export function AbaWalkthroughs(props: PropsDaAba) {
     const { execucao, acoes } = props;
+    const sessao=useSessaoDoNo();
     const cliente = useQueryClient();
     const consulta = useConteudoDaAba(props, 'walkthroughs',
         () => collectWalkthroughs(execucao.project_id, execucao, true));
@@ -69,9 +73,11 @@ export function AbaWalkthroughs(props: PropsDaAba) {
     // submissão" (TP-1) é quem conta a história. Só o papel decide.
     const salvar = acoes.podeAgir ? async () => {
         if (!selecionado) return;
+        const abrirSessao=sessao.capturarEscrita(execucao.id);
         setSalvando(true);
         try {
             await updateSnap(selecionado.id, { content: conteudo });
+            await abrirSessao();
             setEditando(false);
             await cliente.invalidateQueries({ queryKey: chaves.aba(execucao.id, 'walkthroughs') });
         } finally {

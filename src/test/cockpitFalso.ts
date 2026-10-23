@@ -81,6 +81,10 @@ export function resumoPadrao(extra: Partial<ResumoDoNo> = {}): ResumoDoNo {
     );
     return {
         pendencias: [],
+        condicoes: [
+            {chave:'tasks_finished',estado:['assurance','done'].includes(estadoDaApi.cards[CARD_1]?.status)?'ok':'falta',motivo:null,override:false},
+            {chave:'ci_passed',estado:'motor',motivo:null,override:false},
+        ],
         abas,
         atividade: {
             chamadas: 81, falhas: 0, recusas: 0, tempo_total_ms: 876_000,

@@ -1,3 +1,4 @@
+import { useSessaoDoNo } from '../../sessao/useSessaoDoNo';
 /**
  * Abas que leem os cards do escopo (P8, `cardsDoEscopo`): Cards, Tasks e
  * Cenários. Cada uma tem a sua chave de consulta; os painéis são os do
@@ -50,6 +51,7 @@ function useApoioDoCard(projectId: string, ativo: boolean) {
 }
 
 export function AbaCards(props: PropsDaAba) {
+    const sessao=useSessaoDoNo();
     const { execucao } = props;
     const cliente = useQueryClient();
     const consulta = useConteudoDaAba(props, 'cards', () => cardsDoEscopo(props.execucao));
@@ -78,7 +80,9 @@ export function AbaCards(props: PropsDaAba) {
                 canDelete={escreve}
                 onSave={async (dados) => {
                     if (!aberto || !escreve) return;
+                    const abrirSessao=sessao.capturarEscrita(execucao.id);
                     await updateCard(aberto.id, dados);
+                    await abrirSessao();
                     await atualizarCards();
                 }}
                 onDelete={async () => {

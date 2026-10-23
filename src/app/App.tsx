@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+const JanelaDoScratch = lazy(() => import('./components/cockpit/JanelaDoScratch'));
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Home } from '@/app/components/layout/home';
@@ -188,7 +189,7 @@ export default function App() {
                         {/* Rotas do Cockpit antigo: link salvo continua abrindo o nó
                             certo no Cockpit novo (decisão do PO de 20/10; TP-4). */}
                         <Route path="/project/:projectId/execution/:executionId" element={<RedirecionaParaCockpit />} />
-                        <Route path="/project/:projectId/execution/:executionId/scratch" element={<RedirecionaParaCockpit aba="scratch" />} />
+                        <Route path="/project/:projectId/execution/:executionId/scratch" element={<JanelaDoScratch />} />
                         <Route
                             path="/cockpit/:rootId?"
                             element={

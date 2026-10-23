@@ -1,3 +1,4 @@
+import type { ResumoDoNo } from '@/services/resumoDoNo';
 /**
  * Aba Plano: os planos do nó (PlanPanel do Cockpit atual), aprovar e pedir
  * ajuste pelas ações do nó, e o escopo de despacho para admin (11b).
@@ -48,6 +49,7 @@ export default function AbaPlano(props: PropsDaAba) {
                     {erro && <p role="alert" className="text-xs text-[var(--snaps-error)]">{erro}</p>}
                     <PlanPanel
                         execution={no}
+                        pendencias={cliente.getQueryData<ResumoDoNo>(chaves.resumo(execucao.id))?.pendencias ?? []}
                         sprints={[]}
                         isSequential={false}
                         currentPlan={planoAtual}
@@ -74,9 +76,9 @@ export default function AbaPlano(props: PropsDaAba) {
                         deletePlanFn={(id) => edicao.deletePlanFn(id, getAgentExecution)}
                         somenteLeitura={!escreve}
                     />
-                    {escreve && acoes.ehAdmin && (
+                    {["micro_planning","plan_review"].includes(no.phase) && (
                         <Secao titulo="Escopo de despacho">
-                            <DispatchScopePanel
+                            <DispatchScopePanel admin={escreve && acoes.ehAdmin}
                                 execution={no}
                                 onExecutionUpdated={(atualizada) => {
                                     definirNo(atualizada);

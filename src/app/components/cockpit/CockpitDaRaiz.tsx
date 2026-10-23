@@ -1,3 +1,5 @@
+import { SessaoDoNoProvider } from './sessao/useSessaoDoNo';
+import { comoEventoDoNo } from './conversa/useEventosDoNo';
 /**
  * O Cockpit de uma raiz (TP-4 da Sprint 24.0): cabeçalho, e os três painéis
  * sincronizados pelo nó selecionado da aba — History (TP-1) no Workflow,
@@ -156,6 +158,28 @@ export function CockpitDaRaiz({
         }
     }, [carimboDasSessoes, noId, terminal, cliente]);
 
+    const carimboDosCards = nos.map(n => `${n.id}:${n.cards ?? ''}`).join('|');
+    const cardsVistos = useRef<string | null>(null);
+    useEffect(() => {
+        const anterior = cardsVistos.current;
+        cardsVistos.current = carimboDosCards;
+        if (anterior !== null && anterior !== carimboDosCards) {
+            void cliente.invalidateQueries({queryKey:chaves.cardsDaRaiz(rootId,[]).slice(0,3)});
+            if (noId) void cliente.invalidateQueries({queryKey:chaves.aba(noId,'cards')});
+        }
+    }, [carimboDosCards, cliente, rootId, noId]);
+
+    const carimboDosArtefatos = nos.map(n => `${n.id}:${n.artefatos ?? ''}`).join('|');
+    const artefatosVistos = useRef<string | null>(null);
+    useEffect(() => {
+        const anterior = artefatosVistos.current;
+        artefatosVistos.current = carimboDosArtefatos;
+        if (anterior !== null && anterior !== carimboDosArtefatos && noId) {
+            void cliente.invalidateQueries({queryKey:chaves.resumo(noId)});
+            void cliente.invalidateQueries({queryKey:chaves.aba(noId,'revisoes')});
+        }
+    }, [carimboDosArtefatos, cliente, noId]);
+
     // A raiz: os cards de todos os nós, uma vez. Cada nó filtra o seu escopo daqui.
     const idsDaRaiz = useMemo(() => [...new Set(nos.flatMap((n) => n.card_ids ?? []))].sort(), [nos]);
     const cardsDaRaiz = useQuery({
@@ -259,6 +283,7 @@ export function CockpitDaRaiz({
                     abaAtiva={abaAtiva}
                     onSelecionarAba={selecionarAba}
                     novidades={novidadesDoNo}
+                    eventos={eventos.map(e => comoEventoDoNo(e,execucao.id))}
                     fase={fase}
                     auditoria={snapshot.data ? <AuditoriaDoNo snapshot={snapshot.data} /> : null}
                 />
@@ -269,7 +294,7 @@ export function CockpitDaRaiz({
     );
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <SessaoDoNoProvider noId={noId} habilitada={!terminal && !descartado && acoes.podeAgir}><div className="flex min-h-0 flex-1 flex-col">
             <CabecalhoDoNo
                 raiz={raiz}
                 execucao={execucao}
@@ -282,6 +307,8 @@ export function CockpitDaRaiz({
                 cards={cardsDoNo}
                 filtroDeCard={filtro}
                 onFiltrarCard={(id) => atualizar({ filtroDeCard: id })}
+                faixaDeCardsRecolhida={layout.faixaDeCardsRecolhida}
+                onAlternarFaixaDeCards={() => onMudarLayout({...layout,faixaDeCardsRecolhida:!layout.faixaDeCardsRecolhida})}
                 recolhido={layout.cabecalhoRecolhido}
                 onAlternarRecolhido={() => onMudarLayout({ ...layout, cabecalhoRecolhido: !layout.cabecalhoRecolhido })}
                 ultimoEventoEm={ultimoEventoEm(eventos)}
@@ -293,6 +320,8 @@ export function CockpitDaRaiz({
                 workflow={(
                     <div className="min-h-0 grow overflow-y-auto">
                         <HistoryDaRaiz
+                            ramosRecolhidos={estadoDaAba?.ramosRecolhidos}
+                            onMudarRamos={(ids) => atualizar({ramosRecolhidos: ids})}
                             tree={arvore.data}
                             selecionadoId={noDaArvore.id}
                             novidades={novidadesDosNos}
@@ -321,6 +350,6 @@ export function CockpitDaRaiz({
                     ),
                 }}
             />
-        </div>
+        </div></SessaoDoNoProvider>
     );
 }

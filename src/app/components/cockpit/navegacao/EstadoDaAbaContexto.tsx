@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { EstadoDaAba } from '@/services/cockpitAbas';
 
-type Parcial = Partial<Pick<EstadoDaAba, 'scrollDaConversa' | 'filtroDeCard'>>;
+type Parcial = Partial<Pick<EstadoDaAba, 'scrollDaConversa' | 'filtroDeCard' | 'ramosRecolhidos' | 'leituras'>>;
 
 interface ValorDoContexto {
     estado: EstadoDaAba | null;
