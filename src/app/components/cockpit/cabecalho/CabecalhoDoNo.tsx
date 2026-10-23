@@ -366,6 +366,7 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
                     {cards === null ? '… cards' : textoDosCards(cards.length, pedemAcao)}
                 </Chip>
                 <div className="grow" />
+                {erroDoEscopo && <p role="alert" title={erroDoEscopo} className="max-w-xs truncate text-xs text-[var(--snaps-error)]">{erroDoEscopo}</p>}
                 {botoesDeAcao(true)}
                 <button type="button" aria-label="Expandir cabeçalho" title="Expandir cabeçalho" onClick={onAlternarRecolhido}
                     className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/5 text-sm text-[var(--snaps-text-primary)]">
@@ -453,7 +454,7 @@ export function CabecalhoDoNo(props: CabecalhoDoNoProps) {
             )}
 
             <FaixaDeCards recolhida={props.faixaDeCardsRecolhida} onAlternar={props.onAlternarFaixaDeCards} cards={cards} pendencias={resumo?.pendencias ?? []} filtro={filtroDeCard} onFiltrar={onFiltrarCard} />
-            {erroDoEscopo && <p role="alert">{erroDoEscopo}</p>}
+            {erroDoEscopo && <p role="alert" className="text-xs text-[var(--snaps-error)]">{erroDoEscopo}</p>}
             {modais}
         </header>
     );
