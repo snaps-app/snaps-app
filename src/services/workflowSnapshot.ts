@@ -122,8 +122,12 @@ export function montarHistory(arvore: ArvoreLeve, status: StatusDaApi): ItemDoHi
         const pai = ancestrais[ancestrais.length - 1];
         const fanOut = fases.findIndex(f => !!f.branching_strategy);
         const faseAtual = fases.findIndex(f => f.key === no.phase);
+        const faseDoPai = pai ? fases.findIndex(f => f.key === pai.phase) : -1;
+        // (a) só vale para retomada (rollback ou nova tentativa): o avanço normal
+        // depois de uma fase convergente (retro após a assurance) não é "Retomada".
+        const voltaOuRepete = faseAtual >= 0 && faseDoPai >= 0 && faseAtual <= faseDoPai;
         const saiDoRamo = nivel > 0 && !retomada && pai && (
-            fases.find(f => f.key === pai.phase)?.convergence === 'sprint'
+            (fases[faseDoPai]?.convergence === 'sprint' && voltaOuRepete)
             || (fanOut >= 0 && faseAtual >= 0 && faseAtual < fanOut));
         if (saiDoRamo) { retomadas.push({no, ancestrais}); return; }
         visitados.add(no.id);
