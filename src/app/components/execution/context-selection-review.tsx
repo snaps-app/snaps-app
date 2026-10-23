@@ -1,3 +1,4 @@
+import { useSessaoDoNo } from '@/app/components/cockpit/sessao/useSessaoDoNo';
 import { Link, useInRouterContext } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
@@ -60,6 +61,7 @@ interface Props {
  * aqui: tem campo proprio, vazio por default ("ausencia e o estado normal").
  */
 export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecutionUpdated, somenteLeitura = false }) => {
+    const sessao=useSessaoDoNo();
     const emRouter = useInRouterContext();
     const [selecao, setSelecao] = useState<SelecaoDeContexto | null>(null);
     const [removendo, setRemovendo] = useState<string | null>(null);
@@ -83,12 +85,14 @@ export const ContextSelectionReview: React.FC<Props> = ({ execution, onExecution
         const { docIds, decisionIds, testPlanIds, rejectedSnapIds } = listasSemItem(
             selecao.camadas.descoberta, item, selecao.snaps_recusados,
         );
+        const abrirSessao=sessao.capturarEscrita(execution.id);
         setRemovendo(item.id);
         try {
             const atualizada = await syncAgentExecution(
                 execution.id, undefined, docIds, decisionIds, testPlanIds,
                 execution.lock_version, rejectedSnapIds,
             );
+            await abrirSessao();
             onExecutionUpdated(atualizada);
         } catch {
             setErro('A remocao foi recusada. Atualize a execucao e tente de novo.');

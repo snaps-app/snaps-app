@@ -1,3 +1,4 @@
+import { useSessaoDoNo } from '@/app/components/cockpit/sessao/useSessaoDoNo';
 import { useState } from 'react';
 import { approvePlan, updatePlan, deletePlan } from '@/services/plans';
 import type { AgentTaskExecution } from '@/services/types';
@@ -8,6 +9,7 @@ export const useCockpitPlans = (
     isSequential: boolean,
     currentPlan: any
 ) => {
+    const sessao=useSessaoDoNo();
     // Plan Editing States
     const [isEditingPlan, setIsEditingPlan] = useState(false);
     const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export const useCockpitPlans = (
 
     const handleSavePlan = async () => {
         if (!editingPlanId) return;
+        const abrirSessao=sessao.capturarEscrita(execution?.id ?? "");
         setIsSavingPlan(true);
         try {
             const current = (execution?.context_data?.plans || []).find(
@@ -44,6 +47,7 @@ export const useCockpitPlans = (
                 expected_content_revision: current?.content_revision,
             });
 
+            await abrirSessao();
             if (execution && execution.context_data?.plans) {
                 const updatedPlans = execution.context_data.plans.map((p: any) =>
                     p.id === editingPlanId ? { ...p, ...saved } : p
@@ -69,6 +73,7 @@ export const useCockpitPlans = (
 
     const updatePlanStatus = async (planId: string, status: string, getAgentExecutionFn: (id: string) => Promise<AgentTaskExecution>) => {
         if (!execution) return;
+        const abrirSessao=sessao.capturarEscrita(execution.id);
         try {
             const plan = (execution.context_data?.plans || []).find(
                 (candidate: any) => candidate.id === planId
@@ -84,6 +89,7 @@ export const useCockpitPlans = (
                     expected_content_revision: plan?.content_revision,
                 });
             }
+            await abrirSessao();
             const updated = await getAgentExecutionFn(execution.id);
             setExecution(updated);
         } catch (err) {
@@ -96,6 +102,7 @@ export const useCockpitPlans = (
     // recusa com 409 em vez de aprovar o que ele nao leu.
     const reapprovePlan = async (planId: string, getAgentExecutionFn: (id: string) => Promise<AgentTaskExecution>) => {
         if (!execution) return;
+        const abrirSessao=sessao.capturarEscrita(execution.id);
         const plan = (execution.context_data?.plans || []).find(
             (candidate: any) => candidate.id === planId
         );
@@ -106,6 +113,7 @@ export const useCockpitPlans = (
         if (!confirm(`Aprovar a revisao ${plan.content_revision} de "${plan.title}"? O plano continua no status atual.`)) return;
         try {
             await approvePlan(planId, plan.content_revision, 'cockpit:reapproval-confirmed');
+            await abrirSessao();
         } catch (err: any) {
             const detail = err?.response?.data?.detail;
             alert(err?.response?.status === 409
@@ -118,9 +126,11 @@ export const useCockpitPlans = (
 
     const deletePlanFn = async (planId: string, getAgentExecutionFn: (id: string) => Promise<AgentTaskExecution>) => {
         if (!execution) return;
+        const abrirSessao=sessao.capturarEscrita(execution.id);
         if (!confirm('Are you sure you want to delete this plan?')) return;
         try {
             await deletePlan(planId);
+            await abrirSessao();
             const updated = await getAgentExecutionFn(execution.id);
             setExecution(updated);
         } catch (err) {

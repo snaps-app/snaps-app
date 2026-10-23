@@ -180,12 +180,11 @@ describe('checagem de novidades (ADR-0071, 5b)', () => {
         expect(resumoDoTp1()).toBe(antes + 1);
         expect(screen.queryByText(/\d novos?$/)).not.toBeInTheDocument();
         // A sessão da outra pessoa (aberta há 60 s, quando a checagem rodou) já anda no relógio do navegador.
-        // A de quem abriu o nó (Play automático) continua no total, embora a resposta da API falsa não a traga.
+        // Ler o nó não abre sessão própria; só a sessão remota compõe o total.
         await passar(5_000);
-        const inicio = apiFalsa.post.mock.calls.findIndex(([url]) => url.endsWith('/sessions/start'));
-        const { data: propria } = await apiFalsa.post.mock.results[inicio].value;
+        expect(apiFalsa.post.mock.calls.filter(([url]) => url.endsWith('/sessions/start'))).toHaveLength(0);
         const esperado = segundosEmSessoes(
-            { encerradas_segundos: 3_600, ativas_desde: [propria.started_at, new Date(Date.now() - 65_000).toISOString()] },
+            { encerradas_segundos: 3_600, ativas_desde: [new Date(Date.now() - 65_000).toISOString()] },
             Date.now(),
         );
         const [h, m, s] = screen.getByTestId('timer-da-execucao').textContent!.split(':').map(Number);

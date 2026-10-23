@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, API_URL, tokenDaSessaoEmCache } from './client';
 import type { TimeLog, TimeLogCreate, TimeLogFilters, TimeDraftResponse, ExecutionSession } from '@/types/timeLogs';
 
 export const startExecutionSession = async (executionId: string): Promise<{ session_id: string; started_at: string }> => {
@@ -81,3 +81,12 @@ export const downloadTimeReport = async (
     });
     return response.data;
 };
+
+
+export function encerrarSessaoKeepalive(executionId: string,sessionId:string): void {
+    const token=tokenDaSessaoEmCache();
+    if (!token) return;
+    void fetch(`${API_URL.replace(/\/$/,'')}/agent-executions/${executionId}/sessions/${sessionId}/end`,{
+        method:'PATCH',keepalive:true,headers:{Authorization:`Bearer ${token}`},
+    }).catch(() => undefined);
+}
