@@ -80,12 +80,23 @@ export const descartarGrant = (chatId: string) => {
     invalidarReferencias();
 };
 
+/** O que o usuário tem aberto no app (SNA-SUP-95). O Neuron põe no contexto do turno. */
+export interface TelaDoNeuron {
+    boardId?: string;
+    boardNome?: string;
+    colunas?: string[];
+    sprintId?: string;
+    sprintNome?: string;
+    cardId?: string;
+}
+
 export interface PedidoAoNeuron {
     projectId: string;
     chatId: string;
     perfil: PerfilNeuron;
     superficie: SuperficieNeuron;
     message: string;
+    tela?: TelaDoNeuron;
 }
 
 const SESSAO_EXPIRADA = 'Sua sessão expirou. Entre novamente para continuar.';

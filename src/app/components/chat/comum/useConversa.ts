@@ -1,11 +1,12 @@
 import {useEffect,useRef,useState} from 'react';
-import {createMessage,streamChat,type PerfilNeuron,type SuperficieNeuron} from '@/services/chats';
+import {createMessage,streamChat,type PerfilNeuron,type SuperficieNeuron,type TelaDoNeuron} from '@/services/chats';
 import type {Message} from '@/services/types';
 import type {EventoNeuron} from '@/services/neuronEvents';
 import {iniciarTurno,reduzirTurno,terminarTurno,type Turno} from './turno';
 
 interface Opcoes {
   projectId?:string; chave:string; perfil:PerfilNeuron; superficie:SuperficieNeuron;
+  tela?:TelaDoNeuron; // lida a cada envio: trocar de board no meio da conversa vale no turno seguinte
   obterChat:(texto:string)=>Promise<string>;
   aoEvento?:(evento:EventoNeuron)=>void;
 }
@@ -67,7 +68,7 @@ export function useConversa(opcoes:Opcoes) {
       await createMessage(chatId,texto,'user');
       usuarioGravado=true;
       controller.signal.throwIfAborted();
-      await streamChat({projectId:opcoes.projectId,chatId,perfil:opcoes.perfil,superficie:opcoes.superficie,message:texto},evento=>{
+      await streamChat({projectId:opcoes.projectId,chatId,perfil:opcoes.perfil,superficie:opcoes.superficie,message:texto,tela:opcoes.tela},evento=>{
         if(controller.signal.aborted) return;
         turno=reduzirTurno(turno,evento);
         mostrar();
