@@ -1,10 +1,14 @@
+import { ContextSelectionReview } from '@/app/components/execution/context-selection-review';
+import { renderComConsulta } from '@/test/comConsulta';
 import { useCockpitPlans } from '@/app/components/execution/useCockpitPlans';
 import type { AgentTaskExecution } from '@/services/types';
-import { act,renderHook } from '@testing-library/react';
+import { act,renderHook,fireEvent,screen,waitFor } from '@testing-library/react';
 import { beforeEach,expect,it,vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { novoClienteDeTeste } from '@/test/comConsulta';
+vi.mock('@/services/agentExecutions',()=>({syncAgentExecution:vi.fn(async()=>({id:'n1',lock_version:2}))}));
+vi.mock('@/services/contextSelection',async(importOriginal)=>({...await importOriginal<typeof import('@/services/contextSelection')>(),getExecutionContextSelection:vi.fn(async()=>({revisavel:true,camadas:{descoberta:[{tipo:'governance_doc',id:'d',titulo:'Documento',origem:'humano'}]},snaps_recusados:[],handoff:[],historico:[],omitted:[]}))}));
 vi.mock('@/services/plans',()=>({updatePlan:vi.fn(async()=>({id:'p',content_revision:2})),approvePlan:vi.fn(),deletePlan:vi.fn()}));
 vi.mock('@/services/timeLogs',()=>({startExecutionSession:vi.fn(),endExecutionSession:vi.fn(async()=>{}),encerrarSessaoKeepalive:vi.fn()}));
 vi.mock('@/services/resumoDoNo',()=>({aplicarSessaoAberta:vi.fn(),aplicarSessaoFechada:vi.fn()}));
@@ -54,4 +58,10 @@ it('editar plano como primeira escrita abre sessão, sem abrir ao entrar no edit
     expect(startExecutionSession).not.toHaveBeenCalled();
     await act(async()=>{await h.result.current.handleSavePlan();});
     expect(startExecutionSession).toHaveBeenCalledTimes(1);
+});
+
+it('selecao de contexto como primeira escrita abre sessao apenas apos sucesso',async()=>{
+    const atualizada=vi.fn();renderComConsulta(<SessaoDoNoProvider noId="n1" habilitada><ContextSelectionReview execution={{id:'n1',project_id:'p',lock_version:1} as AgentTaskExecution} onExecutionUpdated={atualizada}/></SessaoDoNoProvider>);
+    const remover=await screen.findByRole('button',{name:'Remover Documento'});expect(startExecutionSession).not.toHaveBeenCalled();
+    fireEvent.click(remover);await waitFor(()=>expect(atualizada).toHaveBeenCalled());expect(startExecutionSession).toHaveBeenCalledTimes(1);
 });
