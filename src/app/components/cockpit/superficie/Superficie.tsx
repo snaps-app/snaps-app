@@ -1,3 +1,8 @@
+import { LeituraDaAbaProvider } from './LeituraDaAba';
+import { useEstadoDaAba } from '../navegacao/EstadoDaAbaContexto';
+import type { EstadoDaAba } from '@/services/cockpitAbas';
+import { abaDoEvento, type EventoDoNo } from './abaDoEvento';
+import { consultasDaAba } from './consultasDaAba';
 /**
  * Superfície: o artefato em foco do nó, com as 15 abas do catálogo (P6).
  *
@@ -11,9 +16,9 @@
  *   Walkthroughs continuam editáveis para quem pode escrever.
  * - As ações passam por `useAcoesDoNo`, que filtra pelo papel da aba de raiz.
  */
-import { Suspense, lazy, useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronDown } from 'lucide-react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, RefreshCw } from 'lucide-react';
 import { chavesDeConsulta as chaves } from '@/services/chavesDeConsulta';
 import { abasVazias, getResumoDoNo, type PendenciaDoNo } from '@/services/resumoDoNo';
 import type { AgentTaskExecution } from '@/services/types';
@@ -80,6 +85,7 @@ export interface SuperficieProps {
     abaAtiva: ChaveDeAba;
     onSelecionarAba: (aba: ChaveDeAba) => void;
     novidades?: Novidades;
+    eventos?: EventoDoNo[];
     /** Sobrepõe as pendências do `/resumo` (o TP-4 pode passar as que já tem). */
     pendencias?: PendenciaDoNo[];
     /** Fase do snapshot do nó (`fasesDoNo`, TP-1), para a aba Nó. */
@@ -118,8 +124,9 @@ function BotaoDaAba({ aba, onSelecionar }: { aba: AbaOrdenada; onSelecionar: (a:
 
 export function Superficie({
     faseKey, execucao, somenteLeitura, abaAtiva, onSelecionarAba,
-    novidades = {}, pendencias, fase, auditoria, conteudos,
+    novidades = {}, eventos = [], pendencias, fase, auditoria, conteudos,
 }: SuperficieProps) {
+    const cliente = useQueryClient();
     const resumo = useQuery({
         queryKey: chaves.resumo(execucao.id),
         queryFn: () => getResumoDoNo(execucao.id),
@@ -129,10 +136,36 @@ export function Superficie({
     const { ref, largura } = useLarguraDoPainel();
     const [maisAberto, setMaisAberto] = useState(false);
 
+    const {estado,atualizar} = useEstadoDaAba();
+    const [locais,setLocais] = useState<NonNullable<EstadoDaAba['leituras']>>({});
+    const leituras = estado?.leituras ?? locais;
+    const controladas = ['prompt','testplans','revisoes'] as const;
+    const sinais = {...novidades};
+    const marcas: Record<string,{versao:string;cursor:number}> = {};
+    for (const aba of controladas) {
+        const cursor = Math.max(0,...eventos.filter(e => abaDoEvento(e) === aba).map(e => e.seq ?? 0));
+        const info = resumo.data?.abas[aba];
+        const versao = info?.versao ?? (pendencias ?? resumo.data?.pendencias ?? []).filter(p => p.aba === aba).map(p => `${p.recurso_id}:${p.desde}`).sort().join('|');
+        marcas[aba] = {versao,cursor};
+        const vista = leituras[execucao.id]?.[aba];
+        sinais[aba] = (info?.total ?? 0) > 0 && (!vista || vista.versao !== versao || vista.cursor < cursor) ? 1 : 0;
+    }
+    const assinatura = JSON.stringify(marcas);
+    const exibido = useCallback((aba: ChaveDeAba) => {
+        if (!controladas.includes(aba as typeof controladas[number])) return;
+        const marca = (JSON.parse(assinatura) as typeof marcas)[aba];
+        const anterior = leituras[execucao.id]?.[aba];
+        if (anterior?.versao === marca.versao && (anterior?.cursor ?? 0) >= marca.cursor) return;
+        const novas = {...leituras,[execucao.id]:{...leituras[execucao.id],[aba]:marca}};
+        setLocais(novas);
+        atualizar({leituras:novas});
+    }, [assinatura,leituras,execucao.id,atualizar]);
+    const pendenciasDaBarra = (pendencias ?? resumo.data?.pendencias ?? []).filter(p => !['prompt','testplans'].includes(p.aba));
+
     const ordem = ordenarAbas(
         abaAtiva,
-        pendencias ?? resumo.data?.pendencias ?? [],
-        novidades,
+        pendenciasDaBarra,
+        sinais,
         faseKey,
         abasVazias(resumo.data),
         capacidadePelaLargura(largura),
@@ -148,6 +181,10 @@ export function Superficie({
     return (
         <div ref={ref} className="@container flex h-full min-w-0 flex-col" data-testid="superficie">
             <div role="tablist" aria-label="Abas do nó" className="flex items-center gap-1 border-b border-white/10 px-2 py-2">
+                <button type="button" aria-label="Recarregar aba" onClick={() => {
+                    void Promise.all(consultasDaAba(execucao.id,execucao.root_id || execucao.id,abaAtiva)
+                        .map(queryKey => cliente.invalidateQueries({queryKey})));
+                }} className="shrink-0 rounded p-1 text-[var(--snaps-text-secondary)]"><RefreshCw className="h-3 w-3" /></button>
                 {ordem.visiveis.map((aba) => <BotaoDaAba key={aba.chave} aba={aba} onSelecionar={selecionar} />)}
                 {ordem.mais.length > 0 && (
                     <div className="relative ml-auto shrink-0">
@@ -177,7 +214,7 @@ export function Superficie({
             </div>
             <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto p-4">
                 {proprio ?? (
-                    <Suspense fallback={<p className="text-xs text-[var(--snaps-text-secondary)]">Carregando…</p>}>
+                    <LeituraDaAbaProvider onExibido={exibido}><Suspense fallback={<p className="text-xs text-[var(--snaps-text-secondary)]">Carregando…</p>}>
                         <Conteudo
                             key={`${execucao.id}:${abaAtiva}`}
                             execucao={execucao}
@@ -188,7 +225,7 @@ export function Superficie({
                             fase={fase}
                             auditoria={auditoria}
                         />
-                    </Suspense>
+                    </Suspense></LeituraDaAbaProvider>
                 )}
             </div>
         </div>

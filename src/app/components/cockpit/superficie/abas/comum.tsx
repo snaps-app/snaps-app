@@ -1,3 +1,4 @@
+import { useConteudoExibido } from '../LeituraDaAba';
 /**
  * O que toda aba da Superfície recebe e como ela busca o seu conteúdo.
  *
@@ -48,13 +49,15 @@ export function useConteudoDaAba<T>(
     buscar: () => Promise<T>,
 ) {
     const editavel = definicaoDaAba(aba).editavelEmNoConcluido === true;
-    return useQuery({
+    const consulta = useQuery({
         queryKey: chaves.aba(execucao.id, aba),
         queryFn: buscar,
         enabled: ativa,
         ...(somenteLeitura && !editavel ? { staleTime: Infinity } : {}),
         ...(editavel ? { refetchOnMount: 'always' as const } : {}),
     });
+    useConteudoExibido(aba, ativa && consulta.isSuccess && !consulta.isFetching && !consulta.isError, consulta.dataUpdatedAt);
+    return consulta;
 }
 
 export function EstadoDaConsulta({ carregando, erro, children }: {

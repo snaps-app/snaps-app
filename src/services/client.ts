@@ -147,3 +147,9 @@ function renovarSessao(): Promise<string | null> {
     }
     return refreshEmCurso;
 }
+
+
+/** Synchronous transport token for pagehide; never performs an auth request. */
+export function tokenDaSessaoEmCache(): string | null {
+    return cachedSession?.access_token ?? null;
+}

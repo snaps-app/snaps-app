@@ -35,7 +35,10 @@ export function FaixaDeCards({
     pendencias,
     filtro,
     onFiltrar,
+    recolhida = false, onAlternar,
 }: {
+    recolhida?: boolean;
+    onAlternar?: () => void;
     cards: Card[] | null;
     pendencias: readonly PendenciaDoNo[];
     filtro: string | null;
@@ -44,6 +47,10 @@ export function FaixaDeCards({
     if (cards === null) {
         return <p className="text-xs text-[var(--snaps-text-secondary)]">Carregando os cards do escopo…</p>;
     }
+    if (recolhida) return <div role="group" aria-label="Cards do escopo" className="flex items-center gap-2 text-xs text-[var(--snaps-text-secondary)]">
+        <button type="button" aria-expanded={false} onClick={onAlternar}>Cards do escopo · {cards.length}</button>
+        {filtro && <><span>{rotuloDoCard(cards.find(c => c.id === filtro) ?? {title:filtro})}</span><button type="button" onClick={() => onFiltrar(null)}>Limpar</button></>}
+    </div>;
     const pedem = cardsQuePedemAcao(cards, pendencias);
     const chip = (ativo: boolean) =>
         `flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-xs whitespace-nowrap ${ativo
@@ -52,7 +59,7 @@ export function FaixaDeCards({
 
     return (
         <div role="group" aria-label="Cards do escopo" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs text-[var(--snaps-text-secondary)]">Cards do escopo</span>
+            <button type="button" aria-expanded={true} onClick={onAlternar} className="mr-1 text-xs text-[var(--snaps-text-secondary)]">Cards do escopo</button>
             <button type="button" aria-pressed={filtro === null} onClick={() => onFiltrar(null)} className={chip(filtro === null)}>
                 Todos · {cards.length}
             </button>

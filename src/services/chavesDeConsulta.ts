@@ -34,7 +34,7 @@ export const chavesDeConsulta = {
     resumo: (id: string) => ['execucao', id, 'resumo'] as const,
     aba: (id: string, aba: string) => ['execucao', id, 'aba', aba] as const,
     atividade: (id: string, filtros: FiltrosDeAtividade) => ['execucao', id, 'atividade', filtros] as const,
-    prs: (id: string, repo: string, sha: string) => ['execucao', id, 'prs', repo, sha] as const,
+    prs: (id: string, repo: string, sha: string, prNumber?: number) => prNumber === undefined ? ['execucao', id, 'prs', repo, sha] as const : ['execucao', id, 'prs', repo, prNumber, sha] as const,
     /**
      * Os eventos de um nó TERMINAL, depois do replay único do stream (P13).
      * Voltar ao nó concluído mostra daqui, sem reabrir o stream. Fica no cache

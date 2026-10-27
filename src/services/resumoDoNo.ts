@@ -31,6 +31,7 @@ export interface PendenciaDoNo {
 }
 
 export interface AbaDoResumo {
+    versao?: string | null;
     total: number | null;
     motivo_vazio: string | null;
 }
@@ -109,7 +110,9 @@ export function comSessaoFechada(resumo: ResumoDoNo | undefined, inicio: string,
     };
 }
 
+export interface CondicaoDoNo { chave: string; estado: 'ok' | 'falta' | 'motor'; motivo: string | null; override: boolean }
 export interface ResumoDoNo {
+    condicoes?: CondicaoDoNo[] | null;
     pendencias: PendenciaDoNo[];
     abas: Record<string, AbaDoResumo>;
     atividade: ResumoDeAtividade;

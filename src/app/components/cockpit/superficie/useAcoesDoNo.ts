@@ -1,3 +1,4 @@
+import { useSessaoDoNo } from '../sessao/useSessaoDoNo';
 /**
  * As ações do nó no Cockpit novo, num hook só (P5). As abas, o cabeçalho e a
  * Conversa (TP-4) agem por aqui.
@@ -104,6 +105,7 @@ export interface OpcoesDasAcoes {
 }
 
 export function useAcoesDoNo(execution: NoDoHook | null, { podeOverride }: OpcoesDasAcoes = {}) {
+    const sessao=useSessaoDoNo();
     const cliente = useQueryClient();
     const { role, can } = useProjectRole();
     const [emAndamento, setEmAndamento] = useState<NomeDaAcao | null>(null);
@@ -120,6 +122,7 @@ export function useAcoesDoNo(execution: NoDoHook | null, { podeOverride }: Opcoe
     ): Promise<T> => {
         if (!execution) throw new Error('nenhum nó selecionado');
         if (!permitidas.has(nome)) throw new Error(`ação não permitida para o papel: ${nome}`);
+        const abrirSessao=sessao.capturarEscrita(execution.id);
         setEmAndamento(nome);
         const reler = (comArvore: boolean) => {
             const alvo: QueryKey[] = [chaves.resumo(execution.id), ...abas.map((a) => chaves.aba(execution.id, a))];
@@ -128,6 +131,7 @@ export function useAcoesDoNo(execution: NoDoHook | null, { podeOverride }: Opcoe
         };
         try {
             const resultado = await acao(execution);
+            if (!["avancar","rollback","override"].includes(nome)) await abrirSessao();
             await reler(mudaArvore);
             return resultado;
         } catch (erro) {
@@ -140,7 +144,7 @@ export function useAcoesDoNo(execution: NoDoHook | null, { podeOverride }: Opcoe
         } finally {
             setEmAndamento(null);
         }
-    }, [execution, permitidas, cliente, rootId]);
+    }, [execution, permitidas, cliente, rootId, sessao.capturarEscrita]);
 
     const acoes = useMemo(() => {
         /** Override humano das condições, com motivo obrigatório. Ponto único (X2). */
@@ -165,8 +169,8 @@ export function useAcoesDoNo(execution: NoDoHook | null, { podeOverride }: Opcoe
             });
 
         return {
-            avancar: () => executar('avancar', ['no'], true, (no) =>
-                advanceAgentExecution(no.id, undefined, undefined, undefined, false, no.lock_version)),
+            avancar: (revisao?: number) => executar('avancar', ['no'], true, (no) =>
+                advanceAgentExecution(no.id, undefined, undefined, undefined, false, revisao ?? no.lock_version)),
             rollback: (faseAlvo: string) => executar('rollback', ['no'], true, (no) =>
                 rollbackAgentExecution(no.id, faseAlvo, no.lock_version)),
             override,

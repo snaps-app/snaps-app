@@ -1,3 +1,4 @@
+import { limparLeituras } from './cockpitAbas';
 /**
  * O `QueryClient` único do app (ADR-0071, item 2).
  *
@@ -58,7 +59,10 @@ export function vincularCacheASessao(cliente: QueryClient, assinar: AssinarSessa
     let ultimo: string | null | undefined; // undefined: ainda não sabemos quem é
     const { data } = assinar((usuario) => {
         const atual = usuario?.id ?? null;
-        if (ultimo !== undefined && atual !== ultimo) cliente.clear();
+        if (ultimo !== undefined && atual !== ultimo) {
+            if (ultimo) limparLeituras(ultimo);
+            cliente.clear();
+        }
         ultimo = atual;
     });
     return () => data.subscription.unsubscribe();

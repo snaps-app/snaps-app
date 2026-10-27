@@ -382,7 +382,8 @@ describe('Cockpit montado', () => {
         abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
         const topo = await cabecalho();
         const timer = await within(topo).findByTestId('timer-da-execucao');
-        // A sessão de quem abriu o nó entra no total na hora (Play automático), sem buscar de novo.
+        // A sessão aberta pelo Play entra no total na hora, sem buscar de novo.
+        fireEvent.click(await within(topo).findByRole('button', { name: 'Iniciar sessão' }));
         await waitFor(() => expect(within(topo).getByRole('button', { name: 'Pausar sessão' })).toBeInTheDocument());
         await waitFor(() => expect(timer.textContent).toMatch(/^01:31:0\d/));
         const resumosAntes = apiFalsa.get.mock.calls.filter(([u]) => u === `/api/agent-executions/${EXEC_TP1}/resumo`).length;
@@ -406,9 +407,10 @@ describe('Cockpit montado', () => {
         expect(within(conversa()).getByText('Sessão de tempo fechada')).toBeInTheDocument();
     });
 
-    it('a sessão de quem abriu o nó: o session_started dela, que já está no total, não relê o /resumo (meta de 3)', async () => {
+    it('a sessão aberta por Play: o session_started dela, que já está no total, não relê o /resumo (meta de 3)', async () => {
         abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);
         const topo = await cabecalho();
+        fireEvent.click(await within(topo).findByRole('button', { name: 'Iniciar sessão' }));
         await waitFor(() => expect(within(topo).getByRole('button', { name: 'Pausar sessão' })).toBeInTheDocument());
         await waitFor(() => expect(streamFalso.abertas()).toHaveLength(1));
         await fimDoReplay();
@@ -490,4 +492,16 @@ describe('Cockpit montado', () => {
         expect(within(trilho).getByLabelText('ação sua pendente')).toBeInTheDocument();
         expect(JSON.parse(window.localStorage.getItem(chaveDoLayout('eu')) ?? '{}').recolhidos.superficie).toBe(true);
     });
+});
+
+it('recolher e abrir o cabeçalho não fecha nem reabre a sessão',async()=>{
+    abrir(`/cockpit/${RAIZ}?no=${EXEC_TP1}`);const topo=await cabecalho();
+    fireEvent.click(await within(topo).findByRole('button',{name:'Iniciar sessão'}));
+    await within(topo).findByRole('button',{name:'Pausar sessão'});
+    const inicios=apiFalsa.post.mock.calls.filter(([u])=>u.endsWith('/sessions/start')).length;
+    fireEvent.click(within(topo).getByRole('button',{name:'Recolher cabeçalho'}));
+    fireEvent.click(screen.getByRole('button',{name:'Expandir cabeçalho'}));
+    expect(await screen.findByRole('button',{name:'Pausar sessão'})).toBeInTheDocument();
+    expect(apiFalsa.post.mock.calls.filter(([u])=>u.endsWith('/sessions/start'))).toHaveLength(inicios);
+    expect(apiFalsa.patch.mock.calls.filter(([u])=>u.includes('/sessions/')&&u.endsWith('/end'))).toHaveLength(0);
 });
