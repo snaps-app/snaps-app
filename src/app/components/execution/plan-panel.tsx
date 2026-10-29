@@ -12,7 +12,9 @@ import {
     Loader2,
     Copy,
     Lock,
-    ShieldAlert
+    ShieldAlert,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { Tag } from '@/app/components/shared/tag';
 import { planApprovalState } from './plan-approval';
@@ -72,13 +74,20 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     somenteLeitura = false,
     pendencias,
 }) => {
-    const [abertos, setAbertos] = useState<Record<string,boolean>>({});
+    // Acordeão: um plano aberto por vez. `undefined` = ninguém escolheu ainda
+    // (vale o padrão); `null` = a pessoa fechou o que estava aberto.
+    const [escolhido, setEscolhido] = useState<string | null | undefined>(undefined);
     const rawPlans = execution.context_data?.plans || [];
     const sortedPlans = [...rawPlans].sort((a, b) => {
         const aOrder = a.execution_order !== undefined && a.execution_order !== null ? a.execution_order : 999999;
         const bOrder = b.execution_order !== undefined && b.execution_order !== null ? b.execution_order : 999999;
         return aOrder - bOrder;
     });
+    const temPendencia = (plan: any) => !!pendencias?.some(p => p.recurso_id === plan.id && ['plano_aguardando_aprovacao','aprovacao_invalidada'].includes(p.tipo));
+    // Abre primeiro o que pede ação minha; senão o plano ativo do nó; senão o primeiro.
+    const padrao = (sortedPlans.find(temPendencia) ?? sortedPlans.find(p => p.id === execution.plan_id) ?? sortedPlans[0])?.id ?? null;
+    const abertoId = escolhido === null ? null
+        : escolhido !== undefined && sortedPlans.some(p => p.id === escolhido) ? escolhido : padrao;
 
     return (
         <div className="space-y-8">
@@ -101,8 +110,8 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
             )}
             {sortedPlans.length > 0 ? (
                 sortedPlans.map((plan: any, index: number) => {
-                    const pendente = pendencias?.some(p => p.recurso_id === plan.id && ['plano_aguardando_aprovacao','aprovacao_invalidada'].includes(p.tipo));
-                    const aberto = (isEditingPlan && editingPlanId === plan.id) || (abertos[plan.id] ?? (pendencias === undefined || !!pendente));
+                    const aberto = (isEditingPlan && editingPlanId === plan.id) || plan.id === abertoId;
+                    const alternar = () => setEscolhido(aberto ? null : plan.id);
                     const isWaiting = isPlanWaiting(plan);
                     const isActive = plan.id === execution.plan_id;
                     const tooltipText = isWaiting 
@@ -122,7 +131,25 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                         >
                             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl -mr-16 -mt-16 group-hover/plan:bg-blue-500/10 transition-colors" />
 
-                            <div className="flex items-center gap-3 mb-6 relative z-10">
+                            <div
+                                data-testid={`cabecalho-plano-${plan.id}`}
+                                className={`flex items-center gap-3 relative z-10 cursor-pointer ${aberto ? 'mb-6' : ''}`}
+                                onClick={(e) => {
+                                    // Os botões e campos do cabeçalho fazem a própria ação.
+                                    if ((e.target as HTMLElement).closest('button, a, input, textarea')) return;
+                                    alternar();
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    aria-expanded={aberto}
+                                    aria-controls={`conteudo-plano-${plan.id}`}
+                                    aria-label={`${aberto ? 'Fechar' : 'Abrir'} plano ${plan.title}`}
+                                    onClick={alternar}
+                                    className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+                                >
+                                    {aberto ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                                </button>
                                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30 shrink-0">
                                     <FileText className="w-5 h-5 text-blue-400" />
                                 </div>
@@ -137,8 +164,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                                         />
                                     ) : (
                                         <h2 className="text-xl font-bold text-white leading-tight truncate flex items-center gap-2">
-                                            <button type="button" aria-expanded={aberto} aria-controls={`conteudo-plano-${plan.id}`}
-                                                onClick={() => setAbertos(a => ({...a,[plan.id]:!aberto}))}>{plan.title}</button>
+                                            <button type="button" aria-controls={`conteudo-plano-${plan.id}`}
+                                                className="min-w-0 truncate text-left hover:underline"
+                                                onClick={alternar}>{plan.title}</button>
                                             <span className="text-xs">{plan.status} · rev {plan.content_revision ?? 1}</span>
                                             <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30" title={`Ordem: ${index + 1} de ${sortedPlans.length}`}>
                                                 {index + 1}/{sortedPlans.length}
